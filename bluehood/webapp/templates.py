@@ -6,7 +6,7 @@ HTML_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BLUEHOOD // BT Reconnaissance Framework</title>
+    <title>BlueWatch</title>
     <style>
         :root {
             --bg-primary: #0d0d0d;
@@ -97,18 +97,21 @@ HTML_TEMPLATE = """
         }
 
         .brand-icon {
-            color: var(--accent-red);
-            font-size: 1.1rem;
+            color: var(--accent-blue);
+            width: 1.1rem;
+            height: 1.1rem;
         }
 
         .brand-text {
             font-weight: 700;
             font-size: 0.9rem;
             letter-spacing: 0.05em;
+            text-transform: uppercase;
+            color: var(--accent-blue);
         }
 
         .brand-text span {
-            color: var(--accent-red);
+            color: #ffffff;
         }
 
         .nav {
@@ -847,13 +850,11 @@ HTML_TEMPLATE = """
     <header class="topbar">
         <div class="topbar-left">
             <a href="/" class="brand">
-                <span class="brand-icon">◉</span>
-                <span class="brand-text">BLUE<span>HOOD</span></span>
+                <svg class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 7 10 10-5 5V2l5 5L7 17"/></svg>
+                <span class="brand-text">BLUE<span>WATCH</span></span>
             </a>
             <nav class="nav">
-                <a href="/" class="nav-link active">Recon</a>
-                <a href="/settings" class="nav-link">Config</a>
-                <a href="/about" class="nav-link">Intel</a>
+                <a href="/" class="nav-link active">Dashboard</a>
             </nav>
         </div>
         <div class="topbar-right">
@@ -2390,7 +2391,7 @@ SETTINGS_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BLUEHOOD // Configuration</title>
+    <title>BlueWatch</title>
     <style>
         :root {
             --bg-primary: #0d0d0d;
@@ -2411,9 +2412,9 @@ SETTINGS_TEMPLATE = """
         .topbar { background: var(--bg-secondary); border-bottom: 1px solid var(--border-color); padding: 0.5rem 1rem; display: flex; justify-content: space-between; align-items: center; }
         .topbar-left { display: flex; align-items: center; gap: 1.5rem; }
         .brand { display: flex; align-items: center; gap: 0.5rem; text-decoration: none; color: inherit; }
-        .brand-icon { color: var(--accent-red); font-size: 1.1rem; }
-        .brand-text { font-weight: 700; font-size: 0.9rem; letter-spacing: 0.05em; }
-        .brand-text span { color: var(--accent-red); }
+        .brand-icon { color: var(--accent-blue); width: 1.1rem; height: 1.1rem; }
+        .brand-text { font-weight: 700; font-size: 0.9rem; letter-spacing: 0.05em; text-transform: uppercase; color: var(--accent-blue); }
+        .brand-text span { color: #ffffff; }
         .nav { display: flex; gap: 0.25rem; }
         .nav-link { color: var(--text-secondary); text-decoration: none; font-size: 0.75rem; padding: 0.4rem 0.75rem; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.05em; transition: all 0.1s; }
         .nav-link:hover, .nav-link.active { color: var(--text-primary); background: var(--bg-tertiary); }
@@ -2471,11 +2472,9 @@ SETTINGS_TEMPLATE = """
 <body>
     <header class="topbar">
         <div class="topbar-left">
-            <a href="/" class="brand"><span class="brand-icon">◉</span><span class="brand-text">BLUE<span>HOOD</span></span></a>
+            <a href="/" class="brand"><svg class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 7 10 10-5 5V2l5 5L7 17"/></svg><span class="brand-text">BLUE<span>WATCH</span></span></a>
             <nav class="nav">
-                <a href="/" class="nav-link">Recon</a>
-                <a href="/settings" class="nav-link active">Config</a>
-                <a href="/about" class="nav-link">Intel</a>
+                <a href="/" class="nav-link">Dashboard</a>
             </nav>
         </div>
         <div><button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Toggle light/dark mode">☀</button></div>
@@ -2902,7 +2901,7 @@ ABOUT_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BLUEHOOD // Intel</title>
+    <title>BlueWatch</title>
     <style>
         :root {
             --bg-primary: #0d0d0d;
@@ -2922,9 +2921,9 @@ ABOUT_TEMPLATE = """
         .topbar { background: var(--bg-secondary); border-bottom: 1px solid var(--border-color); padding: 0.5rem 1rem; display: flex; justify-content: space-between; align-items: center; }
         .topbar-left { display: flex; align-items: center; gap: 1.5rem; }
         .brand { display: flex; align-items: center; gap: 0.5rem; text-decoration: none; color: inherit; }
-        .brand-icon { color: var(--accent-red); font-size: 1.1rem; }
-        .brand-text { font-weight: 700; font-size: 0.9rem; letter-spacing: 0.05em; }
-        .brand-text span { color: var(--accent-red); }
+        .brand-icon { color: var(--accent-blue); width: 1.1rem; height: 1.1rem; }
+        .brand-text { font-weight: 700; font-size: 0.9rem; letter-spacing: 0.05em; text-transform: uppercase; color: var(--accent-blue); }
+        .brand-text span { color: #ffffff; }
         .nav { display: flex; gap: 0.25rem; }
         .nav-link { color: var(--text-secondary); text-decoration: none; font-size: 0.75rem; padding: 0.4rem 0.75rem; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.05em; transition: all 0.1s; }
         .nav-link:hover, .nav-link.active { color: var(--text-primary); background: var(--bg-tertiary); }
@@ -2971,11 +2970,9 @@ ABOUT_TEMPLATE = """
 <body>
     <header class="topbar">
         <div class="topbar-left">
-            <a href="/" class="brand"><span class="brand-icon">◉</span><span class="brand-text">BLUE<span>HOOD</span></span></a>
+            <a href="/" class="brand"><svg class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 7 10 10-5 5V2l5 5L7 17"/></svg><span class="brand-text">BLUE<span>WATCH</span></span></a>
             <nav class="nav">
-                <a href="/" class="nav-link">Recon</a>
-                <a href="/settings" class="nav-link">Config</a>
-                <a href="/about" class="nav-link active">Intel</a>
+                <a href="/" class="nav-link">Dashboard</a>
             </nav>
         </div>
         <div><button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Toggle light/dark mode">☀</button></div>
@@ -3073,7 +3070,7 @@ LOGIN_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BLUEHOOD // Authentication Required</title>
+    <title>BlueWatch</title>
     <style>
         :root {
             --bg-primary: #0d0d0d;
