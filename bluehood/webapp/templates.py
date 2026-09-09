@@ -993,7 +993,7 @@ HTML_TEMPLATE = """
                             <th class="sortable" data-sort="identifier">Identifier<span class="sort-indicator"></span></th>
                             <th>RSSI</th>
                             <th class="sortable" data-sort="sightings">Sightings<span class="sort-indicator"></span></th>
-                            <th class="sortable" data-sort="last_seen">Last Contact<span class="sort-indicator"></span></th>
+                            <th class="sortable" data-sort="last_seen">Last seen<span class="sort-indicator"></span></th>
                             <th class="sortable" data-sort="group">Group<span class="sort-indicator"></span></th>
                         </tr>
                     </thead>
@@ -2014,7 +2014,7 @@ HTML_TEMPLATE = """
                 '<div class="detail-item"><div class="detail-label">Vendor OUI</div><div class="detail-value">' + (d.vendor || '—') + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">Proximity Zone</div><div class="detail-value" style="color: ' + proximityColor + '; ">' + proximityZone + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">First Contact</div><div class="detail-value mono">' + (d.first_seen ? new Date(d.first_seen).toLocaleString() : '—') + '</div></div>' +
-                '<div class="detail-item"><div class="detail-label">Last Contact</div><div class="detail-value mono">' + (d.last_seen ? new Date(d.last_seen).toLocaleString() : '—') + '</div></div>' +
+                '<div class="detail-item"><div class="detail-label">Last seen</div><div class="detail-value mono">' + (d.last_seen ? new Date(d.last_seen).toLocaleString() : '—') + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">Total Sightings</div><div class="detail-value highlight">' + d.total_sightings + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">Signal Strength</div><div class="detail-value">' + rssiDisplay + '</div></div>' +
                 '<div class="detail-item full"><div class="detail-label">Behavioral Pattern</div><div class="detail-value">' + (data.pattern || 'Insufficient data') + '</div></div>' +
