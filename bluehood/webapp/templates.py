@@ -566,6 +566,15 @@ HTML_TEMPLATE = """
         }
 
         /* Device Type Badge */
+        .identity-badge {
+            display: inline-block;
+            padding: 0.05rem 0.4rem;
+            border-radius: 8px;
+            font-size: 0.65rem;
+            background: var(--accent-blue);
+            color: white;
+        }
+
         .type-badge {
             display: inline-flex;
             align-items: center;
@@ -574,7 +583,7 @@ HTML_TEMPLATE = """
             border-radius: 2px;
             font-size: 0.7rem;
             font-weight: 500;
-            
+
             letter-spacing: 0.05em;
         }
 
@@ -969,6 +978,7 @@ HTML_TEMPLATE = """
                             <option value="off">Watch OFF</option>
                         </select>
                         <button class="btn" id="bulk-watch-apply" onclick="applyBulkWatch()">Apply Watch</button>
+                        <button class="btn" id="bulk-merge-apply" onclick="applyBulkMerge()" title="Cluster the selected MAC-rotation siblings into one device">Merge as One Device</button>
                         <button class="btn" id="clear-selection-btn" onclick="clearSelection()">Clear Selection</button>
                         <button class="btn" onclick="resetSort()">Reset Sort</button>
                     </div>
@@ -1027,9 +1037,6 @@ HTML_TEMPLATE = """
         </main>
     </div>
 
-    <footer class="footer">
-        BlueWatch v0.1beta
-    </footer>
 
     <!-- Target Detail Modal -->
     <div class="modal-overlay" id="device-modal">
@@ -1918,7 +1925,9 @@ HTML_TEMPLATE = """
                     '<td><span class="type-badge ' + typeClass + '">' + watchedStar + d.type_icon + ' ' + d.type_label + '</span></td>' +
                     '<td class="vendor-name">' + (d.vendor || '—') + '</td>' +
                     '<td class="mac-addr" title="' + d.mac + '">' + (isMacOSUUID(d.mac) ? obfuscateMAC(d.mac).substring(0, 13) + '...' : obfuscateMAC(d.mac)) + '</td>' +
-                    '<td class="device-name">' + (d.friendly_name ? obfuscateName(d.friendly_name) : '—') + '</td>' +
+                    '<td class="device-name">' + (d.friendly_name ? obfuscateName(d.friendly_name) : '—') +
+                    (d.identity_mac_count > 1 ? ' <span class="identity-badge" title="' + d.identity_mac_count + ' MAC addresses clustered as one device (rotation)">×' + d.identity_mac_count + '</span>' : '') +
+                    '</td>' +
                     '<td class="rssi-value">' + (d.last_rssi != null ? d.last_rssi + ' dBm' : '—') + '</td>' +
                     '<td class="sighting-count">' + d.total_sightings + '</td>' +
                     '<td class="last-seen ' + (isRecent ? 'recent' : '') + '" title="' + lastSeenTooltip + '">' + lastSeen + '</td>' +
@@ -2033,11 +2042,44 @@ HTML_TEMPLATE = """
                 '<div class="heatmap-title">Signal History (7d)</div>' +
                 '<div class="rssi-chart" id="rssi-chart"><div style="color: var(--text-muted); font-size: 0.75rem; text-align: center; padding-top: 1.5rem;">Loading...</div></div>' +
                 '</div>' +
+                (d.identity_id ? (
+                    '<div class="heatmap-section">' +
+                    '<div class="heatmap-title">Known MAC Addresses (' + (d.identity_mac_count || 1) + ', tracking for rotation-vs-separate-devices pattern)</div>' +
+                    '<div id="identity-macs" class="heatmap">Loading...</div>' +
+                    '</div>'
+                ) : '') +
                 '';
 
             loadRssiChart(d.mac);
             loadDwellStats(d.mac);
             loadGroupsForDevice(d.group_id);
+            if (d.identity_id) loadIdentityMacs(d.identity_id, d.mac);
+        }
+
+        async function loadIdentityMacs(identityId, currentMac) {
+            const el = document.getElementById('identity-macs');
+            if (!el) return;
+            try {
+                const res = await fetch('/api/identity/' + identityId + '/macs');
+                const data = await res.json();
+                el.innerHTML = (data.macs || []).map(m =>
+                    '<div style="display:flex; justify-content:space-between; align-items:center; padding:0.3rem 0; border-bottom:1px solid var(--border-color); font-size:0.75rem; gap:0.5rem;">' +
+                    '<span class="mono">' + m.mac + (m.mac === currentMac ? ' (current)' : '') + '</span>' +
+                    '<span style="color:var(--text-muted);">first ' + (m.first_seen ? new Date(m.first_seen).toLocaleString() : '—') + '</span>' +
+                    '<span style="color:var(--text-muted);">last ' + (m.last_seen ? new Date(m.last_seen).toLocaleString() : '—') + '</span>' +
+                    '<span style="color:var(--text-muted);">' + m.total_sightings + ' sightings</span>' +
+                    '<button class="btn" style="padding:0.1rem 0.4rem; font-size:0.65rem;" onclick="unmergeAndRefresh(\\'' + m.mac + '\\')">Unmerge</button>' +
+                    '</div>'
+                ).join('');
+            } catch (e) {
+                el.textContent = 'Failed to load';
+            }
+        }
+
+        async function unmergeAndRefresh(mac) {
+            await fetch('/api/device/' + encodeURIComponent(mac) + '/unmerge', { method: 'POST' });
+            await refreshDevices();
+            showDevice(mac);
         }
 
         let cachedGroups = [];
@@ -2087,6 +2129,39 @@ HTML_TEMPLATE = """
                 });
                 refreshDevices();
             } catch (error) { console.error('Error setting group:', error); }
+        }
+
+        async function applyBulkMerge() {
+            const macs = Array.from(selectedMacs);
+            if (macs.length < 2) {
+                alert('Select at least 2 devices to merge as one.');
+                return;
+            }
+            const deviceMap = new Map(allDevices.map(d => [d.mac, d]));
+            const names = new Set(macs.map(m => (deviceMap.get(m) || {}).friendly_name).filter(Boolean));
+            let name;
+            if (names.size === 1) {
+                name = [...names][0];
+            } else {
+                name = prompt(
+                    names.size > 1
+                        ? 'Selected devices have different names (' + [...names].join(', ') + '). Name for the merged device:'
+                        : 'Name for the merged device:',
+                    ''
+                );
+                if (!name) return;
+            }
+            try {
+                await fetch('/api/devices/merge', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ macs, name }),
+                });
+                clearSelection();
+                await refreshDevices();
+            } catch (error) {
+                console.error('Error merging devices:', error);
+            }
         }
 
         async function applyBulkGroup() {
@@ -2835,7 +2910,7 @@ SETTINGS_TEMPLATE = """
         </div>
     </main>
 
-    <footer class="footer">BlueWatch v0.1beta</footer>
+    
 
     <script>
         function applyTheme(theme) {
@@ -3206,7 +3281,7 @@ ABOUT_TEMPLATE = """
         <div class="version">v0.5.0 // BUILD 2026.01</div>
     </main>
 
-    <footer class="footer">BlueWatch v0.1beta</footer>
+    
 
     <script>
         function applyTheme(theme) {

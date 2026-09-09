@@ -76,6 +76,9 @@ class WebServer:
         self.app.router.add_post("/api/device/{mac}/watch", self.api_toggle_watch)
         self.app.router.add_post("/api/device/{mac}/group", self.api_set_device_group)
         self.app.router.add_post("/api/device/{mac}/notify", self.api_set_device_notify)
+        self.app.router.add_post("/api/devices/merge", self.api_merge_devices)
+        self.app.router.add_post("/api/device/{mac}/unmerge", self.api_unmerge_device)
+        self.app.router.add_get("/api/identity/{identity_id}/macs", self.api_identity_macs)
         self.app.router.add_post("/api/device/{mac}/name", self.api_set_device_name)
         self.app.router.add_get("/api/device/{mac}/rssi", self.api_device_rssi)
         self.app.router.add_get("/api/device/{mac}/dwell", self.api_device_dwell)
@@ -250,6 +253,10 @@ class WebServer:
                 "notify_arrive_expires_at": (d.notify_arrive_expires_at.isoformat() + "Z") if d.notify_arrive_expires_at else None,
                 "notify_depart": d.notify_depart,
                 "notify_depart_expires_at": (d.notify_depart_expires_at.isoformat() + "Z") if d.notify_depart_expires_at else None,
+                "identity_id": d.identity_id,
+                "identity_mac_count": d.identity_mac_count,
+                "identity_total_sightings": d.identity_total_sightings,
+                "identity_first_seen": (d.identity_first_seen.isoformat() + "Z") if d.identity_first_seen else None,
             })
 
         total_pages = max(1, math.ceil(total / page_size)) if total else 1
@@ -602,6 +609,58 @@ class WebServer:
             return web.json_response({"mac": mac, "event": event, "mode": mode, "hours": hours})
         except Exception as e:
             return web.json_response({"error": str(e)}, status=400)
+
+    async def api_merge_devices(self, request: web.Request) -> web.Response:
+        """Merge several MAC addresses (believed to be one physical device
+        rotating its BLE address) into a single identity, shown as one row
+        in the device list. Reuses an existing identity of the same name if
+        one already exists rather than creating a duplicate cluster.
+
+        Body: {"macs": ["AA:BB:...", ...], "name": "P mesh"}
+        """
+        try:
+            data = await request.json()
+            macs = data.get("macs") or []
+            name = (data.get("name") or "").strip()
+            if not macs or not name:
+                return web.json_response({"error": "macs (non-empty list) and name are required"}, status=400)
+            identity_id = await db.merge_devices_into_identity(macs, name)
+            return web.json_response({"identity_id": identity_id, "name": name, "macs": macs})
+        except Exception as e:
+            return web.json_response({"error": str(e)}, status=400)
+
+    async def api_unmerge_device(self, request: web.Request) -> web.Response:
+        """Detach one MAC from its identity cluster (it goes back to being
+        its own row)."""
+        mac = request.match_info["mac"]
+        try:
+            await db.unmerge_device(mac)
+            return web.json_response({"mac": mac, "status": "ok"})
+        except Exception as e:
+            return web.json_response({"error": str(e)}, status=400)
+
+    async def api_identity_macs(self, request: web.Request) -> web.Response:
+        """Every MAC address (with its own first/last-seen and sighting
+        count) ever clustered under this identity -- the "click to see all
+        MACs" drill-down."""
+        try:
+            identity_id = int(request.match_info["identity_id"])
+        except ValueError:
+            return web.json_response({"error": "invalid identity id"}, status=400)
+        members = await db.get_identity_members(identity_id)
+        return web.json_response({
+            "identity_id": identity_id,
+            "macs": [
+                {
+                    "mac": m.mac,
+                    "vendor": m.vendor,
+                    "first_seen": (m.first_seen.isoformat() + "Z") if m.first_seen else None,
+                    "last_seen": (m.last_seen.isoformat() + "Z") if m.last_seen else None,
+                    "total_sightings": m.total_sightings,
+                }
+                for m in members
+            ],
+        })
 
     async def api_set_device_name(self, request: web.Request) -> web.Response:
         """Set the friendly name for a device."""

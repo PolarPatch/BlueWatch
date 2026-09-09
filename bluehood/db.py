@@ -42,6 +42,10 @@ class Device:
     notify_depart: Optional[str] = None
     notify_depart_expires_at: Optional[datetime] = None
     last_rssi: Optional[int] = None  # RSSI of the most recent sighting (not a persisted column -- joined in per-query)
+    identity_id: Optional[int] = None  # Links MAC-rotation siblings sharing an advertised name into one logical device
+    identity_mac_count: Optional[int] = None  # Not persisted -- joined in per-query when identity_id is set
+    identity_total_sightings: Optional[int] = None  # Not persisted -- SUM(total_sightings) across the identity's MACs
+    identity_first_seen: Optional[datetime] = None  # Not persisted -- MIN(first_seen) across the identity's MACs
 
     def __post_init__(self):
         if self.service_uuids is None:
@@ -124,8 +128,15 @@ CREATE TABLE IF NOT EXISTS settings (
     value TEXT
 );
 
+CREATE TABLE IF NOT EXISTS identities (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE INDEX IF NOT EXISTS idx_sightings_mac_time ON sightings(mac, timestamp);
 CREATE INDEX IF NOT EXISTS idx_sightings_timestamp ON sightings(timestamp);
+CREATE INDEX IF NOT EXISTS idx_identities_name ON identities(name COLLATE NOCASE);
 """
 
 _CANONICAL_MAC_GLOB = (
@@ -293,6 +304,7 @@ async def init_db() -> None:
             ("notify_arrive_expires_at", "TIMESTAMP"),
             ("notify_depart", "TEXT"),
             ("notify_depart_expires_at", "TIMESTAMP"),
+            ("identity_id", "INTEGER REFERENCES identities(id)"),
         ]
 
         for column, column_type in migrations:
@@ -354,6 +366,13 @@ def _parse_device_row(row) -> Device:
             if "notify_depart_expires_at" in keys and row["notify_depart_expires_at"] else None
         ),
         last_rssi=row["last_rssi"] if "last_rssi" in keys else None,
+        identity_id=row["identity_id"] if "identity_id" in keys else None,
+        identity_mac_count=row["identity_mac_count"] if "identity_mac_count" in keys else None,
+        identity_total_sightings=row["identity_total_sightings"] if "identity_total_sightings" in keys else None,
+        identity_first_seen=(
+            datetime.fromisoformat(row["identity_first_seen"])
+            if "identity_first_seen" in keys and row["identity_first_seen"] else None
+        ),
     )
 
 
@@ -382,6 +401,16 @@ async def get_all_devices(include_ignored: bool = True) -> list[Device]:
         async with db.execute(query) as cursor:
             rows = await cursor.fetchall()
             return [_parse_device_row(row) for row in rows]
+
+
+def _is_randomized_mac(mac: str) -> bool:
+    """Python-side equivalent of _randomized_mac_sql, for call sites (like
+    upsert_device's auto-attach check) that already have the value in hand
+    and don't need a SQL round-trip."""
+    parts = mac.split(":")
+    if len(parts) != 6 or any(len(p) != 2 for p in parts):
+        return False
+    return parts[0][1].lower() in _RANDOMIZED_SECOND_NIBBLES
 
 
 def _randomized_mac_sql(column: str) -> str:
@@ -428,6 +457,20 @@ def _build_device_query_filters(
         placeholders = ", ".join("?" for _ in group_ids)
         conditions.append(f"d.group_id IN ({placeholders})")
         params.extend(group_ids)
+    else:
+        # No explicit category selected -- the main list is the triage
+        # queue, so once a device has been sorted into any category it
+        # drops out of here and only shows up under that category.
+        conditions.append("d.group_id IS NULL")
+
+    # Collapse identity-clustered MAC-rotation siblings to a single
+    # representative row (the most recently seen MAC in the group) --
+    # devices with no identity_id are unaffected.
+    conditions.append(
+        "(d.identity_id IS NULL OR d.mac = ("
+        "SELECT mac FROM devices d2 WHERE d2.identity_id = d.identity_id "
+        "ORDER BY d2.last_seen DESC, d2.mac DESC LIMIT 1))"
+    )
 
     search_value = (search or "").strip()
     if search_value:
@@ -495,7 +538,10 @@ async def get_devices_page(
         page_params = [*params, safe_page_size, offset]
         async with db.execute(
             f"""SELECT d.*,
-                (SELECT s.rssi FROM sightings s WHERE s.mac = d.mac ORDER BY s.timestamp DESC LIMIT 1) AS last_rssi
+                (SELECT s.rssi FROM sightings s WHERE s.mac = d.mac ORDER BY s.timestamp DESC LIMIT 1) AS last_rssi,
+                (SELECT COUNT(*) FROM devices d2 WHERE d2.identity_id = d.identity_id) AS identity_mac_count,
+                (SELECT SUM(d2.total_sightings) FROM devices d2 WHERE d2.identity_id = d.identity_id) AS identity_total_sightings,
+                (SELECT MIN(d2.first_seen) FROM devices d2 WHERE d2.identity_id = d.identity_id) AS identity_first_seen
                 {base_query}{where_clause}{order_clause} LIMIT ? OFFSET ?""",
             page_params,
         ) as cursor:
@@ -752,6 +798,25 @@ async def upsert_device(
                 """,
                 (mac, vendor, friendly_name, now.isoformat(), now.isoformat(), uuids_json, bt_type, device_class)
             )
+
+            # Auto-attach to an existing identity: a brand-new randomized-MAC
+            # device that advertises a name already clustered under an
+            # identity is, in all likelihood, that same physical device
+            # having rotated its address again. Non-randomized MACs are
+            # deliberately excluded -- a shared name on a fixed/vendor MAC is
+            # just as likely to be a genuinely different unit of the same
+            # product, not a rotation of one physical device.
+            if friendly_name and _is_randomized_mac(mac):
+                async with db.execute(
+                    "SELECT id FROM identities WHERE name = ? COLLATE NOCASE",
+                    (friendly_name,),
+                ) as cursor:
+                    identity_row = await cursor.fetchone()
+                if identity_row:
+                    await db.execute(
+                        "UPDATE devices SET identity_id = ? WHERE mac = ?",
+                        (identity_row["id"], mac),
+                    )
 
         # Record sighting
         await db.execute(
@@ -1332,6 +1397,77 @@ async def get_devices_by_group(group_id: int) -> list[Device]:
         async with db.execute(
             "SELECT * FROM devices WHERE group_id = ? ORDER BY last_seen DESC",
             (group_id,)
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [_parse_device_row(row) for row in rows]
+
+
+# ============================================================================
+# Identities (MAC-rotation clustering)
+# ============================================================================
+#
+# BLE privacy addressing means a single physical device (an iPhone's Find My
+# relay, a mesh node, etc.) resurfaces as a brand-new MAC every ~15 minutes.
+# An "identity" groups several MAC addresses that are (almost certainly) the
+# same physical device -- created by merging devices that share an advertised
+# name, after which any NEW device sharing that same name gets auto-attached
+# on first sighting (see upsert_device) so the clustering keeps working
+# without the user re-merging every rotation forever.
+
+async def find_identity_by_name(name: str) -> Optional[int]:
+    """Case-insensitive exact-name lookup, used both by the manual merge
+    endpoint (reuse an existing identity instead of creating a duplicate)
+    and by the auto-attach path in upsert_device."""
+    async with _connect() as db:
+        async with db.execute(
+            "SELECT id FROM identities WHERE name = ? COLLATE NOCASE", (name,)
+        ) as cursor:
+            row = await cursor.fetchone()
+            return row[0] if row else None
+
+
+async def merge_devices_into_identity(macs: list[str], name: str) -> int:
+    """Merge the given MAC addresses into one identity, named `name`. Reuses
+    an existing identity with that exact (case-insensitive) name if one
+    exists, rather than creating a duplicate -- so merging a newly-noticed
+    rotation sibling into an already-clustered name just extends the same
+    identity. Returns the identity id."""
+    if not macs:
+        raise ValueError("no MAC addresses given")
+
+    identity_id = await find_identity_by_name(name)
+    async with _connect() as db:
+        if identity_id is None:
+            cursor = await db.execute(
+                "INSERT INTO identities (name) VALUES (?)", (name,)
+            )
+            identity_id = cursor.lastrowid
+        placeholders = ", ".join("?" for _ in macs)
+        await db.execute(
+            f"UPDATE devices SET identity_id = ? WHERE mac IN ({placeholders})",
+            [identity_id, *macs],
+        )
+        await db.commit()
+    return identity_id
+
+
+async def unmerge_device(mac: str) -> None:
+    """Detach a single MAC from whatever identity it's in (does not delete
+    the identity itself, even if this was its last member -- an empty
+    identity is harmless and simply won't match anything)."""
+    async with _connect() as db:
+        await db.execute("UPDATE devices SET identity_id = NULL WHERE mac = ?", (mac,))
+        await db.commit()
+
+
+async def get_identity_members(identity_id: int) -> list[Device]:
+    """Every MAC address ever attached to this identity, most recently seen
+    first -- powers the "click to see all MACs" drill-down."""
+    async with _connect() as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT * FROM devices WHERE identity_id = ? ORDER BY last_seen DESC",
+            (identity_id,),
         ) as cursor:
             rows = await cursor.fetchall()
             return [_parse_device_row(row) for row in rows]
