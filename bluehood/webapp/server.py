@@ -172,6 +172,23 @@ class WebServer:
         sort_column = request.query.get("sort", "last_seen")
         sort_direction = request.query.get("direction", "desc")
 
+        groups = await db.get_groups()
+        group_lookup = {g.id: g for g in groups}
+
+        # A category filter includes the category's own id plus its direct
+        # subcategories -- clicking a top-level category like "Home" should
+        # also surface devices filed under a subcategory such as "IoT".
+        group_ids = None
+        raw_group_id = request.query.get("group_id")
+        if raw_group_id:
+            try:
+                target_group_id = int(raw_group_id)
+                group_ids = [target_group_id] + [
+                    g.id for g in groups if g.parent_id == target_group_id
+                ]
+            except ValueError:
+                pass
+
         devices, total = await db.get_devices_page(
             page=page,
             page_size=page_size,
@@ -181,10 +198,9 @@ class WebServer:
             sort_column=sort_column,
             sort_direction=sort_direction,
             exclude_randomized=True,
+            group_ids=group_ids,
         )
         stats = await db.get_dashboard_stats(include_ignored=True)
-        groups = await db.get_groups()
-        group_lookup = {g.id: g for g in groups}
 
         total_pages = max(1, math.ceil(total / page_size)) if total else 1
         if total > 0 and page > total_pages:
@@ -197,6 +213,7 @@ class WebServer:
                 search=search,
                 sort_column=sort_column,
                 sort_direction=sort_direction,
+                group_ids=group_ids,
                 exclude_randomized=True,
             )
 

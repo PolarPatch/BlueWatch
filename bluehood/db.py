@@ -398,8 +398,14 @@ def _build_device_query_filters(
     device_filter: str,
     search: Optional[str],
     exclude_randomized: bool,
+    group_ids: Optional[list] = None,
 ) -> tuple[str, list]:
-    """Build WHERE clause and parameters for device list queries."""
+    """Build WHERE clause and parameters for device list queries.
+
+    group_ids, when given, restricts to devices whose group_id is in that
+    set -- callers filtering by a category should pass that category's id
+    plus its direct subcategories' ids so a click on a top-level category
+    also picks up devices filed under its subcategories."""
     conditions: list[str] = []
     params: list = []
 
@@ -417,6 +423,11 @@ def _build_device_query_filters(
         placeholders = ", ".join("?" for _ in filter_types)
         conditions.append(f"COALESCE(d.device_type, 'unknown') IN ({placeholders})")
         params.extend(filter_types)
+
+    if group_ids:
+        placeholders = ", ".join("?" for _ in group_ids)
+        conditions.append(f"d.group_id IN ({placeholders})")
+        params.extend(group_ids)
 
     search_value = (search or "").strip()
     if search_value:
@@ -450,6 +461,7 @@ async def get_devices_page(
     sort_column: str = "last_seen",
     sort_direction: str = "desc",
     exclude_randomized: bool = True,
+    group_ids: Optional[list] = None,
 ) -> tuple[list[Device], int]:
     """Get a single page of devices and total count for the current query."""
     safe_page = max(1, page)
@@ -464,6 +476,7 @@ async def get_devices_page(
         device_filter=device_filter,
         search=search,
         exclude_randomized=exclude_randomized,
+        group_ids=group_ids,
     )
 
     base_query = "FROM devices d LEFT JOIN device_groups g ON g.id = d.group_id"

@@ -196,6 +196,10 @@ HTML_TEMPLATE = """
             border-right: 1px solid var(--border-color);
             padding: 1rem;
             overflow-y: auto;
+            position: sticky;
+            top: 45px;
+            height: calc(100vh - 45px);
+            align-self: start;
         }
 
         .panel {
@@ -261,6 +265,7 @@ HTML_TEMPLATE = """
             font-size: 0.78rem;
         }
         .category-node:hover { background: var(--bg-tertiary); }
+        .category-node.active { background: var(--bg-tertiary); box-shadow: inset 2px 0 0 var(--accent-blue); }
         .category-node.category-drop-target { outline: 2px dashed var(--accent-blue); outline-offset: -2px; }
         .category-children { margin-left: 1.1rem; border-left: 1px solid var(--border-color); }
         .category-label { flex: 1; }
@@ -927,13 +932,6 @@ HTML_TEMPLATE = """
                 </div>
             </div>
 
-            <div class="panel">
-                <div class="panel-header">Display</div>
-                <button class="filter-btn" id="view-toggle" onclick="toggleViewMode()" style="width: 100%; justify-content: center;">
-                    ☰ Compact View
-                </button>
-            </div>
-
             <div class="panel" id="categories-panel">
                 <div class="panel-header">Categories</div>
                 <div id="categories-tree" style="padding: 0.5rem;"></div>
@@ -1097,6 +1095,7 @@ HTML_TEMPLATE = """
 
         let allDevices = [];
         let currentFilter = 'all';
+        let currentGroupId = null;
         let dateFilteredDevices = null;
         let compactView = localStorage.getItem('bluehood_compact_view') === 'true';
         let screenshotMode = localStorage.getItem('bluehood_screenshot_mode') === 'true';
@@ -1129,6 +1128,7 @@ HTML_TEMPLATE = """
             params.set('page', pagination.page);
             params.set('page_size', pagination.pageSize);
             params.set('filter', currentFilter);
+            if (currentGroupId !== null) params.set('group_id', currentGroupId);
             params.set('sort', sortState.column);
             params.set('direction', getServerSortDirection());
 
@@ -1323,10 +1323,19 @@ HTML_TEMPLATE = """
                 const res = await fetch('/api/groups');
                 const data = await res.json();
                 categoriesCache = data.groups || [];
+                cachedGroups = categoriesCache;  // single source of truth -- see loadGroupsForDevice/loadGroupsForBulkSelect
                 renderCategoryTree();
             } catch (e) {
                 console.error('Failed to load categories:', e);
             }
+        }
+
+        function groupOptionLabel(g) {
+            if (g.parent_id) {
+                const parent = cachedGroups.find(p => p.id === g.parent_id);
+                return (parent ? parent.name + ' › ' : '') + g.name;
+            }
+            return g.name;
         }
 
         function renderCategoryTree() {
@@ -1345,18 +1354,33 @@ HTML_TEMPLATE = """
             const childrenHtml = children.length
                 ? '<div class="category-children">' + children.map(c => renderCategoryNode(c)).join('') + '</div>'
                 : '';
+            const isActive = currentGroupId === group.id;
             return (
-                '<div class="category-node" draggable="true" data-id="' + group.id + '" ' +
+                '<div class="category-node' + (isActive ? ' active' : '') + '" draggable="true" data-id="' + group.id + '" ' +
                 'ondragstart="onCategoryDragStart(event, ' + group.id + ')" ' +
                 'ondragover="onCategoryDragOver(event)" ' +
                 'ondragleave="onCategoryDragLeave(event)" ' +
                 'ondrop="onCategoryDrop(event, ' + group.id + ')">' +
-                '<span class="category-label" style="color:' + (group.color || '#3b82f6') + '" title="Drag onto another category to nest it as a subcategory">' +
+                '<span class="category-label" style="color:' + (group.color || '#3b82f6') + '" onclick="selectCategory(' + group.id + ')" title="Click to show only this category\\'s devices, drag onto another category to nest it as a subcategory">' +
                 (group.icon || '📁') + ' ' + escapeHtml(group.name) +
                 '</span>' +
                 '<button class="category-delete" onclick="deleteCategory(' + group.id + ')" title="Delete category">×</button>' +
                 '</div>' + childrenHtml
             );
+        }
+
+        function selectCategory(groupId) {
+            currentGroupId = (currentGroupId === groupId) ? null : groupId;
+            currentFilter = 'all';
+            document.querySelectorAll('.filter-btn[data-filter]').forEach(b => b.classList.remove('active'));
+            if (currentGroupId === null) {
+                document.querySelector('.filter-btn[data-filter="all"]').classList.add('active');
+            }
+            renderCategoryTree();
+            selectedMacs.clear();
+            lastSelectedIndex = null;
+            pagination.page = 1;
+            refreshDevices();
         }
 
         function escapeHtml(s) {
@@ -1393,9 +1417,17 @@ HTML_TEMPLATE = """
         }
 
         let draggedCategoryId = null;
+        let draggedDeviceMac = null;
 
         function onCategoryDragStart(event, groupId) {
             draggedCategoryId = groupId;
+            draggedDeviceMac = null;
+            event.dataTransfer.effectAllowed = 'move';
+        }
+
+        function onDeviceDragStart(event, mac) {
+            draggedDeviceMac = mac;
+            draggedCategoryId = null;
             event.dataTransfer.effectAllowed = 'move';
         }
 
@@ -1410,7 +1442,25 @@ HTML_TEMPLATE = """
 
         async function onCategoryDrop(event, targetGroupId) {
             event.preventDefault();
+            event.stopPropagation();
             event.currentTarget.classList.remove('category-drop-target');
+
+            if (draggedDeviceMac !== null) {
+                const mac = draggedDeviceMac;
+                draggedDeviceMac = null;
+                try {
+                    await fetch('/api/device/' + encodeURIComponent(mac) + '/group', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ group_id: targetGroupId }),
+                    });
+                    await refreshDevices();
+                } catch (e) {
+                    console.error('Failed to assign device to category:', e);
+                }
+                return;
+            }
+
             if (draggedCategoryId === null || draggedCategoryId === targetGroupId) return;
             try {
                 const res = await fetch('/api/groups/' + draggedCategoryId + '/reparent', {
@@ -1852,7 +1902,7 @@ HTML_TEMPLATE = """
                     if (!d.friendly_name && !d.vendor && isMacOSUUID(d.mac)) {
                         displayName = displayName.substring(0, 13) + '...';
                     }
-                    return '<tr class="' + rowClass + '" onclick="handleRowClick(event, \\'' + d.mac + '\\', ' + index + ')" ondblclick="showDevice(\\'' + d.mac + '\\')" style="height: auto;">' +
+                    return '<tr class="' + rowClass + '" draggable="true" ondragstart="onDeviceDragStart(event, \\'' + d.mac + '\\')" onclick="handleRowClick(event, \\'' + d.mac + '\\', ' + index + ')" ondblclick="showDevice(\\'' + d.mac + '\\')" style="height: auto;">' +
                         '<td class="select-col"><input type="checkbox" class="row-select-checkbox" ' + checkedAttr + ' onclick="toggleRowCheckbox(event, \\'' + d.mac + '\\', ' + index + ')"></td>' +
                         '<td style="padding: 0.4rem 0.5rem;"><span class="type-badge ' + typeClass + '" style="font-size: 0.65rem; padding: 0.15rem 0.4rem;">' + watchedStar + d.type_icon + '</span></td>' +
                         '<td colspan="3" style="padding: 0.4rem 0.5rem; font-size: 0.75rem;">' + displayName + '</td>' +
@@ -1863,7 +1913,7 @@ HTML_TEMPLATE = """
                         '</tr>';
                 }
 
-                return '<tr class="' + rowClass + '" onclick="handleRowClick(event, \\'' + d.mac + '\\', ' + index + ')" ondblclick="showDevice(\\'' + d.mac + '\\')">' +
+                return '<tr class="' + rowClass + '" draggable="true" ondragstart="onDeviceDragStart(event, \\'' + d.mac + '\\')" onclick="handleRowClick(event, \\'' + d.mac + '\\', ' + index + ')" ondblclick="showDevice(\\'' + d.mac + '\\')">' +
                     '<td class="select-col"><input type="checkbox" class="row-select-checkbox" ' + checkedAttr + ' onclick="toggleRowCheckbox(event, \\'' + d.mac + '\\', ' + index + ')"></td>' +
                     '<td><span class="type-badge ' + typeClass + '">' + watchedStar + d.type_icon + ' ' + d.type_label + '</span></td>' +
                     '<td class="vendor-name">' + (d.vendor || '—') + '</td>' +
@@ -1983,25 +2033,10 @@ HTML_TEMPLATE = """
                 '<div class="heatmap-title">Signal History (7d)</div>' +
                 '<div class="rssi-chart" id="rssi-chart"><div style="color: var(--text-muted); font-size: 0.75rem; text-align: center; padding-top: 1.5rem;">Loading...</div></div>' +
                 '</div>' +
-                '<div class="heatmap-section">' +
-                '<div class="heatmap-title" style="display: flex; justify-content: space-between; align-items: center; gap: 0.5rem;">' +
-                '<span>Correlated Devices</span>' +
-                '<span style="font-weight: normal; font-size: 0.65rem; color: var(--text-muted); display: flex; align-items: center; gap: 0.3rem;">' +
-                'gap <input id="corr-gap" type="number" min="1" max="240" value="15" title="Idle minutes that end a presence session" onchange="reloadCorrelated()" style="width: 44px; background: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 3px; padding: 1px 3px; font-size: 0.65rem;">m' +
-                ' · sync ±<input id="corr-edge" type="number" min="1" max="120" value="5" title="Tolerance (minutes) for matching arrivals and departures" onchange="reloadCorrelated()" style="width: 44px; background: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 3px; padding: 1px 3px; font-size: 0.65rem;">m' +
-                '</span>' +
-                '</div>' +
-                '<div id="correlated-devices" class="heatmap"><div style="color: var(--text-muted);">Loading...</div></div>' +
-                '</div>' +
-                '<div class="heatmap-section">' +
-                '<div class="heatmap-title">Likely Same Device (MAC rotation)</div>' +
-                '<div id="rotation-candidates" class="heatmap"><div style="color: var(--text-muted);">Loading...</div></div>' +
-                '</div>';
+                '';
 
             loadRssiChart(d.mac);
             loadDwellStats(d.mac);
-            loadCorrelatedDevices(d.mac);
-            loadRotationCandidates(d.mac);
             loadGroupsForDevice(d.group_id);
         }
 
@@ -2021,7 +2056,7 @@ HTML_TEMPLATE = """
             }
 
             select.innerHTML = '<option value="">No group</option>' +
-                cachedGroups.map(g => '<option value="' + g.id + '"' + (g.id === currentGroupId ? ' selected' : '') + '>' + g.name + '</option>').join('');
+                cachedGroups.map(g => '<option value="' + g.id + '"' + (g.id === currentGroupId ? ' selected' : '') + '>' + groupOptionLabel(g) + '</option>').join('');
         }
 
         async function loadGroupsForBulkSelect() {
@@ -2040,7 +2075,7 @@ HTML_TEMPLATE = """
 
             select.innerHTML = '<option value="">Assign group...</option>' +
                 '<option value="__none__">No group</option>' +
-                cachedGroups.map(g => '<option value="' + g.id + '">' + g.name + '</option>').join('');
+                cachedGroups.map(g => '<option value="' + g.id + '">' + groupOptionLabel(g) + '</option>').join('');
         }
 
         async function setDeviceGroup(mac, groupId) {
@@ -2428,6 +2463,8 @@ HTML_TEMPLATE = """
                 document.querySelectorAll('.filter-btn[data-filter]').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
                 currentFilter = btn.dataset.filter;
+                currentGroupId = null;
+                renderCategoryTree();
                 selectedMacs.clear();
                 lastSelectedIndex = null;
                 if (dateFilteredDevices !== null) {
