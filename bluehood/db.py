@@ -30,9 +30,17 @@ class Device:
     service_uuids: list[str] = None  # BLE service UUIDs for fingerprinting
     bt_type: str = "ble"  # "ble" or "classic"
     device_class: Optional[int] = None  # Classic BT device class
-    group_id: Optional[int] = None  # Device group
+    group_id: Optional[int] = None  # Device group (category or subcategory)
     notes: Optional[str] = None  # Operator notes
     new_device_notified: bool = True  # Whether new-device notification has been sent
+    # Per-device notification overrides. None = inherit default (silent if
+    # categorized via group_id, else normal Unknown-device behavior).
+    # "off" | "always" | "temp" (temp uses the paired *_expires_at column;
+    # once now() passes it, treat as if unset again -- reverts to default).
+    notify_arrive: Optional[str] = None
+    notify_arrive_expires_at: Optional[datetime] = None
+    notify_depart: Optional[str] = None
+    notify_depart_expires_at: Optional[datetime] = None
 
     def __post_init__(self):
         if self.service_uuids is None:
@@ -50,11 +58,14 @@ class Sighting:
 
 @dataclass
 class DeviceGroup:
-    """Represents a device group/alias."""
+    """Represents a device group/category. parent_id is None for a
+    top-level category, or points to another group's id to make this a
+    subcategory (one level of nesting; not enforced beyond convention)."""
     id: int
     name: str
     color: str = "#3b82f6"  # Default blue
     icon: str = "📁"
+    parent_id: Optional[int] = None
 
 
 @dataclass
@@ -277,11 +288,25 @@ async def init_db() -> None:
             ("group_id", "INTEGER REFERENCES device_groups(id)"),
             ("notes", "TEXT"),
             ("new_device_notified", "INTEGER DEFAULT 1"),
+            ("notify_arrive", "TEXT"),
+            ("notify_arrive_expires_at", "TIMESTAMP"),
+            ("notify_depart", "TEXT"),
+            ("notify_depart_expires_at", "TIMESTAMP"),
         ]
 
         for column, column_type in migrations:
             try:
                 await db.execute(f"ALTER TABLE devices ADD COLUMN {column} {column_type}")
+                await db.commit()
+            except Exception:
+                pass  # Column already exists
+
+        group_migrations = [
+            ("parent_id", "INTEGER REFERENCES device_groups(id)"),
+        ]
+        for column, column_type in group_migrations:
+            try:
+                await db.execute(f"ALTER TABLE device_groups ADD COLUMN {column} {column_type}")
                 await db.commit()
             except Exception:
                 pass  # Column already exists
@@ -317,6 +342,16 @@ def _parse_device_row(row) -> Device:
         group_id=row["group_id"] if "group_id" in keys else None,
         notes=row["notes"] if "notes" in keys else None,
         new_device_notified=bool(row["new_device_notified"]) if "new_device_notified" in keys else True,
+        notify_arrive=row["notify_arrive"] if "notify_arrive" in keys else None,
+        notify_arrive_expires_at=(
+            datetime.fromisoformat(row["notify_arrive_expires_at"])
+            if "notify_arrive_expires_at" in keys and row["notify_arrive_expires_at"] else None
+        ),
+        notify_depart=row["notify_depart"] if "notify_depart" in keys else None,
+        notify_depart_expires_at=(
+            datetime.fromisoformat(row["notify_depart_expires_at"])
+            if "notify_depart_expires_at" in keys and row["notify_depart_expires_at"] else None
+        ),
     )
 
 
@@ -1125,20 +1160,24 @@ async def update_auth_settings(
 # ============================================================================
 
 async def get_groups() -> list[DeviceGroup]:
-    """Get all device groups."""
+    """Get all device groups (top-level categories and subcategories alike;
+    callers that need the tree shape should group by parent_id)."""
     async with _connect() as db:
         db.row_factory = aiosqlite.Row
         async with db.execute("SELECT * FROM device_groups ORDER BY name") as cursor:
             rows = await cursor.fetchall()
-            return [
-                DeviceGroup(
-                    id=row["id"],
-                    name=row["name"],
-                    color=row["color"] or "#3b82f6",
-                    icon=row["icon"] or "📁",
-                )
-                for row in rows
-            ]
+            return [_parse_group_row(row) for row in rows]
+
+
+def _parse_group_row(row) -> DeviceGroup:
+    keys = row.keys()
+    return DeviceGroup(
+        id=row["id"],
+        name=row["name"],
+        color=row["color"] or "#3b82f6",
+        icon=row["icon"] or "📁",
+        parent_id=row["parent_id"] if "parent_id" in keys else None,
+    )
 
 
 async def get_group(group_id: int) -> Optional[DeviceGroup]:
@@ -1149,46 +1188,48 @@ async def get_group(group_id: int) -> Optional[DeviceGroup]:
             "SELECT * FROM device_groups WHERE id = ?", (group_id,)
         ) as cursor:
             row = await cursor.fetchone()
-            if row:
-                return DeviceGroup(
-                    id=row["id"],
-                    name=row["name"],
-                    color=row["color"] or "#3b82f6",
-                    icon=row["icon"] or "📁",
-                )
-            return None
+            return _parse_group_row(row) if row else None
 
 
-async def create_group(name: str, color: str = "#3b82f6", icon: str = "📁") -> DeviceGroup:
-    """Create a new device group."""
+async def create_group(
+    name: str, color: str = "#3b82f6", icon: str = "📁", parent_id: Optional[int] = None
+) -> DeviceGroup:
+    """Create a new device group. Pass parent_id to create it as a
+    subcategory of an existing top-level category."""
     async with _connect() as db:
         cursor = await db.execute(
-            "INSERT INTO device_groups (name, color, icon) VALUES (?, ?, ?)",
-            (name, color, icon)
+            "INSERT INTO device_groups (name, color, icon, parent_id) VALUES (?, ?, ?, ?)",
+            (name, color, icon, parent_id)
         )
         await db.commit()
-        return DeviceGroup(id=cursor.lastrowid, name=name, color=color, icon=icon)
+        return DeviceGroup(id=cursor.lastrowid, name=name, color=color, icon=icon, parent_id=parent_id)
 
 
-async def update_group(group_id: int, name: str, color: str, icon: str) -> None:
-    """Update a device group."""
+async def update_group(
+    group_id: int, name: str, color: str, icon: str, parent_id: Optional[int] = None
+) -> None:
+    """Update a device group, including re-parenting it."""
     async with _connect() as db:
         await db.execute(
-            "UPDATE device_groups SET name = ?, color = ?, icon = ? WHERE id = ?",
-            (name, color, icon, group_id)
+            "UPDATE device_groups SET name = ?, color = ?, icon = ?, parent_id = ? WHERE id = ?",
+            (name, color, icon, parent_id, group_id)
         )
         await db.commit()
 
 
 async def delete_group(group_id: int) -> None:
-    """Delete a device group and unassign all devices."""
+    """Delete a device group. Devices in it fall back to Unknown (group_id
+    NULL); subcategories of it are promoted to top-level (parent_id NULL)
+    rather than being deleted or orphaned."""
     async with _connect() as db:
-        # Unassign devices from this group
         await db.execute(
             "UPDATE devices SET group_id = NULL WHERE group_id = ?",
             (group_id,)
         )
-        # Delete the group
+        await db.execute(
+            "UPDATE device_groups SET parent_id = NULL WHERE parent_id = ?",
+            (group_id,)
+        )
         await db.execute("DELETE FROM device_groups WHERE id = ?", (group_id,))
         await db.commit()
 
@@ -1201,6 +1242,70 @@ async def set_device_group(mac: str, group_id: Optional[int]) -> None:
             (group_id, mac)
         )
         await db.commit()
+
+
+async def set_device_notify(
+    mac: str, event: str, mode: Optional[str], hours: Optional[float] = None
+) -> None:
+    """Set a per-device notification override.
+
+    event: "arrive" or "depart"
+    mode: None (inherit default), "off", "always", or "temp"
+    hours: required when mode == "temp" -- how many hours from now the
+    override stays active before automatically reverting to the default.
+    """
+    if event not in ("arrive", "depart"):
+        raise ValueError(f"invalid event: {event}")
+    if mode not in (None, "off", "always", "temp"):
+        raise ValueError(f"invalid mode: {mode}")
+
+    expires_at = None
+    if mode == "temp":
+        if not hours or hours <= 0:
+            raise ValueError("temp mode requires a positive hours value")
+        expires_at = (datetime.now() + timedelta(hours=hours)).isoformat()
+
+    mode_col = f"notify_{event}"
+    expires_col = f"notify_{event}_expires_at"
+    async with _connect() as db:
+        await db.execute(
+            f"UPDATE devices SET {mode_col} = ?, {expires_col} = ? WHERE mac = ?",
+            (mode, expires_at, mac)
+        )
+        await db.commit()
+
+
+def notify_mode_active(mode: Optional[str], expires_at: Optional[datetime]) -> Optional[bool]:
+    """Resolve a raw (mode, expires_at) pair to whether the override is
+    currently active. Returns True (notify), False (explicitly silenced),
+    or None (no override -- caller should fall back to the category/Unknown
+    default). A "temp" override past its expiry is treated as None (lapsed
+    back to default) -- callers that want to clear the stale columns should
+    do so separately; this function is read-only."""
+    if mode is None:
+        return None
+    if mode == "off":
+        return False
+    if mode == "always":
+        return True
+    if mode == "temp":
+        if expires_at and datetime.now() < expires_at:
+            return True
+        return None  # lapsed
+    return None
+
+
+async def get_devices_with_notify_override() -> list[Device]:
+    """Devices that have any per-device notify_arrive/notify_depart
+    override set (used by the notification loop instead of scanning the
+    whole device table every cycle)."""
+    async with _connect() as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT * FROM devices WHERE notify_arrive IS NOT NULL OR notify_depart IS NOT NULL"
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [_parse_device_row(row) for row in rows]
 
 
 async def get_devices_by_group(group_id: int) -> list[Device]:

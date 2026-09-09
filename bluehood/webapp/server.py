@@ -75,6 +75,7 @@ class WebServer:
         self.app.router.add_get("/api/device/{mac}", self.api_device)
         self.app.router.add_post("/api/device/{mac}/watch", self.api_toggle_watch)
         self.app.router.add_post("/api/device/{mac}/group", self.api_set_device_group)
+        self.app.router.add_post("/api/device/{mac}/notify", self.api_set_device_notify)
         self.app.router.add_post("/api/device/{mac}/name", self.api_set_device_name)
         self.app.router.add_get("/api/device/{mac}/rssi", self.api_device_rssi)
         self.app.router.add_get("/api/device/{mac}/dwell", self.api_device_dwell)
@@ -226,6 +227,10 @@ class WebServer:
                 "group_id": d.group_id,
                 "group_name": group.name if group else None,
                 "group_color": group.color if group else None,
+                "notify_arrive": d.notify_arrive,
+                "notify_arrive_expires_at": (d.notify_arrive_expires_at.isoformat() + "Z") if d.notify_arrive_expires_at else None,
+                "notify_depart": d.notify_depart,
+                "notify_depart_expires_at": (d.notify_depart_expires_at.isoformat() + "Z") if d.notify_depart_expires_at else None,
             })
 
         total_pages = max(1, math.ceil(total / page_size)) if total else 1
@@ -558,6 +563,27 @@ class WebServer:
         except Exception as e:
             return web.json_response({"error": str(e)}, status=400)
 
+    async def api_set_device_notify(self, request: web.Request) -> web.Response:
+        """Set a per-device arrive/depart notification override.
+
+        Body: {"event": "arrive"|"depart", "mode": null|"off"|"always"|"temp",
+        "hours": <required when mode is "temp">}
+        """
+        mac = request.match_info["mac"]
+        device = await db.get_device(mac)
+        if not device:
+            return web.json_response({"error": "Device not found"}, status=404)
+
+        try:
+            data = await request.json()
+            event = data.get("event")
+            mode = data.get("mode")
+            hours = data.get("hours")
+            await db.set_device_notify(mac, event, mode, hours)
+            return web.json_response({"mac": mac, "event": event, "mode": mode, "hours": hours})
+        except Exception as e:
+            return web.json_response({"error": str(e)}, status=400)
+
     async def api_set_device_name(self, request: web.Request) -> web.Response:
         """Set the friendly name for a device."""
         mac = request.match_info["mac"]
@@ -809,17 +835,19 @@ class WebServer:
     # ========================================================================
 
     async def api_get_groups(self, request: web.Request) -> web.Response:
-        """Get all device groups."""
+        """Get all device groups (top-level categories and subcategories --
+        subcategories carry a non-null parent_id)."""
         groups = await db.get_groups()
         return web.json_response({
             "groups": [
-                {"id": g.id, "name": g.name, "color": g.color, "icon": g.icon}
+                {"id": g.id, "name": g.name, "color": g.color, "icon": g.icon, "parent_id": g.parent_id}
                 for g in groups
             ]
         })
 
     async def api_create_group(self, request: web.Request) -> web.Response:
-        """Create a new device group."""
+        """Create a new device group. Pass parent_id to create it as a
+        subcategory of an existing top-level category."""
         try:
             data = await request.json()
             name = data.get("name")
@@ -830,18 +858,21 @@ class WebServer:
                 name=name,
                 color=data.get("color", "#3b82f6"),
                 icon=data.get("icon", "📁"),
+                parent_id=data.get("parent_id"),
             )
             return web.json_response({
                 "id": group.id,
                 "name": group.name,
                 "color": group.color,
                 "icon": group.icon,
+                "parent_id": group.parent_id,
             })
         except Exception as e:
             return web.json_response({"error": str(e)}, status=400)
 
     async def api_update_group(self, request: web.Request) -> web.Response:
-        """Update a device group."""
+        """Update a device group, including re-parenting it (pass
+        parent_id: null to promote a subcategory to top-level)."""
         try:
             group_id = int(request.match_info["group_id"])
             data = await request.json()
@@ -851,6 +882,7 @@ class WebServer:
                 name=data.get("name", ""),
                 color=data.get("color", "#3b82f6"),
                 icon=data.get("icon", "📁"),
+                parent_id=data.get("parent_id"),
             )
             return web.json_response({"status": "ok"})
         except Exception as e:
