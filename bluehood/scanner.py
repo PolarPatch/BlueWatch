@@ -23,6 +23,13 @@ except ImportError:
 # Online API for vendor lookup fallback
 MACVENDORS_API_URL = "https://api.macvendors.com/"
 
+# maclookup.app's CSV aggregates IEEE's MA-L (24-bit), MA-M (28-bit), MA-S
+# (36-bit) and IAB allocations in one file -- meaningfully broader coverage
+# than the MA-L-only OUI list mac_vendor_lookup pulls from IEEE directly
+# (roughly a third of maclookup.app's ~58k rows are MA-M/MA-S/IAB entries
+# that would otherwise show up as an unidentifiable vendor).
+MACLOOKUP_CSV_URL = "https://maclookup.app/downloads/csv-database/get-db"
+
 from .classifier import is_macos_uuid
 from .config import SCAN_DURATION, BLUETOOTH_ADAPTER, CLASSIC_BLUETOOTH_ADAPTER, DATA_DIR
 
@@ -172,6 +179,11 @@ class BluetoothScanner:
         self._vendors_updated = False
         self._vendor_update_task: Optional[asyncio.Task] = None
         self._ble_stuck = False
+        # maclookup.app CSV: prefix (no colons, uppercase hex, variable
+        # length -- 6/7/9 hex chars for MA-L/MA-M/MA-S) -> vendor name.
+        self._maclookup_table: dict[str, str] = {}
+        self._maclookup_loaded = False
+        self._maclookup_update_task: Optional[asyncio.Task] = None
 
     def _is_vendor_db_fresh(self) -> bool:
         """Check if the cached vendor DB exists and is less than 7 days old."""
@@ -220,6 +232,93 @@ class BluetoothScanner:
             logger.warning(f"Could not update vendor database: {e}")
             self._vendors_updated = True
 
+    def _maclookup_cache_path(self) -> str:
+        return str(DATA_DIR / "mac-vendors-maclookup.csv")
+
+    def _is_maclookup_db_fresh(self) -> bool:
+        path = self._maclookup_cache_path()
+        if not os.path.exists(path):
+            return False
+        age_days = (time.time() - os.path.getmtime(path)) / 86400
+        return age_days < VENDOR_DB_MAX_AGE_DAYS
+
+    def _start_maclookup_db_update(self) -> None:
+        """Kick off a background download/refresh of the maclookup.app CSV
+        (never blocks scanning). Loads the existing cached copy into memory
+        immediately regardless, so a stale-but-present file is still used
+        while a fresh one downloads in the background."""
+        if self._maclookup_table == {} and os.path.exists(self._maclookup_cache_path()):
+            try:
+                self._load_maclookup_csv()
+            except Exception as e:
+                logger.warning(f"Could not load cached maclookup.app CSV: {e}")
+
+        if self._maclookup_loaded:
+            return
+        if self._maclookup_update_task and not self._maclookup_update_task.done():
+            return
+        if self._is_maclookup_db_fresh():
+            logger.info("maclookup.app vendor database is up to date (cached)")
+            self._maclookup_loaded = True
+            return
+
+        self._maclookup_update_task = asyncio.create_task(self._update_maclookup_db())
+
+    def _load_maclookup_csv(self) -> None:
+        """Parse the cached CSV into self._maclookup_table. Synchronous --
+        only ever called from a background thread or at startup against an
+        already-downloaded file, never on the hot scan path."""
+        import csv as csv_module
+        table: dict[str, str] = {}
+        with open(self._maclookup_cache_path(), newline="", encoding="utf-8") as f:
+            reader = csv_module.reader(f)
+            next(reader, None)  # header: Mac Prefix,Vendor Name,Private,Block Type,Last Update
+            for row in reader:
+                if len(row) < 2:
+                    continue
+                prefix = row[0].replace(":", "").replace("-", "").upper().strip()
+                vendor = row[1].strip()
+                if prefix and vendor:
+                    table[prefix] = vendor
+        self._maclookup_table = table
+        logger.info(f"maclookup.app vendor table loaded: {len(table)} prefixes")
+
+    async def _update_maclookup_db(self) -> None:
+        """Download the maclookup.app CSV in the background with a timeout."""
+        try:
+            logger.info("Downloading maclookup.app vendor database...")
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    MACLOOKUP_CSV_URL,
+                    timeout=aiohttp.ClientTimeout(total=VENDOR_DB_UPDATE_TIMEOUT),
+                ) as response:
+                    if response.status == 200:
+                        data = await response.read()
+                        with open(self._maclookup_cache_path(), "wb") as f:
+                            f.write(data)
+                        await asyncio.to_thread(self._load_maclookup_csv)
+                        logger.info("maclookup.app vendor database updated")
+                    else:
+                        logger.warning(f"maclookup.app download failed: HTTP {response.status}")
+        except asyncio.TimeoutError:
+            logger.warning(f"maclookup.app download timed out ({VENDOR_DB_UPDATE_TIMEOUT}s)")
+        except Exception as e:
+            logger.warning(f"Could not update maclookup.app vendor database: {e}")
+        finally:
+            self._maclookup_loaded = True
+
+    def _lookup_maclookup(self, mac: str) -> Optional[str]:
+        """Longest-prefix-match against the maclookup.app table (checks the
+        9-hex-char MA-S prefix first, then 7-char MA-M, then 6-char MA-L)."""
+        if not self._maclookup_table:
+            return None
+        hex_only = mac.replace(":", "").replace("-", "").upper()
+        for length in (9, 7, 6):
+            vendor = self._maclookup_table.get(hex_only[:length])
+            if vendor:
+                return vendor
+        return None
+
     def _is_randomized_mac(self, mac: str) -> bool:
         """Check if MAC address is locally administered (randomized).
 
@@ -253,8 +352,14 @@ class BluetoothScanner:
 
         vendor = None
 
+        # Try the maclookup.app table first -- broader coverage (MA-L +
+        # MA-M + MA-S + IAB) than the MA-L-only IEEE list below, and purely
+        # local once cached (no network round-trip per lookup).
+        self._start_maclookup_db_update()
+        vendor = self._lookup_maclookup(mac)
+
         # Try local database first
-        if HAS_MAC_LOOKUP:
+        if vendor is None and HAS_MAC_LOOKUP:
             try:
                 if self._mac_lookup is None:
                     self._start_vendor_db_update()
