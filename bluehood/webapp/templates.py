@@ -1107,7 +1107,7 @@ HTML_TEMPLATE = """
         let compactView = localStorage.getItem('bluehood_compact_view') === 'true';
         let screenshotMode = localStorage.getItem('bluehood_screenshot_mode') === 'true';
         let clickToOpen = localStorage.getItem('bluehood_click_to_open') === 'true';
-        const defaultSortState = { column: 'last_seen', direction: 'asc' };
+        const defaultSortState = { column: 'last_seen', direction: 'desc' };
         let sortState = { ...defaultSortState };
         let selectedMacs = new Set();
         let lastSelectedIndex = null;
