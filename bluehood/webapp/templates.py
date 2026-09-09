@@ -918,6 +918,10 @@ HTML_TEMPLATE = """
             <div class="panel" id="categories-panel">
                 <div class="panel-header">Categories</div>
                 <button class="filter-btn" id="all-devices-btn" onclick="showAllDevices()" style="width: 100%; justify-content: flex-start; gap: 0.4rem; margin-bottom: 0.5rem;">All devices <span id="count-all" class="filter-count" style="color: inherit; font-size: inherit;">--</span></button>
+                <label style="display: flex; align-items: center; gap: 0.4rem; padding: 0 0.75rem 0.5rem; font-size: 0.75rem; color: var(--text-secondary); cursor: pointer;">
+                    <input type="checkbox" id="hide-categorized-toggle" onchange="toggleHideCategorized()">
+                    Hide categorized devices
+                </label>
                 <div id="categories-tree" style="padding: 0.5rem;"></div>
                 <div style="padding: 0.5rem; display: flex; gap: 0.4rem;">
                     <input type="text" class="search-input" id="new-category-name" placeholder="New category name" style="font-size: 0.75rem; flex: 1;">
@@ -1090,6 +1094,7 @@ HTML_TEMPLATE = """
         let allDevices = [];
         let currentFilter = 'all';
         let currentGroupId = null;
+        let hideCategorized = localStorage.getItem('bluehood_hide_categorized') === 'true';
         let dateFilteredDevices = null;
         let compactView = localStorage.getItem('bluehood_compact_view') === 'true';
         let screenshotMode = localStorage.getItem('bluehood_screenshot_mode') === 'true';
@@ -1119,7 +1124,11 @@ HTML_TEMPLATE = """
             params.set('page', pagination.page);
             params.set('page_size', pagination.pageSize);
             params.set('filter', currentFilter);
-            if (currentGroupId !== null) params.set('group_id', currentGroupId);
+            if (hideCategorized) {
+                params.set('only_uncategorized', '1');
+            } else if (currentGroupId !== null) {
+                params.set('group_id', currentGroupId);
+            }
             params.set('sort', sortState.column);
             params.set('direction', getServerSortDirection());
 
@@ -1376,9 +1385,17 @@ HTML_TEMPLATE = """
         function showAllDevices() {
             currentGroupId = '__all__';
             currentFilter = 'all';
-            const allBtn = document.getElementById('all-devices-btn');
-            if (allBtn) allBtn.classList.add('active');
             renderCategoryTree();
+            selectedMacs.clear();
+            lastSelectedIndex = null;
+            pagination.page = 1;
+            refreshDevices();
+        }
+
+        function toggleHideCategorized() {
+            const checkbox = document.getElementById('hide-categorized-toggle');
+            hideCategorized = checkbox ? checkbox.checked : false;
+            localStorage.setItem('bluehood_hide_categorized', hideCategorized);
             selectedMacs.clear();
             lastSelectedIndex = null;
             pagination.page = 1;
@@ -2620,6 +2637,11 @@ HTML_TEMPLATE = """
             const anHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
             startEl.value = toDatetimeLocalValue(anHourAgo);
             endEl.value = toDatetimeLocalValue(now);
+        })();
+
+        (function initHideCategorized() {
+            const checkbox = document.getElementById('hide-categorized-toggle');
+            if (checkbox) checkbox.checked = hideCategorized;
         })();
 
         updateViewToggle();

@@ -434,6 +434,7 @@ def _build_device_query_filters(
     exclude_randomized: bool,
     group_ids: Optional[list] = None,
     show_all: bool = False,
+    only_uncategorized: bool = False,
 ) -> tuple[str, list]:
     """Build WHERE clause and parameters for device list queries.
 
@@ -445,7 +446,12 @@ def _build_device_query_filters(
     show_all bypasses the default "uncategorized only" restriction below,
     for an explicit "show every device regardless of category" view --
     ignored if group_ids is also given (a specific category takes
-    precedence)."""
+    precedence).
+
+    only_uncategorized is the explicit "hide categorized devices" toggle --
+    unlike the default triage-queue restriction below (which a search term
+    or show_all bypasses), this one always wins, so the user can focus on
+    Unknown devices even while searching."""
     conditions: list[str] = []
     params: list = []
 
@@ -466,7 +472,9 @@ def _build_device_query_filters(
 
     search_value = (search or "").strip()
 
-    if group_ids:
+    if only_uncategorized:
+        conditions.append("d.group_id IS NULL")
+    elif group_ids:
         placeholders = ", ".join("?" for _ in group_ids)
         conditions.append(f"d.group_id IN ({placeholders})")
         params.extend(group_ids)
@@ -520,6 +528,7 @@ async def get_devices_page(
     exclude_randomized: bool = True,
     group_ids: Optional[list] = None,
     show_all: bool = False,
+    only_uncategorized: bool = False,
 ) -> tuple[list[Device], int]:
     """Get a single page of devices and total count for the current query."""
     safe_page = max(1, page)
@@ -536,6 +545,7 @@ async def get_devices_page(
         exclude_randomized=exclude_randomized,
         group_ids=group_ids,
         show_all=show_all,
+        only_uncategorized=only_uncategorized,
     )
 
     base_query = "FROM devices d LEFT JOIN device_groups g ON g.id = d.group_id"

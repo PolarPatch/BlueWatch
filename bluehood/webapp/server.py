@@ -196,6 +196,8 @@ class WebServer:
             except ValueError:
                 pass
 
+        only_uncategorized = request.query.get("only_uncategorized") == "1"
+
         devices, total = await db.get_devices_page(
             page=page,
             page_size=page_size,
@@ -207,6 +209,7 @@ class WebServer:
             sort_direction=sort_direction,
             exclude_randomized=True,
             group_ids=group_ids,
+            only_uncategorized=only_uncategorized,
         )
         stats = await db.get_dashboard_stats(include_ignored=True)
 
@@ -223,6 +226,7 @@ class WebServer:
                 sort_direction=sort_direction,
                 group_ids=group_ids,
                 show_all=show_all,
+                only_uncategorized=only_uncategorized,
                 exclude_randomized=True,
             )
 
