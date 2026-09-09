@@ -93,6 +93,7 @@ class WebServer:
         self.app.router.add_get("/api/groups", self.api_get_groups)
         self.app.router.add_post("/api/groups", self.api_create_group)
         self.app.router.add_put("/api/groups/{group_id}", self.api_update_group)
+        self.app.router.add_post("/api/groups/{group_id}/reparent", self.api_reparent_group)
         self.app.router.add_delete("/api/groups/{group_id}", self.api_delete_group)
         # Authentication
         self.app.router.add_post("/api/auth/login", self.api_login)
@@ -886,6 +887,43 @@ class WebServer:
                 parent_id=data.get("parent_id"),
             )
             return web.json_response({"status": "ok"})
+        except Exception as e:
+            return web.json_response({"error": str(e)}, status=400)
+
+    async def api_reparent_group(self, request: web.Request) -> web.Response:
+        """Move a category under a different parent (or promote it to
+        top-level with parent_id: null) without needing to resend its
+        name/color/icon."""
+        try:
+            group_id = int(request.match_info["group_id"])
+            data = await request.json()
+            new_parent_id = data.get("parent_id")
+
+            if new_parent_id == group_id:
+                return web.json_response({"error": "A category cannot be its own parent"}, status=400)
+
+            # Guard against creating a cycle (parent_id pointing into its
+            # own subtree) -- only one level of nesting is intended, but
+            # walk up anyway in case that assumption changes later.
+            if new_parent_id is not None:
+                cursor_id = new_parent_id
+                seen = set()
+                while cursor_id is not None:
+                    if cursor_id == group_id or cursor_id in seen:
+                        return web.json_response({"error": "That would create a cycle"}, status=400)
+                    seen.add(cursor_id)
+                    parent = await db.get_group(cursor_id)
+                    cursor_id = parent.parent_id if parent else None
+
+            group = await db.get_group(group_id)
+            if not group:
+                return web.json_response({"error": "Category not found"}, status=404)
+
+            await db.update_group(
+                group_id=group_id, name=group.name, color=group.color,
+                icon=group.icon, parent_id=new_parent_id,
+            )
+            return web.json_response({"status": "ok", "id": group_id, "parent_id": new_parent_id})
         except Exception as e:
             return web.json_response({"error": str(e)}, status=400)
 

@@ -106,7 +106,7 @@ HTML_TEMPLATE = """
             font-weight: 700;
             font-size: 0.9rem;
             letter-spacing: 0.05em;
-            text-transform: uppercase;
+            
             color: var(--accent-blue);
         }
 
@@ -125,7 +125,7 @@ HTML_TEMPLATE = """
             font-size: 0.75rem;
             padding: 0.4rem 0.75rem;
             border-radius: 3px;
-            text-transform: uppercase;
+            
             letter-spacing: 0.05em;
             transition: all 0.1s;
         }
@@ -141,12 +141,24 @@ HTML_TEMPLATE = """
             gap: 1.5rem;
         }
 
+        .total-units {
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        .total-units-icon {
+            color: var(--accent-blue);
+        }
+
         .status-indicator {
             display: flex;
             align-items: center;
             gap: 0.5rem;
             font-size: 0.7rem;
-            text-transform: uppercase;
+            
             letter-spacing: 0.1em;
         }
 
@@ -192,7 +204,7 @@ HTML_TEMPLATE = """
 
         .panel-header {
             font-size: 0.65rem;
-            text-transform: uppercase;
+            
             letter-spacing: 0.15em;
             color: var(--text-muted);
             margin-bottom: 0.75rem;
@@ -218,7 +230,7 @@ HTML_TEMPLATE = """
         .stat-label {
             font-size: 0.7rem;
             color: var(--text-secondary);
-            text-transform: uppercase;
+            
             letter-spacing: 0.05em;
         }
 
@@ -238,6 +250,30 @@ HTML_TEMPLATE = """
             flex-direction: column;
             gap: 0.25rem;
         }
+
+        .category-node {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.35rem 0.5rem;
+            border-radius: 3px;
+            cursor: grab;
+            font-size: 0.78rem;
+        }
+        .category-node:hover { background: var(--bg-tertiary); }
+        .category-node.category-drop-target { outline: 2px dashed var(--accent-blue); outline-offset: -2px; }
+        .category-children { margin-left: 1.1rem; border-left: 1px solid var(--border-color); }
+        .category-label { flex: 1; }
+        .category-delete {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 0.9rem;
+            line-height: 1;
+            padding: 0 0.25rem;
+        }
+        .category-delete:hover { color: var(--accent-red); }
 
         .filter-btn {
             background: transparent;
@@ -336,7 +372,7 @@ HTML_TEMPLATE = """
             padding: 0.6rem 1rem;
             cursor: pointer;
             border-radius: 3px;
-            text-transform: uppercase;
+            
             letter-spacing: 0.05em;
             transition: all 0.1s;
         }
@@ -376,7 +412,7 @@ HTML_TEMPLATE = """
 
         .table-title {
             font-size: 0.7rem;
-            text-transform: uppercase;
+            
             letter-spacing: 0.1em;
             color: var(--text-secondary);
         }
@@ -402,7 +438,7 @@ HTML_TEMPLATE = """
             padding: 0.6rem 0.75rem;
             font-size: 0.65rem;
             font-weight: 600;
-            text-transform: uppercase;
+            
             letter-spacing: 0.1em;
             color: var(--text-muted);
             background: var(--bg-secondary);
@@ -533,7 +569,7 @@ HTML_TEMPLATE = """
             border-radius: 2px;
             font-size: 0.7rem;
             font-weight: 500;
-            text-transform: uppercase;
+            
             letter-spacing: 0.05em;
         }
 
@@ -623,7 +659,7 @@ HTML_TEMPLATE = """
 
         .modal-title {
             font-size: 0.8rem;
-            text-transform: uppercase;
+            
             letter-spacing: 0.1em;
         }
 
@@ -660,7 +696,7 @@ HTML_TEMPLATE = """
 
         .detail-label {
             font-size: 0.6rem;
-            text-transform: uppercase;
+            
             letter-spacing: 0.1em;
             color: var(--text-muted);
             margin-bottom: 0.35rem;
@@ -682,7 +718,7 @@ HTML_TEMPLATE = """
 
         .heatmap-title {
             font-size: 0.65rem;
-            text-transform: uppercase;
+            
             letter-spacing: 0.1em;
             color: var(--text-muted);
             margin-bottom: 0.5rem;
@@ -851,7 +887,7 @@ HTML_TEMPLATE = """
         <div class="topbar-left">
             <a href="/" class="brand">
                 <svg class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 7 10 10-5 5V2l5 5L7 17"/></svg>
-                <span class="brand-text">BLUE<span>WATCH</span></span>
+                <span class="brand-text">Blue<span>Watch</span></span>
             </a>
             <nav class="nav">
                 <a href="/" class="nav-link active">Dashboard</a>
@@ -859,34 +895,13 @@ HTML_TEMPLATE = """
             </nav>
         </div>
         <div class="topbar-right">
+            <div class="total-units"><span class="total-units-icon">*</span>Total units seen: <span id="stat-total">--</span></div>
             <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Toggle light/dark mode">☀</button>
         </div>
     </header>
 
     <div class="main">
         <aside class="sidebar">
-            <div class="panel">
-                <div class="panel-header">Target Statistics</div>
-                <div class="stat-grid">
-                    <div class="stat-item">
-                        <span class="stat-label">Identified</span>
-                        <span class="stat-value red" id="stat-total">--</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-label">Active</span>
-                        <span class="stat-value green" id="stat-today">--</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-label">New Targets</span>
-                        <span class="stat-value amber" id="stat-new-hour">--</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-label">Randomized</span>
-                        <span class="stat-value blue" id="stat-randomized">--</span>
-                    </div>
-                </div>
-            </div>
-
             <div class="panel">
                 <div class="panel-header">Filter by Class</div>
                 <div class="filter-group" id="filter-group">
@@ -917,15 +932,15 @@ HTML_TEMPLATE = """
                 <button class="filter-btn" id="view-toggle" onclick="toggleViewMode()" style="width: 100%; justify-content: center;">
                     ☰ Compact View
                 </button>
-                <button class="filter-btn" id="screenshot-toggle" onclick="toggleScreenshotMode()" style="width: 100%; justify-content: center; margin-top: 0.5rem;">
-                    📷 Screenshot Mode
-                </button>
-                <button class="filter-btn" id="click-to-open-toggle" onclick="toggleClickToOpen()" style="width: 100%; justify-content: center; margin-top: 0.5rem;">
-                    👆 Click to Open
-                </button>
-                <button class="filter-btn" id="name-groups-toggle" onclick="toggleNameGroups()" style="width: 100%; justify-content: center; margin-top: 0.5rem;">
-                    🔗 Group by Name
-                </button>
+            </div>
+
+            <div class="panel" id="categories-panel">
+                <div class="panel-header">Categories</div>
+                <div id="categories-tree" style="padding: 0.5rem;"></div>
+                <div style="padding: 0.5rem; display: flex; gap: 0.4rem;">
+                    <input type="text" class="search-input" id="new-category-name" placeholder="New category name" style="font-size: 0.75rem; flex: 1;">
+                    <button class="btn btn-primary" onclick="createCategory()">+</button>
+                </div>
             </div>
         </aside>
 
@@ -1298,9 +1313,120 @@ HTML_TEMPLATE = """
 
         function updateStats(data) {
             document.getElementById('stat-total').textContent = data.total || 0;
-            document.getElementById('stat-today').textContent = data.active_today || 0;
-            document.getElementById('stat-new-hour').textContent = data.new_past_hour || 0;
-            document.getElementById('stat-randomized').textContent = data.randomized_count || 0;
+        }
+
+        // ==================== Categories (sidebar tree) ====================
+        let categoriesCache = [];
+
+        async function loadCategories() {
+            try {
+                const res = await fetch('/api/groups');
+                const data = await res.json();
+                categoriesCache = data.groups || [];
+                renderCategoryTree();
+            } catch (e) {
+                console.error('Failed to load categories:', e);
+            }
+        }
+
+        function renderCategoryTree() {
+            const el = document.getElementById('categories-tree');
+            if (!el) return;
+            const topLevel = categoriesCache.filter(g => !g.parent_id);
+            if (topLevel.length === 0) {
+                el.innerHTML = '<div style="font-size: 0.75rem; color: var(--text-muted); padding: 0.5rem 0.25rem;">No categories yet</div>';
+                return;
+            }
+            el.innerHTML = topLevel.map(g => renderCategoryNode(g)).join('');
+        }
+
+        function renderCategoryNode(group) {
+            const children = categoriesCache.filter(g => g.parent_id === group.id);
+            const childrenHtml = children.length
+                ? '<div class="category-children">' + children.map(c => renderCategoryNode(c)).join('') + '</div>'
+                : '';
+            return (
+                '<div class="category-node" draggable="true" data-id="' + group.id + '" ' +
+                'ondragstart="onCategoryDragStart(event, ' + group.id + ')" ' +
+                'ondragover="onCategoryDragOver(event)" ' +
+                'ondragleave="onCategoryDragLeave(event)" ' +
+                'ondrop="onCategoryDrop(event, ' + group.id + ')">' +
+                '<span class="category-label" style="color:' + (group.color || '#3b82f6') + '" title="Drag onto another category to nest it as a subcategory">' +
+                (group.icon || '📁') + ' ' + escapeHtml(group.name) +
+                '</span>' +
+                '<button class="category-delete" onclick="deleteCategory(' + group.id + ')" title="Delete category">×</button>' +
+                '</div>' + childrenHtml
+            );
+        }
+
+        function escapeHtml(s) {
+            const d = document.createElement('div');
+            d.textContent = s;
+            return d.innerHTML;
+        }
+
+        async function createCategory() {
+            const input = document.getElementById('new-category-name');
+            const name = (input.value || '').trim();
+            if (!name) return;
+            try {
+                await fetch('/api/groups', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, color: '#3b82f6', icon: '📁' }),
+                });
+                input.value = '';
+                await loadCategories();
+            } catch (e) {
+                console.error('Failed to create category:', e);
+            }
+        }
+
+        async function deleteCategory(groupId) {
+            if (!confirm('Delete this category? Devices in it revert to Unknown; subcategories are promoted to top-level.')) return;
+            try {
+                await fetch('/api/groups/' + groupId, { method: 'DELETE' });
+                await loadCategories();
+            } catch (e) {
+                console.error('Failed to delete category:', e);
+            }
+        }
+
+        let draggedCategoryId = null;
+
+        function onCategoryDragStart(event, groupId) {
+            draggedCategoryId = groupId;
+            event.dataTransfer.effectAllowed = 'move';
+        }
+
+        function onCategoryDragOver(event) {
+            event.preventDefault();
+            event.currentTarget.classList.add('category-drop-target');
+        }
+
+        function onCategoryDragLeave(event) {
+            event.currentTarget.classList.remove('category-drop-target');
+        }
+
+        async function onCategoryDrop(event, targetGroupId) {
+            event.preventDefault();
+            event.currentTarget.classList.remove('category-drop-target');
+            if (draggedCategoryId === null || draggedCategoryId === targetGroupId) return;
+            try {
+                const res = await fetch('/api/groups/' + draggedCategoryId + '/reparent', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ parent_id: targetGroupId }),
+                });
+                if (!res.ok) {
+                    const err = await res.json();
+                    alert(err.error || 'Could not nest that category there');
+                }
+                draggedCategoryId = null;
+                await loadCategories();
+            } catch (e) {
+                console.error('Failed to reparent category:', e);
+            }
         }
 
         function updateFilterCounts(serverCounts = null) {
@@ -1616,7 +1742,7 @@ HTML_TEMPLATE = """
             const isCtrl = event.ctrlKey || event.metaKey;
             const isShift = event.shiftKey;
 
-            if (clickToOpen && !isCtrl && !isShift) {
+            if (!isCtrl && !isShift) {
                 showDevice(mac);
                 return;
             }
@@ -1827,7 +1953,7 @@ HTML_TEMPLATE = """
                 '<div class="detail-item"><div class="detail-label">Address</div><div class="detail-value mono" style="font-size:' + (isMacOSUUID(d.mac) ? '0.65rem' : '0.85rem') + '; word-break: break-all;">' + obfuscateMAC(d.mac) + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">Classification</div><div class="detail-value">' + data.type_label + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">Vendor OUI</div><div class="detail-value">' + (d.vendor || '—') + '</div></div>' +
-                '<div class="detail-item"><div class="detail-label">Proximity Zone</div><div class="detail-value" style="color: ' + proximityColor + '; text-transform: uppercase;">' + proximityZone + '</div></div>' +
+                '<div class="detail-item"><div class="detail-label">Proximity Zone</div><div class="detail-value" style="color: ' + proximityColor + '; ">' + proximityZone + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">First Contact</div><div class="detail-value mono">' + (d.first_seen ? new Date(d.first_seen).toLocaleString() : '—') + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">Last Contact</div><div class="detail-value mono">' + (d.last_seen ? new Date(d.last_seen).toLocaleString() : '—') + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">Total Sightings</div><div class="detail-value highlight">' + d.total_sightings + '</div></div>' +
@@ -2370,10 +2496,9 @@ HTML_TEMPLATE = """
         });
 
         updateViewToggle();
-        updateScreenshotToggle();
-        updateClickToOpenToggle();
         updateSortIndicators();
         loadGroupsForBulkSelect();
+        loadCategories();
         updateSelectionUI();
         updatePaginationUI();
         refreshDevices();
@@ -2411,10 +2536,10 @@ SETTINGS_TEMPLATE = """
         .topbar-left { display: flex; align-items: center; gap: 1.5rem; }
         .brand { display: flex; align-items: center; gap: 0.5rem; text-decoration: none; color: inherit; }
         .brand-icon { color: var(--accent-blue); width: 1.1rem; height: 1.1rem; }
-        .brand-text { font-weight: 700; font-size: 0.9rem; letter-spacing: 0.05em; text-transform: uppercase; color: var(--accent-blue); }
+        .brand-text { font-weight: 700; font-size: 0.9rem; letter-spacing: 0.05em;  color: var(--accent-blue); }
         .brand-text span { color: #ffffff; }
         .nav { display: flex; gap: 0.25rem; }
-        .nav-link { color: var(--text-secondary); text-decoration: none; font-size: 0.75rem; padding: 0.4rem 0.75rem; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.05em; transition: all 0.1s; }
+        .nav-link { color: var(--text-secondary); text-decoration: none; font-size: 0.75rem; padding: 0.4rem 0.75rem; border-radius: 3px;  letter-spacing: 0.05em; transition: all 0.1s; }
         .nav-link:hover, .nav-link.active { color: var(--text-primary); background: var(--bg-tertiary); }
 
         [data-theme="light"] { --bg-primary: #f5f5f5; --bg-secondary: #e8e8e8; --bg-tertiary: #ffffff; --bg-hover: #d8d8d8; --text-primary: #1a1a1a; --text-secondary: #555555; --text-muted: #888888; --accent-red: #dc2626; --accent-green: #16a34a; --border-color: #cccccc; }
@@ -2423,21 +2548,21 @@ SETTINGS_TEMPLATE = """
         .theme-toggle:hover { color: var(--text-primary); border-color: var(--border-active, #999); }
 
         .config-nav { background: var(--bg-secondary); border-bottom: 1px solid var(--border-color); display: flex; justify-content: center; gap: 0; }
-        .config-nav a { color: var(--text-muted); text-decoration: none; font-size: 0.7rem; padding: 0.75rem 1.25rem; text-transform: uppercase; letter-spacing: 0.1em; border-bottom: 2px solid transparent; transition: all 0.15s; }
+        .config-nav a { color: var(--text-muted); text-decoration: none; font-size: 0.7rem; padding: 0.75rem 1.25rem;  letter-spacing: 0.1em; border-bottom: 2px solid transparent; transition: all 0.15s; }
         .config-nav a:hover { color: var(--text-secondary); }
         .config-nav a.active { color: var(--text-primary); border-bottom-color: var(--accent-red); }
 
         .main { max-width: 700px; margin: 0 auto; padding: 2rem 1rem; }
         .page-header { margin-bottom: 2rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border-color); }
-        .page-title { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.15em; color: var(--text-muted); margin-bottom: 0.5rem; }
+        .page-title { font-size: 0.75rem;  letter-spacing: 0.15em; color: var(--text-muted); margin-bottom: 0.5rem; }
         .page-heading { font-size: 1.25rem; font-weight: 700; }
 
         .panel { background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 4px; margin-bottom: 1.5rem; }
-        .panel-header { padding: 0.75rem 1rem; background: var(--bg-tertiary); border-bottom: 1px solid var(--border-color); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-secondary); }
+        .panel-header { padding: 0.75rem 1rem; background: var(--bg-tertiary); border-bottom: 1px solid var(--border-color); font-size: 0.7rem;  letter-spacing: 0.1em; color: var(--text-secondary); }
         .panel-body { padding: 1rem; }
 
         .form-group { margin-bottom: 1rem; }
-        .form-label { display: block; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); margin-bottom: 0.5rem; }
+        .form-label { display: block; font-size: 0.7rem;  letter-spacing: 0.1em; color: var(--text-muted); margin-bottom: 0.5rem; }
         .form-input { width: 100%; padding: 0.6rem 0.75rem; border: 1px solid var(--border-color); border-radius: 3px; background: var(--bg-tertiary); color: var(--text-primary); font-family: var(--font-mono); font-size: 0.8rem; }
         .form-input:focus { outline: none; border-color: var(--accent-red); }
 
@@ -2450,7 +2575,7 @@ SETTINGS_TEMPLATE = """
         .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
         .form-hint { font-size: 0.7rem; color: var(--text-muted); margin-top: 0.25rem; }
 
-        .btn { padding: 0.6rem 1.25rem; border-radius: 3px; font-family: var(--font-mono); font-size: 0.7rem; font-weight: 500; cursor: pointer; border: 1px solid var(--border-color); background: var(--bg-tertiary); color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; text-decoration: none; display: inline-block; transition: all 0.1s; }
+        .btn { padding: 0.6rem 1.25rem; border-radius: 3px; font-family: var(--font-mono); font-size: 0.7rem; font-weight: 500; cursor: pointer; border: 1px solid var(--border-color); background: var(--bg-tertiary); color: var(--text-secondary);  letter-spacing: 0.05em; text-decoration: none; display: inline-block; transition: all 0.1s; }
         .btn:hover { background: var(--bg-hover); color: var(--text-primary); }
         .btn-primary { background: var(--accent-red); border-color: var(--accent-red); color: white; }
         .btn-primary:hover { background: #b91c1c; }
@@ -2470,7 +2595,7 @@ SETTINGS_TEMPLATE = """
 <body>
     <header class="topbar">
         <div class="topbar-left">
-            <a href="/" class="brand"><svg class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 7 10 10-5 5V2l5 5L7 17"/></svg><span class="brand-text">BLUE<span>WATCH</span></span></a>
+            <a href="/" class="brand"><svg class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 7 10 10-5 5V2l5 5L7 17"/></svg><span class="brand-text">Blue<span>Watch</span></span></a>
             <nav class="nav">
                 <a href="/" class="nav-link">Dashboard</a>
                 <a href="/settings" class="nav-link active">Config</a>
@@ -2921,10 +3046,10 @@ ABOUT_TEMPLATE = """
         .topbar-left { display: flex; align-items: center; gap: 1.5rem; }
         .brand { display: flex; align-items: center; gap: 0.5rem; text-decoration: none; color: inherit; }
         .brand-icon { color: var(--accent-blue); width: 1.1rem; height: 1.1rem; }
-        .brand-text { font-weight: 700; font-size: 0.9rem; letter-spacing: 0.05em; text-transform: uppercase; color: var(--accent-blue); }
+        .brand-text { font-weight: 700; font-size: 0.9rem; letter-spacing: 0.05em;  color: var(--accent-blue); }
         .brand-text span { color: #ffffff; }
         .nav { display: flex; gap: 0.25rem; }
-        .nav-link { color: var(--text-secondary); text-decoration: none; font-size: 0.75rem; padding: 0.4rem 0.75rem; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.05em; transition: all 0.1s; }
+        .nav-link { color: var(--text-secondary); text-decoration: none; font-size: 0.75rem; padding: 0.4rem 0.75rem; border-radius: 3px;  letter-spacing: 0.05em; transition: all 0.1s; }
         .nav-link:hover, .nav-link.active { color: var(--text-primary); background: var(--bg-tertiary); }
 
         [data-theme="light"] { --bg-primary: #f5f5f5; --bg-secondary: #e8e8e8; --bg-tertiary: #ffffff; --bg-hover: #d8d8d8; --text-primary: #1a1a1a; --text-secondary: #555555; --text-muted: #888888; --accent-red: #dc2626; --accent-amber: #d97706; --border-color: #cccccc; }
@@ -2938,10 +3063,10 @@ ABOUT_TEMPLATE = """
         .hero-icon { color: var(--accent-red); font-size: 2.5rem; margin-bottom: 1rem; }
         .hero-title { font-size: 1.5rem; font-weight: 700; letter-spacing: 0.1em; margin-bottom: 0.5rem; }
         .hero-title span { color: var(--accent-red); }
-        .hero-tagline { font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.15em; }
+        .hero-tagline { font-size: 0.8rem; color: var(--text-muted);  letter-spacing: 0.15em; }
 
         .panel { background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 4px; margin-bottom: 1.5rem; }
-        .panel-header { padding: 0.75rem 1rem; background: var(--bg-tertiary); border-bottom: 1px solid var(--border-color); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent-red); }
+        .panel-header { padding: 0.75rem 1rem; background: var(--bg-tertiary); border-bottom: 1px solid var(--border-color); font-size: 0.7rem;  letter-spacing: 0.1em; color: var(--accent-red); }
         .panel-body { padding: 1rem; }
         .panel-body p { color: var(--text-secondary); line-height: 1.8; margin-bottom: 0.75rem; font-size: 0.85rem; }
         .panel-body p:last-child { margin-bottom: 0; }
@@ -2951,11 +3076,11 @@ ABOUT_TEMPLATE = """
         .capability-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; }
         .capability { background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 3px; padding: 1rem; text-align: center; }
         .capability-icon { font-size: 1.25rem; margin-bottom: 0.5rem; }
-        .capability-name { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.25rem; }
+        .capability-name { font-size: 0.7rem; font-weight: 600;  letter-spacing: 0.05em; margin-bottom: 0.25rem; }
         .capability-desc { font-size: 0.65rem; color: var(--text-muted); }
 
         .warning { background: rgba(220, 38, 38, 0.1); border: 1px solid var(--accent-red); border-radius: 3px; padding: 1rem; margin-top: 1rem; }
-        .warning-title { color: var(--accent-red); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem; }
+        .warning-title { color: var(--accent-red); font-size: 0.7rem;  letter-spacing: 0.1em; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem; }
         .warning p { color: var(--text-secondary); font-size: 0.8rem; line-height: 1.6; }
 
         .version { text-align: center; padding: 1.5rem; color: var(--text-muted); font-size: 0.75rem; letter-spacing: 0.1em; }
@@ -2969,7 +3094,7 @@ ABOUT_TEMPLATE = """
 <body>
     <header class="topbar">
         <div class="topbar-left">
-            <a href="/" class="brand"><svg class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 7 10 10-5 5V2l5 5L7 17"/></svg><span class="brand-text">BLUE<span>WATCH</span></span></a>
+            <a href="/" class="brand"><svg class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 7 10 10-5 5V2l5 5L7 17"/></svg><span class="brand-text">Blue<span>Watch</span></span></a>
             <nav class="nav">
                 <a href="/" class="nav-link">Dashboard</a>
                 <a href="/settings" class="nav-link">Config</a>
@@ -3094,14 +3219,14 @@ LOGIN_TEMPLATE = """
         .login-icon { color: var(--accent-red); font-size: 2rem; margin-bottom: 0.75rem; }
         .login-title { font-size: 1.25rem; font-weight: 700; letter-spacing: 0.1em; }
         .login-title span { color: var(--accent-red); }
-        .login-subtitle { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.15em; margin-top: 0.5rem; }
+        .login-subtitle { font-size: 0.7rem; color: var(--text-muted);  letter-spacing: 0.15em; margin-top: 0.5rem; }
 
         .form-group { margin-bottom: 1rem; }
-        .form-label { display: block; font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); margin-bottom: 0.5rem; }
+        .form-label { display: block; font-size: 0.65rem;  letter-spacing: 0.1em; color: var(--text-muted); margin-bottom: 0.5rem; }
         .form-input { width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 3px; background: var(--bg-tertiary); color: var(--text-primary); font-family: var(--font-mono); font-size: 0.9rem; }
         .form-input:focus { outline: none; border-color: var(--accent-red); }
 
-        .btn { width: 100%; padding: 0.75rem; border: none; border-radius: 3px; background: var(--accent-red); color: white; font-family: var(--font-mono); font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; cursor: pointer; transition: background 0.1s; }
+        .btn { width: 100%; padding: 0.75rem; border: none; border-radius: 3px; background: var(--accent-red); color: white; font-family: var(--font-mono); font-size: 0.8rem; font-weight: 600;  letter-spacing: 0.1em; cursor: pointer; transition: background 0.1s; }
         .btn:hover { background: #b91c1c; }
 
         .error-msg { background: rgba(220, 38, 38, 0.1); border: 1px solid var(--accent-red); border-radius: 3px; padding: 0.75rem; margin-bottom: 1rem; color: var(--accent-red); font-size: 0.8rem; text-align: center; display: none; }
