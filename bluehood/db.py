@@ -128,6 +128,11 @@ CREATE TABLE IF NOT EXISTS settings (
     value TEXT
 );
 
+CREATE TABLE IF NOT EXISTS name_vendor_map (
+    name TEXT PRIMARY KEY COLLATE NOCASE,
+    vendor TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS identities (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
@@ -459,14 +464,18 @@ def _build_device_query_filters(
         conditions.append(f"COALESCE(d.device_type, 'unknown') IN ({placeholders})")
         params.extend(filter_types)
 
+    search_value = (search or "").strip()
+
     if group_ids:
         placeholders = ", ".join("?" for _ in group_ids)
         conditions.append(f"d.group_id IN ({placeholders})")
         params.extend(group_ids)
-    elif not show_all:
-        # No explicit category selected -- the main list is the triage
-        # queue, so once a device has been sorted into any category it
-        # drops out of here and only shows up under that category.
+    elif not show_all and not search_value:
+        # No explicit category selected and no search text -- the main
+        # list is the triage queue, so once a device has been sorted into
+        # any category it drops out of here and only shows up under that
+        # category. A text search should always search everything so
+        # nothing is hidden from the results.
         conditions.append("d.group_id IS NULL")
 
     # Collapse identity-clustered MAC-rotation siblings to a single
@@ -478,7 +487,6 @@ def _build_device_query_filters(
         "ORDER BY d2.last_seen DESC, d2.mac DESC LIMIT 1))"
     )
 
-    search_value = (search or "").strip()
     if search_value:
         wildcard = f"%{search_value}%"
         conditions.append(
@@ -763,6 +771,22 @@ async def upsert_device(
             if vendor and not existing["vendor"]:
                 updates.append("vendor = ?")
                 params.append(vendor)
+            elif not existing["vendor"]:
+                # No vendor from this sighting (or OUI lookup never found
+                # one) and none set yet -- check whether this device's
+                # advertised name was previously taught to us via
+                # set_device_vendor() (e.g. "P mesh" -> "Plejd"), so every
+                # device sharing that name gets labeled automatically.
+                lookup_name = friendly_name or existing["friendly_name"]
+                if lookup_name:
+                    async with db.execute(
+                        "SELECT vendor FROM name_vendor_map WHERE name = ? COLLATE NOCASE",
+                        (lookup_name,),
+                    ) as cursor:
+                        mapped = await cursor.fetchone()
+                    if mapped:
+                        updates.append("vendor = ?")
+                        params.append(mapped["vendor"])
 
             # Update/merge service_uuids if we have new ones
             if service_uuids:
@@ -798,13 +822,25 @@ async def upsert_device(
                 params
             )
         else:
+            insert_vendor = vendor
+            if not insert_vendor and friendly_name:
+                # No vendor from the OUI lookup -- check if this advertised
+                # name was previously taught to us (see set_device_vendor()).
+                async with db.execute(
+                    "SELECT vendor FROM name_vendor_map WHERE name = ? COLLATE NOCASE",
+                    (friendly_name,),
+                ) as cursor:
+                    mapped = await cursor.fetchone()
+                if mapped:
+                    insert_vendor = mapped["vendor"]
+
             # Insert new device
             await db.execute(
                 """
                 INSERT INTO devices (mac, vendor, friendly_name, first_seen, last_seen, total_sightings, service_uuids, bt_type, device_class, new_device_notified)
                 VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, 0)
                 """,
-                (mac, vendor, friendly_name, now.isoformat(), now.isoformat(), uuids_json, bt_type, device_class)
+                (mac, insert_vendor, friendly_name, now.isoformat(), now.isoformat(), uuids_json, bt_type, device_class)
             )
 
             # Auto-attach to an existing identity: a brand-new randomized-MAC
@@ -884,15 +920,24 @@ async def set_device_vendor(mac: str, vendor: Optional[str]) -> None:
     an identity (merged MAC-rotation/cluster), the vendor is applied to
     every MAC in that identity, not just the one currently viewed --
     otherwise the label would only show up while that specific MAC happens
-    to be the collapsed representative row."""
+    to be the collapsed representative row.
+
+    Also remembers name -> vendor in name_vendor_map when the device has an
+    advertised name and a non-empty vendor is being set, so any OTHER
+    device (now or found later) advertising that same name gets the vendor
+    auto-applied too -- see _apply_name_vendor_hint(), called from
+    upsert_device. E.g. teach it once that "P mesh" is Plejd, and every
+    Plejd mesh switch anyone's scanner finds afterward is labeled without
+    having to set it MAC by MAC."""
     vendor = vendor.strip() if vendor else None
     async with _connect() as db:
         db.row_factory = aiosqlite.Row
         async with db.execute(
-            "SELECT identity_id FROM devices WHERE mac = ?", (mac,)
+            "SELECT identity_id, friendly_name FROM devices WHERE mac = ?", (mac,)
         ) as cursor:
             row = await cursor.fetchone()
         identity_id = row["identity_id"] if row else None
+        friendly_name = row["friendly_name"] if row else None
 
         if identity_id:
             await db.execute(
@@ -904,6 +949,14 @@ async def set_device_vendor(mac: str, vendor: Optional[str]) -> None:
                 "UPDATE devices SET vendor = ? WHERE mac = ?",
                 (vendor, mac)
             )
+
+        if friendly_name and vendor:
+            await db.execute(
+                "INSERT INTO name_vendor_map (name, vendor) VALUES (?, ?) "
+                "ON CONFLICT(name) DO UPDATE SET vendor = excluded.vendor",
+                (friendly_name, vendor)
+            )
+
         await db.commit()
 
 
