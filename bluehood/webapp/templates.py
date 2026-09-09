@@ -17,7 +17,7 @@ HTML_TEMPLATE = """
             --text-primary: #e0e0e0;
             --text-secondary: #888888;
             --text-muted: #555555;
-            --accent-red: #dc2626;
+            --accent-red: #2563eb;
             --accent-orange: #ea580c;
             --accent-amber: #d97706;
             --accent-green: #16a34a;
@@ -395,7 +395,7 @@ HTML_TEMPLATE = """
         }
 
         .btn-primary:hover {
-            background: #b91c1c;
+            background: #1d4ed8;
         }
 
         /* Device Table */
@@ -2636,7 +2636,7 @@ SETTINGS_TEMPLATE = """
             --text-primary: #e0e0e0;
             --text-secondary: #888888;
             --text-muted: #555555;
-            --accent-red: #dc2626;
+            --accent-red: #2563eb;
             --accent-green: #16a34a;
             --border-color: #2a2a2a;
             --font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', Consolas, monospace;
@@ -2654,7 +2654,7 @@ SETTINGS_TEMPLATE = """
         .nav-link { color: var(--text-secondary); text-decoration: none; font-size: 0.75rem; padding: 0.4rem 0.75rem; border-radius: 3px;  letter-spacing: 0.05em; transition: all 0.1s; }
         .nav-link:hover, .nav-link.active { color: var(--text-primary); background: var(--bg-tertiary); }
 
-        [data-theme="light"] { --bg-primary: #f5f5f5; --bg-secondary: #e8e8e8; --bg-tertiary: #ffffff; --bg-hover: #d8d8d8; --text-primary: #1a1a1a; --text-secondary: #555555; --text-muted: #888888; --accent-red: #dc2626; --accent-green: #16a34a; --border-color: #cccccc; }
+        [data-theme="light"] { --bg-primary: #f5f5f5; --bg-secondary: #e8e8e8; --bg-tertiary: #ffffff; --bg-hover: #d8d8d8; --text-primary: #1a1a1a; --text-secondary: #555555; --text-muted: #888888; --accent-red: #2563eb; --accent-green: #16a34a; --border-color: #cccccc; }
 
         .theme-toggle { background: transparent; border: 1px solid var(--border-color); color: var(--text-secondary); font-family: var(--font-mono); font-size: 0.75rem; padding: 0.3rem 0.5rem; cursor: pointer; border-radius: 3px; transition: all 0.1s; }
         .theme-toggle:hover { color: var(--text-primary); border-color: var(--border-active, #999); }
@@ -2690,7 +2690,7 @@ SETTINGS_TEMPLATE = """
         .btn { padding: 0.6rem 1.25rem; border-radius: 3px; font-family: var(--font-mono); font-size: 0.7rem; font-weight: 500; cursor: pointer; border: 1px solid var(--border-color); background: var(--bg-tertiary); color: var(--text-secondary);  letter-spacing: 0.05em; text-decoration: none; display: inline-block; transition: all 0.1s; }
         .btn:hover { background: var(--bg-hover); color: var(--text-primary); }
         .btn-primary { background: var(--accent-red); border-color: var(--accent-red); color: white; }
-        .btn-primary:hover { background: #b91c1c; }
+        .btn-primary:hover { background: #1d4ed8; }
 
         .btn-row { display: flex; gap: 0.75rem; margin-top: 1.5rem; }
 
@@ -3146,7 +3146,7 @@ ABOUT_TEMPLATE = """
             --text-primary: #e0e0e0;
             --text-secondary: #888888;
             --text-muted: #555555;
-            --accent-red: #dc2626;
+            --accent-red: #2563eb;
             --accent-amber: #d97706;
             --border-color: #2a2a2a;
             --font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', Consolas, monospace;
@@ -3164,7 +3164,7 @@ ABOUT_TEMPLATE = """
         .nav-link { color: var(--text-secondary); text-decoration: none; font-size: 0.75rem; padding: 0.4rem 0.75rem; border-radius: 3px;  letter-spacing: 0.05em; transition: all 0.1s; }
         .nav-link:hover, .nav-link.active { color: var(--text-primary); background: var(--bg-tertiary); }
 
-        [data-theme="light"] { --bg-primary: #f5f5f5; --bg-secondary: #e8e8e8; --bg-tertiary: #ffffff; --bg-hover: #d8d8d8; --text-primary: #1a1a1a; --text-secondary: #555555; --text-muted: #888888; --accent-red: #dc2626; --accent-amber: #d97706; --border-color: #cccccc; }
+        [data-theme="light"] { --bg-primary: #f5f5f5; --bg-secondary: #e8e8e8; --bg-tertiary: #ffffff; --bg-hover: #d8d8d8; --text-primary: #1a1a1a; --text-secondary: #555555; --text-muted: #888888; --accent-red: #2563eb; --accent-amber: #d97706; --border-color: #cccccc; }
 
         .theme-toggle { background: transparent; border: 1px solid var(--border-color); color: var(--text-secondary); font-family: var(--font-mono); font-size: 0.75rem; padding: 0.3rem 0.5rem; cursor: pointer; border-radius: 3px; transition: all 0.1s; }
         .theme-toggle:hover { color: var(--text-primary); border-color: var(--border-active, #999); }
@@ -3316,7 +3316,7 @@ LOGIN_TEMPLATE = """
             --text-primary: #e0e0e0;
             --text-secondary: #888888;
             --text-muted: #555555;
-            --accent-red: #dc2626;
+            --accent-red: #2563eb;
             --border-color: #2a2a2a;
             --font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', Consolas, monospace;
         }
@@ -3339,12 +3339,12 @@ LOGIN_TEMPLATE = """
         .form-input:focus { outline: none; border-color: var(--accent-red); }
 
         .btn { width: 100%; padding: 0.75rem; border: none; border-radius: 3px; background: var(--accent-red); color: white; font-family: var(--font-mono); font-size: 0.8rem; font-weight: 600;  letter-spacing: 0.1em; cursor: pointer; transition: background 0.1s; }
-        .btn:hover { background: #b91c1c; }
+        .btn:hover { background: #1d4ed8; }
 
         .error-msg { background: rgba(220, 38, 38, 0.1); border: 1px solid var(--accent-red); border-radius: 3px; padding: 0.75rem; margin-bottom: 1rem; color: var(--accent-red); font-size: 0.8rem; text-align: center; display: none; }
         .error-msg.show { display: block; }
 
-        [data-theme="light"] { --bg-primary: #f5f5f5; --bg-secondary: #e8e8e8; --bg-tertiary: #ffffff; --text-primary: #1a1a1a; --text-secondary: #555555; --text-muted: #888888; --accent-red: #dc2626; --border-color: #cccccc; }
+        [data-theme="light"] { --bg-primary: #f5f5f5; --bg-secondary: #e8e8e8; --bg-tertiary: #ffffff; --text-primary: #1a1a1a; --text-secondary: #555555; --text-muted: #888888; --accent-red: #2563eb; --border-color: #cccccc; }
 
         .theme-toggle { position: fixed; top: 1rem; right: 1rem; background: transparent; border: 1px solid var(--border-color); color: var(--text-secondary); font-family: var(--font-mono); font-size: 0.75rem; padding: 0.3rem 0.5rem; cursor: pointer; border-radius: 3px; transition: all 0.1s; }
         .theme-toggle:hover { color: var(--text-primary); border-color: var(--border-active, #999); }
