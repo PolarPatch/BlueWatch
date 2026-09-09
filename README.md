@@ -1,8 +1,14 @@
-# Bluehood
+# BlueWatch
 
-**Bluetooth Neighborhood** - Track BLE devices in your area and analyze traffic patterns.
+Get alerts when new Bluetooth devices appear in your local neighbourhood.
 
-[!["Buy Me A Coffee"](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://buymeacoffee.com/d3hkz6gwle)
+Started from [bluehood](https://github.com/dannymcc/bluehood) (MIT licensed
+— see `CREDITS.md`) but diverging into its own project. See `SPEC.md` for
+the design this codebase is being reworked toward: known/unknown device
+triage, user-defined nested categories, drag-and-drop assignment,
+per-device arrive/depart notification overrides, and an independent
+watchlist. The content below this point is still bluehood's own
+documentation and describes the *current* code, not yet the target design.
 
 ---
 
