@@ -1111,9 +1111,6 @@ HTML_TEMPLATE = """
         };
 
         function getServerSortDirection() {
-            if (sortState.column === 'last_seen') {
-                return sortState.direction === 'asc' ? 'desc' : 'asc';
-            }
             return sortState.direction;
         }
 
@@ -1577,15 +1574,18 @@ HTML_TEMPLATE = """
                 pageSizeSelect.value = String(pagination.pageSize);
             }
 
+            const paginationCenter = document.querySelector('.pagination-center');
+            const paginationRight = document.querySelector('.pagination-right');
+
             if (dateFilteredDevices !== null) {
-                pageInfo.textContent = 'Date query mode';
-                prevBtn.disabled = true;
-                nextBtn.disabled = true;
-                pageNumbers.innerHTML = '';
-                if (pageSizeSelect) pageSizeSelect.disabled = true;
+                pageInfo.textContent = 'Date range query — showing all ' + dateFilteredDevices.length + ' matching devices (no paging)';
+                if (paginationCenter) paginationCenter.style.display = 'none';
+                if (paginationRight) paginationRight.style.display = 'none';
                 return;
             }
 
+            if (paginationCenter) paginationCenter.style.display = '';
+            if (paginationRight) paginationRight.style.display = '';
             pageInfo.textContent = 'Page ' + pagination.page + '/' + Math.max(1, pagination.totalPages);
             prevBtn.disabled = !pagination.hasPrev;
             nextBtn.disabled = !pagination.hasNext;
@@ -1696,12 +1696,11 @@ HTML_TEMPLATE = """
                     return (device.friendly_name || '').toLowerCase();
                 case 'sightings':
                     return Number.isFinite(device.total_sightings) ? device.total_sightings : -1;
-                case 'last_seen': {
-                    if (!device.last_seen) return Number.POSITIVE_INFINITY;
-                    const last = new Date(device.last_seen);
-                    const now = new Date();
-                    return Math.max(0, now - last);
-                }
+                case 'last_seen':
+                    // Raw timestamp (ms since epoch) so normal asc/desc sorting is
+                    // intuitive: desc = highest timestamp = most recent first.
+                    // Undated devices sort as the oldest possible value.
+                    return device.last_seen ? new Date(device.last_seen).getTime() : Number.NEGATIVE_INFINITY;
                 case 'group':
                     return (device.group_name || '').toLowerCase();
                 default:
