@@ -878,6 +878,35 @@ async def set_device_type(mac: str, device_type: str) -> None:
         await db.commit()
 
 
+async def set_device_vendor(mac: str, vendor: Optional[str]) -> None:
+    """Manually set (or clear) a device's vendor, overriding whatever the
+    automatic OUI lookup found (or didn't find). If the device belongs to
+    an identity (merged MAC-rotation/cluster), the vendor is applied to
+    every MAC in that identity, not just the one currently viewed --
+    otherwise the label would only show up while that specific MAC happens
+    to be the collapsed representative row."""
+    vendor = vendor.strip() if vendor else None
+    async with _connect() as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT identity_id FROM devices WHERE mac = ?", (mac,)
+        ) as cursor:
+            row = await cursor.fetchone()
+        identity_id = row["identity_id"] if row else None
+
+        if identity_id:
+            await db.execute(
+                "UPDATE devices SET vendor = ? WHERE identity_id = ?",
+                (vendor, identity_id)
+            )
+        else:
+            await db.execute(
+                "UPDATE devices SET vendor = ? WHERE mac = ?",
+                (vendor, mac)
+            )
+        await db.commit()
+
+
 async def set_device_notes(mac: str, notes: Optional[str]) -> None:
     """Set operator notes for a device."""
     async with _connect() as db:

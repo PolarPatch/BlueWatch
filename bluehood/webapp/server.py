@@ -86,6 +86,7 @@ class WebServer:
         self.app.router.add_get("/api/device/{mac}/rotation", self.api_device_rotation)
         self.app.router.add_get("/api/device/{mac}/proximity", self.api_device_proximity)
         self.app.router.add_post("/api/device/{mac}/notes", self.api_set_device_notes)
+        self.app.router.add_post("/api/device/{mac}/vendor", self.api_set_device_vendor)
         self.app.router.add_get("/api/name-groups", self.api_name_groups)
         self.app.router.add_get("/api/search", self.api_search)
         self.app.router.add_get("/api/stats", self.api_stats)
@@ -744,6 +745,23 @@ class WebServer:
             notes = data.get("notes", "")
             await db.set_device_notes(mac, notes if notes else None)
             return web.json_response({"mac": mac, "notes": notes})
+        except Exception as e:
+            return web.json_response({"error": str(e)}, status=400)
+
+    async def api_set_device_vendor(self, request: web.Request) -> web.Response:
+        """Manually set (or clear) a device's vendor label, overriding the
+        automatic OUI lookup. Applies to the whole identity cluster if the
+        device is merged with others."""
+        mac = request.match_info["mac"]
+        device = await db.get_device(mac)
+        if not device:
+            return web.json_response({"error": "Device not found"}, status=404)
+
+        try:
+            data = await request.json()
+            vendor = data.get("vendor", "")
+            await db.set_device_vendor(mac, vendor if vendor else None)
+            return web.json_response({"mac": mac, "vendor": vendor})
         except Exception as e:
             return web.json_response({"error": str(e)}, status=400)
 

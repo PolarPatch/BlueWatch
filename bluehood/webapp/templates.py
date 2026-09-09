@@ -934,13 +934,13 @@ HTML_TEMPLATE = """
                         <button class="btn" style="flex:1;" onclick="clearDateFilters()">Clear</button>
                         <button class="btn btn-primary" style="flex:1;" onclick="searchByDateRange()">Query</button>
                     </div>
+                    <input type="text" class="search-input" id="search" placeholder="Search MAC, vendor, or identifier..." style="font-size: 0.75rem;">
                 </div>
             </div>
         </aside>
 
         <main class="content">
             <div class="search-bar">
-                <input type="text" class="search-input" id="search" placeholder="Search MAC, vendor, or identifier...">
                 <select class="form-input bulk-select" id="export-format" aria-label="Export format" style="min-width: 5rem;">
                     <option value="csv" selected>CSV</option>
                     <option value="json">JSON</option>
@@ -2018,7 +2018,7 @@ HTML_TEMPLATE = """
                 '<div class="detail-grid">' +
                 '<div class="detail-item"><div class="detail-label">Address</div><div class="detail-value mono" style="font-size:' + (isMacOSUUID(d.mac) ? '0.65rem' : '0.85rem') + '; word-break: break-all;">' + obfuscateMAC(d.mac) + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">Classification</div><div class="detail-value">' + data.type_label + '</div></div>' +
-                '<div class="detail-item"><div class="detail-label">Vendor OUI</div><div class="detail-value">' + (d.vendor || '—') + '</div></div>' +
+                '<div class="detail-item"><div class="detail-label">Vendor OUI</div><input class="form-input" id="device-vendor" value="' + escapeHtml(d.vendor || '') + '" placeholder="Unknown -- set manually" style="font-size: 0.85rem;" onchange="setDeviceVendor(\\'' + d.mac + '\\', this.value)"></div>' +
                 '<div class="detail-item"><div class="detail-label">Proximity Zone</div><div class="detail-value" style="color: ' + proximityColor + '; ">' + proximityZone + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">First Contact</div><div class="detail-value mono">' + (d.first_seen ? new Date(d.first_seen).toLocaleString() : '—') + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">Last seen</div><div class="detail-value mono">' + (d.last_seen ? new Date(d.last_seen).toLocaleString() : '—') + '</div></div>' +
@@ -2125,6 +2125,17 @@ HTML_TEMPLATE = """
             select.innerHTML = '<option value="">Assign group...</option>' +
                 '<option value="__none__">No group</option>' +
                 cachedGroups.map(g => '<option value="' + g.id + '">' + groupOptionLabel(g) + '</option>').join('');
+        }
+
+        async function setDeviceVendor(mac, vendor) {
+            try {
+                await fetch('/api/device/' + encodeURIComponent(mac) + '/vendor', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ vendor: vendor })
+                });
+                refreshDevices();
+            } catch (error) { console.error('Error setting vendor:', error); }
         }
 
         async function setDeviceGroup(mac, groupId) {
