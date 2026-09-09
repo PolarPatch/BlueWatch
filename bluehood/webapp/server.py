@@ -222,6 +222,7 @@ class WebServer:
                 "first_seen": (d.first_seen.isoformat() + "Z") if d.first_seen else None,
                 "last_seen": (d.last_seen.isoformat() + "Z") if d.last_seen else None,
                 "total_sightings": d.total_sightings,
+                "last_rssi": d.last_rssi,
                 "service_uuids": d.service_uuids,
                 "uuid_names": get_uuid_names(d.service_uuids),
                 "group_id": d.group_id,

@@ -855,14 +855,10 @@ HTML_TEMPLATE = """
             </a>
             <nav class="nav">
                 <a href="/" class="nav-link active">Dashboard</a>
+                <a href="/settings" class="nav-link">Config</a>
             </nav>
         </div>
         <div class="topbar-right">
-            <div class="status-indicator">
-                <div class="status-dot"></div>
-                <span>Scanning</span>
-            </div>
-            <div class="timestamp" id="last-update">--:--:--</div>
             <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Toggle light/dark mode">☀</button>
         </div>
     </header>
@@ -969,16 +965,17 @@ HTML_TEMPLATE = """
                         <tr>
                             <th class="select-col"><input type="checkbox" id="select-all-checkbox" class="row-select-checkbox" aria-label="Select all rows"></th>
                             <th class="sortable" data-sort="class">Class<span class="sort-indicator"></span></th>
-                            <th class="sortable" data-sort="mac">Address<span class="sort-indicator"></span></th>
                             <th class="sortable" data-sort="vendor">Vendor<span class="sort-indicator"></span></th>
+                            <th class="sortable" data-sort="mac">Address<span class="sort-indicator"></span></th>
                             <th class="sortable" data-sort="identifier">Identifier<span class="sort-indicator"></span></th>
+                            <th>RSSI</th>
                             <th class="sortable" data-sort="sightings">Sightings<span class="sort-indicator"></span></th>
                             <th class="sortable" data-sort="last_seen">Last Contact<span class="sort-indicator"></span></th>
                             <th class="sortable" data-sort="group">Group<span class="sort-indicator"></span></th>
                         </tr>
                     </thead>
                     <tbody id="device-list">
-                        <tr><td colspan="8" style="text-align: center; padding: 2rem; color: var(--text-muted);">Initializing scanner...</td></tr>
+                        <tr><td colspan="9" style="text-align: center; padding: 2rem; color: var(--text-muted);">Initializing scanner...</td></tr>
                     </tbody>
                 </table>
                 <div class="pagination-bar">
@@ -1018,7 +1015,7 @@ HTML_TEMPLATE = """
     </div>
 
     <footer class="footer">
-        BLUEHOOD v0.5.0 // Bluetooth Reconnaissance Framework // <a href="https://github.com/dannymcc/bluehood">Source</a> // <span class="kbd">?</span> Shortcuts
+        BlueWatch v0.1beta
     </footer>
 
     <!-- Target Detail Modal -->
@@ -1294,7 +1291,6 @@ HTML_TEMPLATE = """
                 updatePaginationUI();
                 if (!dateFilteredDevices) renderDevices();
                 updateSelectionUI();
-                document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
             } catch (error) {
                 console.error('Scan error:', error);
             }
@@ -1699,7 +1695,7 @@ HTML_TEMPLATE = """
             currentVisibleDevices = visibleDevices;
 
             if (visibleDevices.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 2rem; color: var(--text-muted);">No targets match criteria</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; padding: 2rem; color: var(--text-muted);">No targets match criteria</td></tr>';
                 updateSelectionUI();
                 return;
             }
@@ -1734,6 +1730,7 @@ HTML_TEMPLATE = """
                         '<td class="select-col"><input type="checkbox" class="row-select-checkbox" ' + checkedAttr + ' onclick="toggleRowCheckbox(event, \\'' + d.mac + '\\', ' + index + ')"></td>' +
                         '<td style="padding: 0.4rem 0.5rem;"><span class="type-badge ' + typeClass + '" style="font-size: 0.65rem; padding: 0.15rem 0.4rem;">' + watchedStar + d.type_icon + '</span></td>' +
                         '<td colspan="3" style="padding: 0.4rem 0.5rem; font-size: 0.75rem;">' + displayName + '</td>' +
+                        '<td style="padding: 0.4rem 0.5rem; font-size: 0.7rem;">' + (d.last_rssi != null ? d.last_rssi + ' dBm' : '—') + '</td>' +
                         '<td style="padding: 0.4rem 0.5rem; font-size: 0.7rem;">' + d.total_sightings + '</td>' +
                         '<td style="padding: 0.4rem 0.5rem; font-size: 0.7rem;" class="' + (isRecent ? 'recent' : '') + '" title="' + lastSeenTooltip + '">' + lastSeen + '</td>' +
                         '<td style="padding: 0.4rem 0.5rem; font-size: 0.7rem;">' + groupHtml + '</td>' +
@@ -1743,9 +1740,10 @@ HTML_TEMPLATE = """
                 return '<tr class="' + rowClass + '" onclick="handleRowClick(event, \\'' + d.mac + '\\', ' + index + ')" ondblclick="showDevice(\\'' + d.mac + '\\')">' +
                     '<td class="select-col"><input type="checkbox" class="row-select-checkbox" ' + checkedAttr + ' onclick="toggleRowCheckbox(event, \\'' + d.mac + '\\', ' + index + ')"></td>' +
                     '<td><span class="type-badge ' + typeClass + '">' + watchedStar + d.type_icon + ' ' + d.type_label + '</span></td>' +
-                    '<td class="mac-addr" title="' + d.mac + '">' + (isMacOSUUID(d.mac) ? obfuscateMAC(d.mac).substring(0, 13) + '...' : obfuscateMAC(d.mac)) + '</td>' +
                     '<td class="vendor-name">' + (d.vendor || '—') + '</td>' +
+                    '<td class="mac-addr" title="' + d.mac + '">' + (isMacOSUUID(d.mac) ? obfuscateMAC(d.mac).substring(0, 13) + '...' : obfuscateMAC(d.mac)) + '</td>' +
                     '<td class="device-name">' + (d.friendly_name ? obfuscateName(d.friendly_name) : '—') + '</td>' +
+                    '<td class="rssi-value">' + (d.last_rssi != null ? d.last_rssi + ' dBm' : '—') + '</td>' +
                     '<td class="sighting-count">' + d.total_sightings + '</td>' +
                     '<td class="last-seen ' + (isRecent ? 'recent' : '') + '" title="' + lastSeenTooltip + '">' + lastSeen + '</td>' +
                     '<td class="group-name">' + groupHtml + '</td>' +
@@ -2475,6 +2473,7 @@ SETTINGS_TEMPLATE = """
             <a href="/" class="brand"><svg class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 7 10 10-5 5V2l5 5L7 17"/></svg><span class="brand-text">BLUE<span>WATCH</span></span></a>
             <nav class="nav">
                 <a href="/" class="nav-link">Dashboard</a>
+                <a href="/settings" class="nav-link active">Config</a>
             </nav>
         </div>
         <div><button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Toggle light/dark mode">☀</button></div>
@@ -2674,7 +2673,7 @@ SETTINGS_TEMPLATE = """
         </div>
     </main>
 
-    <footer class="footer">BLUEHOOD v0.5.0 // <a href="https://github.com/dannymcc/bluehood">Source</a></footer>
+    <footer class="footer">BlueWatch v0.1beta</footer>
 
     <script>
         function applyTheme(theme) {
@@ -2973,6 +2972,7 @@ ABOUT_TEMPLATE = """
             <a href="/" class="brand"><svg class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 7 10 10-5 5V2l5 5L7 17"/></svg><span class="brand-text">BLUE<span>WATCH</span></span></a>
             <nav class="nav">
                 <a href="/" class="nav-link">Dashboard</a>
+                <a href="/settings" class="nav-link">Config</a>
             </nav>
         </div>
         <div><button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Toggle light/dark mode">☀</button></div>
@@ -3044,7 +3044,7 @@ ABOUT_TEMPLATE = """
         <div class="version">v0.5.0 // BUILD 2026.01</div>
     </main>
 
-    <footer class="footer">BLUEHOOD // <a href="https://github.com/dannymcc/bluehood">Source Repository</a></footer>
+    <footer class="footer">BlueWatch v0.1beta</footer>
 
     <script>
         function applyTheme(theme) {

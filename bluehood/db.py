@@ -41,6 +41,7 @@ class Device:
     notify_arrive_expires_at: Optional[datetime] = None
     notify_depart: Optional[str] = None
     notify_depart_expires_at: Optional[datetime] = None
+    last_rssi: Optional[int] = None  # RSSI of the most recent sighting (not a persisted column -- joined in per-query)
 
     def __post_init__(self):
         if self.service_uuids is None:
@@ -352,6 +353,7 @@ def _parse_device_row(row) -> Device:
             datetime.fromisoformat(row["notify_depart_expires_at"])
             if "notify_depart_expires_at" in keys and row["notify_depart_expires_at"] else None
         ),
+        last_rssi=row["last_rssi"] if "last_rssi" in keys else None,
     )
 
 
@@ -479,7 +481,9 @@ async def get_devices_page(
 
         page_params = [*params, safe_page_size, offset]
         async with db.execute(
-            f"SELECT d.* {base_query}{where_clause}{order_clause} LIMIT ? OFFSET ?",
+            f"""SELECT d.*,
+                (SELECT s.rssi FROM sightings s WHERE s.mac = d.mac ORDER BY s.timestamp DESC LIMIT 1) AS last_rssi
+                {base_query}{where_clause}{order_clause} LIMIT ? OFFSET ?""",
             page_params,
         ) as cursor:
             rows = await cursor.fetchall()
