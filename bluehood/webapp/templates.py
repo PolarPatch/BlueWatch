@@ -917,7 +917,7 @@ HTML_TEMPLATE = """
         <aside class="sidebar">
             <div class="panel" id="categories-panel">
                 <div class="panel-header">Categories</div>
-                <button class="filter-btn active" id="all-devices-btn" onclick="showAllDevices()" style="width: 100%; justify-content: center; margin-bottom: 0.5rem;">All devices <span class="filter-count" id="count-all">--</span></button>
+                <button class="filter-btn" id="all-devices-btn" onclick="showAllDevices()" style="width: 100%; justify-content: center; margin-bottom: 0.5rem;">All devices <span class="filter-count" id="count-all">--</span></button>
                 <div id="categories-tree" style="padding: 0.5rem;"></div>
                 <div style="padding: 0.5rem; display: flex; gap: 0.4rem;">
                     <input type="text" class="search-input" id="new-category-name" placeholder="New category name" style="font-size: 0.75rem; flex: 1;">
