@@ -1513,12 +1513,22 @@ HTML_TEMPLATE = """
                 if (endInput) url += 'end=' + encodeURIComponent(endInput);
                 const response = await fetch(url);
                 const data = await response.json();
+                if (!response.ok) {
+                    alert('Date query failed: ' + (data.error || response.status));
+                    return;
+                }
                 dateFilteredDevices = data.devices || [];
                 selectedMacs.clear();
                 lastSelectedIndex = null;
                 updatePaginationUI();
                 renderDevices();
-            } catch (error) { console.error('Query error:', error); }
+                if (dateFilteredDevices.length === 0) {
+                    alert('No devices had a sighting in that date range.');
+                }
+            } catch (error) {
+                console.error('Query error:', error);
+                alert('Date query failed: ' + error.message);
+            }
         }
 
         function clearDateFilters() {
@@ -2585,6 +2595,22 @@ HTML_TEMPLATE = """
                 showShortcutsModal();
             }
         });
+
+        function toDatetimeLocalValue(date) {
+            const pad = n => String(n).padStart(2, '0');
+            return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate()) +
+                'T' + pad(date.getHours()) + ':' + pad(date.getMinutes());
+        }
+
+        (function initDateRangeDefaults() {
+            const startEl = document.getElementById('search-start');
+            const endEl = document.getElementById('search-end');
+            if (!startEl || !endEl) return;
+            const now = new Date();
+            const anHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+            startEl.value = toDatetimeLocalValue(anHourAgo);
+            endEl.value = toDatetimeLocalValue(now);
+        })();
 
         updateViewToggle();
         updateSortIndicators();
