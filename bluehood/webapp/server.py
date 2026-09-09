@@ -182,8 +182,11 @@ class WebServer:
         # subcategories -- clicking a top-level category like "Home" should
         # also surface devices filed under a subcategory such as "IoT".
         group_ids = None
+        show_all = False
         raw_group_id = request.query.get("group_id")
-        if raw_group_id:
+        if raw_group_id == "__all__":
+            show_all = True
+        elif raw_group_id:
             try:
                 target_group_id = int(raw_group_id)
                 group_ids = [target_group_id] + [
@@ -195,6 +198,7 @@ class WebServer:
         devices, total = await db.get_devices_page(
             page=page,
             page_size=page_size,
+            show_all=show_all,
             include_ignored=True,
             device_filter=device_filter,
             search=search,
@@ -217,6 +221,7 @@ class WebServer:
                 sort_column=sort_column,
                 sort_direction=sort_direction,
                 group_ids=group_ids,
+                show_all=show_all,
                 exclude_randomized=True,
             )
 

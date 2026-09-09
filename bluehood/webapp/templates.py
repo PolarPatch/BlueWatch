@@ -909,23 +909,19 @@ HTML_TEMPLATE = """
             </nav>
         </div>
         <div class="topbar-right">
-            <div class="total-units"><span class="total-units-icon">*</span>Total units seen: <span id="stat-total">--</span></div>
             <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Toggle light/dark mode">☀</button>
         </div>
     </header>
 
     <div class="main">
         <aside class="sidebar">
-            <div class="panel">
-                <div class="panel-header">Filter by Class</div>
-                <div class="filter-group" id="filter-group">
-                    <button class="filter-btn active" data-filter="all">All Targets <span class="filter-count" id="count-all">--</span></button>
-                    <button class="filter-btn" data-filter="watched">★ Watching <span class="filter-count" id="count-watched">--</span></button>
-                    <button class="filter-btn" data-filter="phone">Phones <span class="filter-count" id="count-phone">--</span></button>
-                    <button class="filter-btn" data-filter="laptop">Computers <span class="filter-count" id="count-laptop">--</span></button>
-                    <button class="filter-btn" data-filter="audio">Audio <span class="filter-count" id="count-audio">--</span></button>
-                    <button class="filter-btn" data-filter="smart">IoT <span class="filter-count" id="count-smart">--</span></button>
-                    <button class="filter-btn" data-filter="unknown">Unclassified <span class="filter-count" id="count-unknown">--</span></button>
+            <div class="panel" id="categories-panel">
+                <div class="panel-header">Categories</div>
+                <button class="filter-btn active" id="all-devices-btn" onclick="showAllDevices()" style="width: 100%; justify-content: center; margin-bottom: 0.5rem;">All devices <span class="filter-count" id="count-all">--</span></button>
+                <div id="categories-tree" style="padding: 0.5rem;"></div>
+                <div style="padding: 0.5rem; display: flex; gap: 0.4rem;">
+                    <input type="text" class="search-input" id="new-category-name" placeholder="New category name" style="font-size: 0.75rem; flex: 1;">
+                    <button class="btn btn-primary" onclick="createCategory()">+</button>
                 </div>
             </div>
 
@@ -938,15 +934,6 @@ HTML_TEMPLATE = """
                         <button class="btn" style="flex:1;" onclick="clearDateFilters()">Clear</button>
                         <button class="btn btn-primary" style="flex:1;" onclick="searchByDateRange()">Query</button>
                     </div>
-                </div>
-            </div>
-
-            <div class="panel" id="categories-panel">
-                <div class="panel-header">Categories</div>
-                <div id="categories-tree" style="padding: 0.5rem;"></div>
-                <div style="padding: 0.5rem; display: flex; gap: 0.4rem;">
-                    <input type="text" class="search-input" id="new-category-name" placeholder="New category name" style="font-size: 0.75rem; flex: 1;">
-                    <button class="btn btn-primary" onclick="createCategory()">+</button>
                 </div>
             </div>
         </aside>
@@ -1319,7 +1306,8 @@ HTML_TEMPLATE = """
         }
 
         function updateStats(data) {
-            document.getElementById('stat-total').textContent = data.total || 0;
+            // (Total units seen was removed from the header -- data.total
+            // is still returned by the API but nothing displays it now.)
         }
 
         // ==================== Categories (sidebar tree) ====================
@@ -1379,10 +1367,20 @@ HTML_TEMPLATE = """
         function selectCategory(groupId) {
             currentGroupId = (currentGroupId === groupId) ? null : groupId;
             currentFilter = 'all';
-            document.querySelectorAll('.filter-btn[data-filter]').forEach(b => b.classList.remove('active'));
-            if (currentGroupId === null) {
-                document.querySelector('.filter-btn[data-filter="all"]').classList.add('active');
-            }
+            const allBtn = document.getElementById('all-devices-btn');
+            if (allBtn) allBtn.classList.remove('active');
+            renderCategoryTree();
+            selectedMacs.clear();
+            lastSelectedIndex = null;
+            pagination.page = 1;
+            refreshDevices();
+        }
+
+        function showAllDevices() {
+            currentGroupId = '__all__';
+            currentFilter = 'all';
+            const allBtn = document.getElementById('all-devices-btn');
+            if (allBtn) allBtn.classList.add('active');
             renderCategoryTree();
             selectedMacs.clear();
             lastSelectedIndex = null;
@@ -2531,25 +2529,6 @@ HTML_TEMPLATE = """
                 if (exportBtn) { exportBtn.disabled = false; exportBtn.textContent = originalLabel; }
             }
         }
-
-        // Filter handlers
-        document.querySelectorAll('.filter-btn[data-filter]').forEach(btn => {
-            btn.addEventListener('click', () => {
-                document.querySelectorAll('.filter-btn[data-filter]').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                currentFilter = btn.dataset.filter;
-                currentGroupId = null;
-                renderCategoryTree();
-                selectedMacs.clear();
-                lastSelectedIndex = null;
-                if (dateFilteredDevices !== null) {
-                    renderDevices();
-                    return;
-                }
-                pagination.page = 1;
-                refreshDevices();
-            });
-        });
 
         document.querySelectorAll('.device-table th.sortable').forEach(th => {
             th.addEventListener('click', () => setSort(th.dataset.sort));
