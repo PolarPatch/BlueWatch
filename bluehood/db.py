@@ -592,6 +592,7 @@ async def get_devices_export(
         device_filter=device_filter,
         search=search,
         exclude_randomized=exclude_randomized,
+        show_all=True,  # export is a deliberate, explicit action -- always a complete picture, categorized devices included
     )
 
     base_query = "FROM devices d LEFT JOIN device_groups g ON g.id = d.group_id"

@@ -441,9 +441,10 @@ HTML_TEMPLATE = """
         .device-table th {
             text-align: left;
             padding: 0.6rem 0.75rem;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
             font-size: 0.65rem;
             font-weight: 600;
-            
+
             letter-spacing: 0.1em;
             color: var(--text-muted);
             background: var(--bg-secondary);
@@ -944,14 +945,6 @@ HTML_TEMPLATE = """
         </aside>
 
         <main class="content">
-            <div class="search-bar">
-                <select class="form-input bulk-select" id="export-format" aria-label="Export format" style="min-width: 5rem;">
-                    <option value="csv" selected>CSV</option>
-                    <option value="json">JSON</option>
-                </select>
-                <button class="btn" id="export-btn" onclick="exportData()">Export</button>
-            </div>
-
             <div class="table-container" id="devices-container">
                 <div class="table-header">
                     <span class="table-title">Identified Targets <span id="selected-count" class="selected-summary" style="display: none;">· 0 selected</span></span>
@@ -1751,11 +1744,6 @@ HTML_TEMPLATE = """
                 }
             }
 
-            const exportBtn = document.getElementById('export-btn');
-            if (exportBtn) {
-                exportBtn.textContent = selectedCount > 0 ? 'EXPORT CSV (sel)' : 'Export CSV';
-            }
-
             updateSelectAllCheckbox();
             updateBulkActionState();
         }
@@ -2497,76 +2485,6 @@ HTML_TEMPLATE = """
             return s;
         }
 
-        function exportData() {
-            const exportBtn = document.getElementById('export-btn');
-            const originalLabel = exportBtn ? exportBtn.textContent : null;
-            try {
-                // A selection or active date filter can reference devices across
-                // pages or outside the current list filter, so pin the export to
-                // those exact MACs; otherwise let the server honor the list filter.
-                let macs = null;
-                if (selectedMacs.size > 0) {
-                    macs = [...selectedMacs];
-                } else if (dateFilteredDevices !== null) {
-                    macs = dateFilteredDevices.map(d => d.mac);
-                }
-                if (macs && macs.length === 0) {
-                    alert('No devices to export for the current view.');
-                    return;
-                }
-
-                // The server streams the CSV directly to disk. Building it in the
-                // browser meant downloading every sighting as one huge JSON blob,
-                // which never finished on a busy sensor.
-                const formatSelect = document.getElementById('export-format');
-                const exportFormat = formatSelect ? formatSelect.value : 'csv';
-                const fields = { screenshot: screenshotMode ? '1' : '0', format: exportFormat };
-                if (macs) {
-                    fields.macs = macs.join(',');
-                } else {
-                    fields.filter = currentFilter;
-                    fields.sort = sortState.column;
-                    fields.direction = getServerSortDirection();
-                    const searchInput = document.getElementById('search');
-                    const searchTerm = searchInput ? searchInput.value.trim() : '';
-                    if (searchTerm) fields.search = searchTerm;
-                }
-
-                // POST through a hidden form + iframe so a large selection isn't
-                // capped by URL length and the page is never navigated away.
-                let iframe = document.getElementById('export-sink');
-                if (!iframe) {
-                    iframe = document.createElement('iframe');
-                    iframe.id = 'export-sink';
-                    iframe.name = 'export-sink';
-                    iframe.style.display = 'none';
-                    document.body.appendChild(iframe);
-                }
-                const form = document.createElement('form');
-                form.method = 'POST';
-                form.action = '/api/devices/export';
-                form.target = 'export-sink';
-                Object.keys(fields).forEach(k => {
-                    const input = document.createElement('input');
-                    input.type = 'hidden';
-                    input.name = k;
-                    input.value = fields[k];
-                    form.appendChild(input);
-                });
-                document.body.appendChild(form);
-                if (exportBtn) { exportBtn.disabled = true; exportBtn.textContent = 'Exporting...'; }
-                form.submit();
-                setTimeout(() => {
-                    if (form.parentNode) document.body.removeChild(form);
-                    if (exportBtn) { exportBtn.disabled = false; exportBtn.textContent = originalLabel; }
-                }, 2000);
-            } catch (error) {
-                console.error('Export error:', error);
-                alert('Export failed. Please try again.');
-                if (exportBtn) { exportBtn.disabled = false; exportBtn.textContent = originalLabel; }
-            }
-        }
-
         document.querySelectorAll('.device-table th.sortable').forEach(th => {
             th.addEventListener('click', () => setSort(th.dataset.sort));
         });
@@ -2674,6 +2592,7 @@ SETTINGS_TEMPLATE = """
             --text-secondary: #888888;
             --text-muted: #555555;
             --accent-red: #2563eb;
+            --accent-blue: #2563eb;
             --accent-green: #16a34a;
             --border-color: #2a2a2a;
             --font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', Consolas, monospace;
@@ -2758,6 +2677,7 @@ SETTINGS_TEMPLATE = """
         <a href="#operations" data-tab="operations" onclick="switchTab('operations')">Operations</a>
         <a href="#groups" data-tab="groups" onclick="switchTab('groups')">Groups</a>
         <a href="#security" data-tab="security" onclick="switchTab('security')">Security</a>
+        <a href="#export" data-tab="export" onclick="switchTab('export')">Export</a>
     </nav>
 
     <main class="main">
@@ -2941,6 +2861,28 @@ SETTINGS_TEMPLATE = """
                     <div class="btn-row" style="margin-top: 1rem;">
                         <button type="button" class="btn btn-primary" onclick="saveAuthSettings()">Update Access Control</button>
                         <button type="button" class="btn" onclick="logout()" id="logout-btn" style="display: none;">Logout</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Export Tab -->
+        <div class="config-tab" id="tab-export">
+            <div class="page-header">
+                <div class="page-title">System Configuration</div>
+                <h1 class="page-heading">Export</h1>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">Export Devices</div>
+                <div class="panel-body">
+                    <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 1rem;">Download every known device (every category included) as a single file.</p>
+                    <div style="display: flex; gap: 0.5rem; align-items: center;">
+                        <select class="form-input" id="export-format" aria-label="Export format" style="max-width: 10rem;">
+                            <option value="csv" selected>CSV</option>
+                            <option value="json">JSON</option>
+                        </select>
+                        <button type="button" class="btn btn-primary" id="export-btn" onclick="exportData()">Export</button>
                     </div>
                 </div>
             </div>
@@ -3153,12 +3095,51 @@ SETTINGS_TEMPLATE = """
             } catch (error) { showStatus('Error deleting group', 'error'); }
         }
 
+        function exportData() {
+            const exportBtn = document.getElementById('export-btn');
+            const originalLabel = exportBtn ? exportBtn.textContent : null;
+            try {
+                const formatSelect = document.getElementById('export-format');
+                const exportFormat = formatSelect ? formatSelect.value : 'csv';
+
+                // POST through a hidden form + iframe so the page is never navigated away.
+                let iframe = document.getElementById('export-sink');
+                if (!iframe) {
+                    iframe = document.createElement('iframe');
+                    iframe.id = 'export-sink';
+                    iframe.name = 'export-sink';
+                    iframe.style.display = 'none';
+                    document.body.appendChild(iframe);
+                }
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = '/api/devices/export';
+                form.target = 'export-sink';
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'format';
+                input.value = exportFormat;
+                form.appendChild(input);
+                document.body.appendChild(form);
+                if (exportBtn) { exportBtn.disabled = true; exportBtn.textContent = 'Exporting...'; }
+                form.submit();
+                setTimeout(() => {
+                    if (form.parentNode) document.body.removeChild(form);
+                    if (exportBtn) { exportBtn.disabled = false; exportBtn.textContent = originalLabel; }
+                }, 2000);
+            } catch (error) {
+                console.error('Export error:', error);
+                alert('Export failed. Please try again.');
+                if (exportBtn) { exportBtn.disabled = false; exportBtn.textContent = originalLabel; }
+            }
+        }
+
         document.getElementById('settings-form').addEventListener('submit', saveSettings);
         document.getElementById('operations-form').addEventListener('submit', saveOperations);
 
         // Tab routing: read hash on load, default to alerts
         var hash = window.location.hash.replace('#', '') || 'alerts';
-        switchTab(['alerts', 'operations', 'groups', 'security'].indexOf(hash) !== -1 ? hash : 'alerts');
+        switchTab(['alerts', 'operations', 'groups', 'security', 'export'].indexOf(hash) !== -1 ? hash : 'alerts');
 
         loadSettings();
         loadAuthStatus();
@@ -3184,6 +3165,7 @@ ABOUT_TEMPLATE = """
             --text-secondary: #888888;
             --text-muted: #555555;
             --accent-red: #2563eb;
+            --accent-blue: #2563eb;
             --accent-amber: #d97706;
             --border-color: #2a2a2a;
             --font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', Consolas, monospace;
