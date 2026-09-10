@@ -919,7 +919,6 @@ HTML_TEMPLATE = """
         <aside class="sidebar">
             <div class="panel" id="categories-panel">
                 <div class="panel-header">Categories</div>
-                <a href="/" class="filter-btn" style="width: 100%; justify-content: flex-start; gap: 0.4rem; margin-bottom: 0.5rem; text-decoration: none;"><span style="width: 6px; height: 6px; border-radius: 50%; background: var(--accent-green); display: inline-block;"></span> Nearby now</a>
                 <button class="filter-btn" id="all-devices-btn" onclick="showAllDevices()" style="width: 100%; justify-content: flex-start; gap: 0.4rem; margin-bottom: 0.5rem;">All devices <span id="count-all" class="filter-count" style="color: inherit; font-size: inherit;">--</span></button>
                 <label style="display: flex; align-items: center; gap: 0.4rem; padding: 0 0.75rem 0.5rem; font-size: 0.75rem; color: var(--text-secondary); cursor: pointer;">
                     <input type="checkbox" id="hide-categorized-toggle" onchange="toggleHideCategorized()">
@@ -3523,12 +3522,16 @@ LIVE_TEMPLATE = """
             --text-secondary: #888888;
             --text-muted: #555555;
             --accent-red: #2563eb;
+            --accent-orange: #ea580c;
+            --accent-amber: #d97706;
             --accent-green: #16a34a;
             --accent-blue: #2563eb;
+            --accent-cyan: #0891b2;
             --border-color: #2a2a2a;
             --border-active: #404040;
             --font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', 'Cascadia Code', Consolas, monospace;
         }
+
         [data-theme="light"] {
             --bg-primary: #f5f5f5;
             --bg-secondary: #e8e8e8;
@@ -3541,45 +3544,559 @@ LIVE_TEMPLATE = """
             --border-color: #cccccc;
             --border-active: #999999;
         }
+
+        [data-theme="light"] .type-phone { background: #dbeafe; color: #1d4ed8; }
+        [data-theme="light"] .type-laptop { background: #ccfbf1; color: #0f766e; }
+        [data-theme="light"] .type-audio { background: #f3e8ff; color: #7c3aed; }
+        [data-theme="light"] .type-watch { background: #dcfce7; color: #15803d; }
+        [data-theme="light"] .type-smart { background: #fef3c7; color: #b45309; }
+        [data-theme="light"] .type-tv { background: #fce7f3; color: #be185d; }
+        [data-theme="light"] .type-vehicle { background: #fef9c3; color: #a16207; }
+        [data-theme="light"] .type-unknown { background: #e5e5e5; color: #555; }
+        [data-theme="light"] .modal-overlay.active { background: rgba(0, 0, 0, 0.5); }
+
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: var(--font-mono); background: var(--bg-primary); color: var(--text-primary); min-height: 100vh; font-size: 13px; line-height: 1.5; }
 
-        .topbar { background: var(--bg-secondary); border-bottom: 1px solid var(--border-color); padding: 0.5rem 1rem; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; }
-        .topbar-left { display: flex; align-items: center; gap: 1.5rem; }
-        .brand { display: flex; align-items: center; gap: 0.5rem; text-decoration: none; color: inherit; }
-        .brand-icon { color: var(--accent-blue); width: 1.1rem; height: 1.1rem; }
-        .brand-text { font-weight: 700; font-size: 0.9rem; letter-spacing: 0.05em; color: var(--accent-blue); }
-        .brand-text span { color: #ffffff; }
-        .nav { display: flex; gap: 0.25rem; }
-        .nav-link { color: var(--text-secondary); text-decoration: none; font-size: 0.75rem; padding: 0.4rem 0.75rem; border-radius: 3px; letter-spacing: 0.05em; transition: all 0.1s; }
-        .nav-link:hover, .nav-link.active { color: var(--text-primary); background: var(--bg-tertiary); }
-        .theme-toggle { background: transparent; border: 1px solid var(--border-color); color: var(--text-secondary); font-family: var(--font-mono); font-size: 0.75rem; padding: 0.3rem 0.5rem; cursor: pointer; border-radius: 3px; }
-        .theme-toggle:hover { color: var(--text-primary); border-color: var(--border-active); }
+        /* Thin, subtle scrollbars */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--border-active); }
+        * { scrollbar-width: thin; scrollbar-color: var(--border-color) transparent; }
 
-        .main { max-width: 1400px; margin: 0 auto; padding: 1.25rem; }
+        body {
+            font-family: var(--font-mono);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            font-size: 13px;
+            line-height: 1.5;
+        }
 
-        .live-header { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 1rem; }
-        .live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent-green); animation: pulse 1.5s ease-in-out infinite; }
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
-        .live-title { font-size: 0.9rem; font-weight: 600; letter-spacing: 0.05em; }
-        .live-subtitle { font-size: 0.75rem; color: var(--text-muted); }
+        /* Top Bar */
+        .topbar {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            padding: 0.5rem 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
 
-        .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.75rem; margin-bottom: 1.25rem; }
+        .topbar-left {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            text-decoration: none;
+            color: inherit;
+        }
+
+        .brand-icon {
+            color: var(--accent-blue);
+            width: 1.1rem;
+            height: 1.1rem;
+        }
+
+        .brand-text {
+            font-weight: 700;
+            font-size: 0.9rem;
+            letter-spacing: 0.05em;
+            
+            color: var(--accent-blue);
+        }
+
+        .brand-text span {
+            color: #ffffff;
+        }
+
+        .nav {
+            display: flex;
+            gap: 0.25rem;
+        }
+
+        .nav-link {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.75rem;
+            padding: 0.4rem 0.75rem;
+            border-radius: 3px;
+            
+            letter-spacing: 0.05em;
+            transition: all 0.1s;
+        }
+
+        .nav-link:hover, .nav-link.active {
+            color: var(--text-primary);
+            background: var(--bg-tertiary);
+        }
+
+        .topbar-right {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+        }
+
+        .total-units {
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        .total-units-icon {
+            color: var(--accent-blue);
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.7rem;
+            
+            letter-spacing: 0.1em;
+        }
+
+        .status-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--accent-green);
+            box-shadow: 0 0 6px var(--accent-green);
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.scanning { background: var(--accent-amber); box-shadow: 0 0 6px var(--accent-amber); }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        .timestamp {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+        }
+
+        /* Main Layout */
+        .main {
+            display: grid;
+            grid-template-columns: 280px 1fr;
+            min-height: calc(100vh - 45px);
+        }
+
+        /* Sidebar */
+        .sidebar {
+            background: var(--bg-panel);
+            border-right: 1px solid var(--border-color);
+            padding: 1rem;
+            overflow-y: auto;
+            position: sticky;
+            top: 45px;
+            height: calc(100vh - 45px);
+            align-self: start;
+        }
+
+        .panel {
+            margin-bottom: 1.5rem;
+        }
+
+        .panel-header {
+            font-size: 0.65rem;
+            
+            letter-spacing: 0.15em;
+            color: var(--text-muted);
+            margin-bottom: 0.75rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .stat-grid {
+            display: grid;
+            gap: 0.5rem;
+        }
+
+        .stat-item {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 0.75rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .stat-label {
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            
+            letter-spacing: 0.05em;
+        }
+
+        .stat-value {
+            font-size: 1.25rem;
+            font-weight: 700;
+        }
+
+        .stat-value.red { color: var(--accent-red); }
+        .stat-value.amber { color: var(--accent-amber); }
+        .stat-value.green { color: var(--accent-green); }
+        .stat-value.blue { color: var(--accent-blue); }
+
+        /* Filters */
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .category-node {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.35rem 0.5rem;
+            border-radius: 3px;
+            cursor: grab;
+            font-size: 0.78rem;
+        }
+        .category-node:hover { background: var(--bg-tertiary); }
+        .category-node.active { background: var(--bg-tertiary); box-shadow: inset 2px 0 0 var(--accent-blue); }
+        .category-node.category-drop-target { outline: 2px dashed var(--accent-blue); outline-offset: -2px; }
+        .category-children { margin-left: 1.1rem; border-left: 1px solid var(--border-color); }
+        .category-label { flex: 1; }
+        .category-delete {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 0.9rem;
+            line-height: 1;
+            padding: 0 0.25rem;
+        }
+        .category-delete:hover { color: var(--accent-red); }
+
+        .filter-btn {
+            background: transparent;
+            border: 1px solid transparent;
+            color: var(--text-secondary);
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            padding: 0.5rem 0.75rem;
+            text-align: left;
+            cursor: pointer;
+            border-radius: 3px;
+            transition: all 0.1s;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .filter-btn:hover {
+            background: var(--bg-hover);
+            color: var(--text-primary);
+        }
+
+        .filter-btn.active {
+            background: var(--bg-tertiary);
+            border-color: var(--accent-red);
+            color: var(--text-primary);
+        }
+
+        .filter-count {
+            color: var(--text-muted);
+            font-size: 0.7rem;
+        }
+
+        /* Content Area */
+        .content {
+            padding: 1rem;
+            overflow-y: auto;
+        }
+
+        /* Search Bar */
+        .search-bar {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .search-input {
+            flex: 1;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 3px;
+            padding: 0.6rem 0.75rem;
+            color: var(--text-primary);
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: var(--accent-red);
+        }
+
+        .search-input::placeholder { color: var(--text-muted); }
+
+        .form-input {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 3px;
+            padding: 0.6rem 0.75rem;
+            color: var(--text-primary);
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            width: 100%;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--accent-red);
+        }
+
+        .kbd {
+            display: inline-block;
+            padding: 0.15rem 0.4rem;
+            font-size: 0.65rem;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 2px;
+            color: var(--text-muted);
+        }
+
+        .btn {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            padding: 0.6rem 1rem;
+            cursor: pointer;
+            border-radius: 3px;
+            
+            letter-spacing: 0.05em;
+            transition: all 0.1s;
+        }
+
+        .btn:hover {
+            background: var(--bg-hover);
+            color: var(--text-primary);
+            border-color: var(--border-active);
+        }
+
+        .btn-primary {
+            background: var(--accent-red);
+            border-color: var(--accent-red);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #1d4ed8;
+        }
+
+        /* Live stats */
+        .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.75rem; margin-bottom: 1rem; }
         .stat-card { background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 4px; padding: 0.85rem 1rem; }
-        .stat-label { font-size: 0.65rem; color: var(--text-muted); letter-spacing: 0.1em; margin-bottom: 0.35rem; }
-        .stat-value { font-size: 1.3rem; font-weight: 700; color: var(--accent-blue); }
         .stat-sub { font-size: 0.7rem; color: var(--text-secondary); margin-top: 0.2rem; }
 
-        .table-container { background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 4px; overflow: hidden; }
-        .device-table { width: 100%; border-collapse: collapse; }
-        .device-table th { text-align: left; padding: 0.6rem 0.75rem; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 0.65rem; font-weight: 600; letter-spacing: 0.1em; color: var(--text-muted); background: var(--bg-secondary); border-bottom: 1px solid var(--border-color); cursor: pointer; user-select: none; }
-        .device-table th:hover { color: var(--text-primary); background: var(--bg-tertiary); }
-        .device-table th.active { color: var(--text-primary); background: var(--bg-tertiary); }
-        .device-table td { padding: 0.6rem 0.75rem; font-size: 0.8rem; border-bottom: 1px solid var(--border-color); vertical-align: middle; }
+        /* Device Table */
+        .table-container {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .table-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 1rem;
+            background: var(--bg-tertiary);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .table-title {
+            font-size: 0.7rem;
+            
+            letter-spacing: 0.1em;
+            color: var(--text-secondary);
+        }
+
+        .table-actions {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .selected-summary {
+            color: var(--accent-amber);
+        }
+
+        .device-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .device-table th {
+            text-align: left;
+            padding: 0.6rem 0.75rem;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            font-size: 0.65rem;
+            font-weight: 600;
+
+            letter-spacing: 0.1em;
+            color: var(--text-muted);
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .device-table th.select-col,
+        .device-table td.select-col {
+            width: 34px;
+            padding: 0.4rem 0.5rem;
+            text-align: center;
+        }
+
+        .row-select-checkbox {
+            accent-color: var(--accent-red);
+            cursor: pointer;
+        }
+
+        .device-table th.sortable {
+            cursor: pointer;
+            user-select: none;
+            transition: color 0.1s ease, background 0.1s ease;
+        }
+
+        .device-table th.sortable:hover {
+            color: var(--text-primary);
+            background: var(--bg-tertiary);
+        }
+
+        .device-table th.sortable.active {
+            color: var(--text-primary);
+            background: var(--bg-tertiary);
+        }
+
+        .sort-indicator {
+            margin-left: 0.35rem;
+            font-size: 0.6rem;
+            opacity: 0.7;
+        }
+
+        .device-table td {
+            padding: 0.6rem 0.75rem;
+            font-size: 0.8rem;
+            border-bottom: 1px solid var(--border-color);
+            vertical-align: middle;
+        }
+
+        .device-table tr:hover {
+            background: var(--bg-hover);
+        }
+
+        .device-table tr.selected {
+            background: rgba(220, 38, 38, 0.15);
+        }
+
+        .device-table tr.selected:hover {
+            background: rgba(220, 38, 38, 0.22);
+        }
+
         .device-table tr:last-child td { border-bottom: none; }
-        .device-table tr:hover { background: var(--bg-hover); }
-        .mac-addr { font-size: 0.75rem; color: var(--text-secondary); }
-        .type-badge { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.2rem 0.5rem; border-radius: 2px; font-size: 0.7rem; font-weight: 500; letter-spacing: 0.05em; }
+
+        .device-table tr { cursor: pointer; user-select: none; }
+
+        .bulk-select {
+            min-width: 140px;
+            font-size: 0.7rem;
+            padding: 0.4rem 0.5rem;
+        }
+
+        .pagination-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.65rem 0.9rem;
+            border-top: 1px solid var(--border-color);
+            background: var(--bg-tertiary);
+            flex-wrap: wrap;
+        }
+
+        .pagination-left,
+        .pagination-right {
+            display: flex;
+            align-items: center;
+            gap: 0.45rem;
+        }
+
+        .pagination-center {
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .page-numbers {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+            flex-wrap: wrap;
+        }
+
+        .page-number-btn {
+            min-width: 2rem;
+            padding: 0.35rem 0.45rem;
+            font-size: 0.7rem;
+            line-height: 1;
+        }
+
+        .page-number-btn.active {
+            background: var(--accent-red);
+            border-color: var(--accent-red);
+            color: #fff;
+        }
+
+        .page-ellipsis {
+            color: var(--text-muted);
+            font-size: 0.75rem;
+            padding: 0 0.1rem;
+        }
+
+        /* Device Type Badge */
+        .identity-badge {
+            display: inline-block;
+            padding: 0.05rem 0.4rem;
+            border-radius: 8px;
+            font-size: 0.65rem;
+            background: var(--accent-blue);
+            color: white;
+        }
+
+        .type-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            padding: 0.2rem 0.5rem;
+            border-radius: 2px;
+            font-size: 0.7rem;
+            font-weight: 500;
+
+            letter-spacing: 0.05em;
+        }
+
         .type-phone { background: #1e3a5f; color: #60a5fa; }
         .type-laptop { background: #1a3a3a; color: #5eead4; }
         .type-audio { background: #3a1e3a; color: #c084fc; }
@@ -3588,65 +4105,483 @@ LIVE_TEMPLATE = """
         .type-tv { background: #3a1e2e; color: #f472b6; }
         .type-vehicle { background: #3a3a1e; color: #facc15; }
         .type-unknown { background: #2a2a2a; color: #888; }
-        .empty-state { text-align: center; padding: 2.5rem; color: var(--text-muted); font-size: 0.8rem; }
+
+        .mac-addr {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            letter-spacing: 0.02em;
+        }
+
+        .vendor-name {
+            color: var(--text-muted);
+            font-size: 0.75rem;
+        }
+
+        .device-name {
+            color: var(--text-primary);
+        }
+
+        .sighting-count {
+            font-size: 0.8rem;
+            color: var(--accent-amber);
+        }
+
+        .last-seen {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .last-seen.recent {
+            color: var(--accent-green);
+        }
+
+        .watched-star {
+            color: var(--accent-amber);
+            margin-right: 0.25rem;
+        }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.85);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.15s;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .modal {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            width: 90%;
+            max-width: 700px;
+            max-height: 85vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            padding: 1rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--bg-tertiary);
+        }
+
+        .modal-title {
+            font-size: 0.8rem;
+            
+            letter-spacing: 0.1em;
+        }
+
+        .modal-close {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 1.25rem;
+            line-height: 1;
+        }
+
+        .modal-close:hover { color: var(--text-primary); }
+
+        .modal-body {
+            padding: 1rem;
+        }
+
+        .detail-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.75rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .detail-item {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 3px;
+            padding: 0.75rem;
+        }
+
+        .detail-item.full { grid-column: 1 / -1; }
+
+        .detail-label {
+            font-size: 0.6rem;
+            
+            letter-spacing: 0.1em;
+            color: var(--text-muted);
+            margin-bottom: 0.35rem;
+        }
+
+        .detail-value {
+            font-size: 0.85rem;
+            color: var(--text-primary);
+            word-break: break-all;
+        }
+
+        .detail-value.mono { font-family: var(--font-mono); }
+        .detail-value.highlight { color: var(--accent-amber); }
+
+        /* Heatmaps */
+        .heatmap-section {
+            margin-top: 1.5rem;
+        }
+
+        .heatmap-title {
+            font-size: 0.65rem;
+            
+            letter-spacing: 0.1em;
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+        }
+
+        .heatmap {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 3px;
+            padding: 0.75rem;
+            font-size: 0.8rem;
+        }
+
+        .heatmap-labels {
+            color: var(--text-muted);
+            font-size: 0.65rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .activity-grid {
+            display: grid;
+            gap: 3px;
+        }
+
+        .activity-grid.hourly {
+            grid-template-columns: repeat(24, 1fr);
+        }
+
+        .activity-grid.daily {
+            grid-template-columns: repeat(7, 1fr);
+        }
+
+        .activity-cell {
+            aspect-ratio: 1;
+            border-radius: 2px;
+            background: var(--bg-hover);
+            cursor: pointer;
+            transition: opacity 0.1s;
+        }
+
+        .activity-cell:hover { opacity: 0.8; }
+        .activity-cell.l1 { background: rgba(220, 38, 38, 0.25); }
+        .activity-cell.l2 { background: rgba(220, 38, 38, 0.5); }
+        .activity-cell.l3 { background: rgba(220, 38, 38, 0.75); }
+        .activity-cell.l4 { background: var(--accent-red); }
+
+        .activity-labels {
+            display: grid;
+            gap: 3px;
+            margin-top: 2px;
+            font-size: 0.55rem;
+            color: var(--text-muted);
+            text-align: center;
+        }
+
+        .activity-labels.hourly { grid-template-columns: repeat(24, 1fr); }
+        .activity-labels.daily { grid-template-columns: repeat(7, 1fr); }
+
+        /* Timeline Chart */
+        .timeline-chart {
+            display: flex;
+            align-items: flex-end;
+            gap: 2px;
+            height: 50px;
+            padding: 0.5rem 0;
+        }
+
+        .timeline-bar {
+            flex: 1;
+            min-width: 3px;
+            background: var(--accent-red);
+            border-radius: 1px 1px 0 0;
+            transition: background 0.1s;
+            cursor: pointer;
+            opacity: 0.7;
+        }
+
+        .timeline-bar:hover {
+            opacity: 1;
+            background: var(--accent-orange);
+        }
+
+        .timeline-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.6rem;
+            color: var(--text-muted);
+            margin-top: 0.25rem;
+        }
+
+        /* RSSI Chart */
+        .rssi-chart {
+            position: relative;
+            height: 70px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 3px;
+            padding: 0.5rem;
+            overflow: hidden;
+        }
+
+        .rssi-chart svg { width: 100%; height: 100%; }
+        .rssi-line { fill: none; stroke: var(--accent-red); stroke-width: 1.5; }
+        .rssi-area { fill: url(#rssiGradient); }
+        .rssi-label { font-size: 0.55rem; fill: var(--text-muted); }
+
+        /* Action Buttons in Modal */
+        .action-row {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .btn-watch {
+            background: transparent;
+            border: 1px solid var(--accent-amber);
+            color: var(--accent-amber);
+        }
+
+        .btn-watch.active {
+            background: var(--accent-amber);
+            color: #000;
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            padding: 0.75rem;
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            border-top: 1px solid var(--border-color);
+            background: var(--bg-secondary);
+        }
+
+        .footer a { color: var(--accent-red); text-decoration: none; }
+        .footer a:hover { text-decoration: underline; }
+
+        .theme-toggle {
+            background: transparent;
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            padding: 0.3rem 0.5rem;
+            cursor: pointer;
+            border-radius: 3px;
+            transition: all 0.1s;
+        }
+
+        .theme-toggle:hover {
+            color: var(--text-primary);
+            border-color: var(--border-active);
+        }
+
+        /* Responsive */
+        @media (max-width: 900px) {
+            .main { grid-template-columns: 1fr; }
+            .sidebar { display: none; }
+        }
     </style>
 </head>
 <body>
     <header class="topbar">
         <div class="topbar-left">
-            <a href="/" class="brand"><svg class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 7 10 10-5 5V2l5 5L7 17"/></svg><span class="brand-text">Blue<span>Watch</span></span></a>
+            <a href="/" class="brand">
+                <svg class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 7 10 10-5 5V2l5 5L7 17"/></svg>
+                <span class="brand-text">Blue<span>Watch</span></span>
+            </a>
             <nav class="nav">
                 <a href="/" class="nav-link active">Live</a>
                 <a href="/all" class="nav-link">All devices</a>
                 <a href="/settings" class="nav-link">Config</a>
             </nav>
         </div>
-        <div><button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Toggle light/dark mode">☀</button></div>
+        <div class="topbar-right">
+            <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Toggle light/dark mode">☀</button>
+        </div>
     </header>
 
-    <main class="main">
-        <div class="live-header">
-            <span class="live-dot"></span>
-            <span class="live-title">Nearby now</span>
-            <span class="live-subtitle">-- devices seen in the last minute. Everything else lives on <a href="/all" style="color: var(--accent-blue);">All devices</a>.</span>
-        </div>
+    <div class="main">
+        <aside class="sidebar">
+            <div class="panel" id="categories-panel">
+                <div class="panel-header">Categories</div>
+                <button class="filter-btn" id="all-devices-btn" onclick="showAllDevices()" style="width: 100%; justify-content: flex-start; gap: 0.4rem; margin-bottom: 0.5rem;">All devices <span id="count-all" class="filter-count" style="color: inherit; font-size: inherit;">--</span></button>
+                <label style="display: flex; align-items: center; gap: 0.4rem; padding: 0 0.75rem 0.5rem; font-size: 0.75rem; color: var(--text-secondary); cursor: pointer;">
+                    <input type="checkbox" id="hide-categorized-toggle" onchange="toggleHideCategorized()">
+                    Hide categorized devices
+                </label>
+                <div id="categories-tree" style="padding: 0.5rem;"></div>
+                <div style="padding: 0.5rem; display: flex; gap: 0.4rem;">
+                    <input type="text" class="search-input" id="new-category-name" placeholder="New category name" style="font-size: 0.75rem; flex: 1;">
+                    <button class="btn btn-primary" onclick="createCategory()">+</button>
+                </div>
+            </div>
 
-        <div class="stats-row">
-            <div class="stat-card">
-                <div class="stat-label">ACTIVE NOW</div>
-                <div class="stat-value" id="stat-active-now">--</div>
+            <div class="panel">
+                <div class="panel-header">Date Range Query</div>
+                <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                    <input type="datetime-local" class="search-input" id="search-start" style="font-size: 0.7rem;">
+                    <input type="datetime-local" class="search-input" id="search-end" style="font-size: 0.7rem;">
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button class="btn" style="flex:1;" onclick="clearDateFilters()">Clear</button>
+                        <button class="btn btn-primary" style="flex:1;" onclick="searchByDateRange()">Query</button>
+                    </div>
+                    <input type="text" class="search-input" id="search" placeholder="Search MAC, vendor, or identifier..." style="font-size: 0.75rem;">
+                </div>
             </div>
-            <div class="stat-card">
-                <div class="stat-label">ALL KNOWN DEVICES</div>
-                <div class="stat-value" id="stat-total-devices">--</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">MOST SEEN (ACTIVE)</div>
-                <div class="stat-value" id="stat-most-seen" style="font-size: 0.9rem;">--</div>
-                <div class="stat-sub" id="stat-most-seen-sub"></div>
-            </div>
-        </div>
+        </aside>
 
-        <div class="table-container">
-            <table class="device-table">
-                <thead>
-                    <tr>
-                        <th data-sort="mac">Address</th>
-                        <th data-sort="identifier">Identifier</th>
-                        <th data-sort="vendor">Vendor</th>
-                        <th data-sort="rssi">RSSI</th>
-                        <th data-sort="sightings">Sightings</th>
-                        <th data-sort="last_seen">Last seen</th>
-                        <th data-sort="class">Class</th>
-                        <th data-sort="group">Group</th>
-                    </tr>
-                </thead>
-                <tbody id="live-device-list">
-                    <tr><td colspan="8" class="empty-state">Loading...</td></tr>
-                </tbody>
-            </table>
+        <main class="content">
+            <div class="stats-row">
+                <div class="stat-card">
+                    <div class="stat-label">ACTIVE NOW</div>
+                    <div class="stat-value" id="stat-active-now">--</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">ALL KNOWN DEVICES</div>
+                    <div class="stat-value" id="stat-total-devices">--</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">MOST SEEN (ACTIVE)</div>
+                    <div class="stat-value" id="stat-most-seen" style="font-size: 0.9rem;">--</div>
+                    <div class="stat-sub" id="stat-most-seen-sub"></div>
+                </div>
+            </div>
+            <div class="table-container" id="devices-container">
+                <div class="table-header">
+                    <span class="table-title">Identified Targets <span id="selected-count" class="selected-summary" style="display: none;">· 0 selected</span></span>
+                    <div class="table-actions">
+                        <span style="font-size: 0.7rem; color: var(--text-muted);">
+                            <span id="visible-count">--</span> targets
+                        </span>
+                        <select class="form-input bulk-select" id="bulk-group-select">
+                            <option value="">Assign group...</option>
+                        </select>
+                        <button class="btn" id="bulk-group-apply" onclick="applyBulkGroup()">Assign Group</button>
+                        <select class="form-input bulk-select" id="bulk-watch-select">
+                            <option value="">Watch...</option>
+                            <option value="on">Watch ON</option>
+                            <option value="off">Watch OFF</option>
+                        </select>
+                        <button class="btn" id="bulk-watch-apply" onclick="applyBulkWatch()">Apply Watch</button>
+                        <button class="btn" id="bulk-merge-apply" onclick="applyBulkMerge()" title="Cluster the selected MAC-rotation siblings into one device">Merge as One Device</button>
+                        <button class="btn" id="clear-selection-btn" onclick="clearSelection()">Clear Selection</button>
+                        <button class="btn" onclick="resetSort()">Reset Sort</button>
+                    </div>
+                </div>
+                <table class="device-table">
+                    <thead>
+                        <tr>
+                            <th class="select-col"><input type="checkbox" id="select-all-checkbox" class="row-select-checkbox" aria-label="Select all rows"></th>
+                            <th class="sortable" data-sort="class">Class<span class="sort-indicator"></span></th>
+                            <th class="sortable" data-sort="vendor">Vendor<span class="sort-indicator"></span></th>
+                            <th class="sortable" data-sort="mac">Address<span class="sort-indicator"></span></th>
+                            <th class="sortable" data-sort="identifier">Identifier<span class="sort-indicator"></span></th>
+                            <th>RSSI</th>
+                            <th class="sortable" data-sort="sightings">Sightings<span class="sort-indicator"></span></th>
+                            <th class="sortable" data-sort="last_seen">Last seen<span class="sort-indicator"></span></th>
+                            <th class="sortable" data-sort="group">Group<span class="sort-indicator"></span></th>
+                        </tr>
+                    </thead>
+                    <tbody id="device-list">
+                        <tr><td colspan="9" style="text-align: center; padding: 2rem; color: var(--text-muted);">Initializing scanner...</td></tr>
+                    </tbody>
+                </table>
+                <div class="pagination-bar">
+                    <div class="pagination-left">
+                        <span id="page-info" style="font-size: 0.7rem; color: var(--text-muted);">Page --/--</span>
+                    </div>
+                    <div class="pagination-center">
+                        <button class="btn" id="prev-page-btn" onclick="changePage(-1)">Prev</button>
+                        <div class="page-numbers" id="page-numbers"></div>
+                        <button class="btn" id="next-page-btn" onclick="changePage(1)">Next</button>
+                    </div>
+                    <div class="pagination-right">
+                        <span style="font-size: 0.7rem; color: var(--text-muted);">Rows/page</span>
+                        <select class="form-input bulk-select" id="page-size-select" onchange="changePageSize(this.value)">
+                            <option value="25">25</option>
+                            <option value="50" selected>50</option>
+                            <option value="100">100</option>
+                            <option value="150">150</option>
+                            <option value="250">250</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="table-container" id="name-groups-container" style="display: none;">
+                <div class="table-header">
+                    <span class="table-title">Devices Sharing a Name <span id="name-groups-count" class="selected-summary" style="display: none;"></span></span>
+                    <span style="font-size: 0.7rem; color: var(--text-muted);">
+                        Identical advertised name across multiple MACs — likely MAC randomization.
+                    </span>
+                </div>
+                <div id="name-groups-list" style="padding: 0.5rem 1rem 1rem;">
+                    <div style="text-align: center; padding: 2rem; color: var(--text-muted);">Loading...</div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+
+    <!-- Target Detail Modal -->
+    <div class="modal-overlay" id="device-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <span class="modal-title">Target Intelligence</span>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-body" id="modal-content">
+                <!-- Dynamic content -->
+            </div>
         </div>
-    </main>
+    </div>
+
+    <!-- Shortcuts Modal -->
+    <div class="modal-overlay" id="shortcuts-modal">
+        <div class="modal" style="max-width: 400px;">
+            <div class="modal-header">
+                <span class="modal-title">Keyboard Shortcuts</span>
+                <button class="modal-close" onclick="closeShortcutsModal()">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 1rem;">
+                <div style="display: grid; gap: 0.5rem;">
+                    <div style="display: flex; justify-content: space-between; padding: 0.4rem 0; border-bottom: 1px solid var(--border-color);"><span class="kbd">/</span><span style="color: var(--text-secondary);">Focus search</span></div>
+                    <div style="display: flex; justify-content: space-between; padding: 0.4rem 0; border-bottom: 1px solid var(--border-color);"><span class="kbd">r</span><span style="color: var(--text-secondary);">Refresh devices</span></div>
+                    <div style="display: flex; justify-content: space-between; padding: 0.4rem 0; border-bottom: 1px solid var(--border-color);"><span class="kbd">Esc</span><span style="color: var(--text-secondary);">Close modal</span></div>
+                    <div style="display: flex; justify-content: space-between; padding: 0.4rem 0; border-bottom: 1px solid var(--border-color);"><span class="kbd">w</span><span style="color: var(--text-secondary);">Toggle watch (in modal)</span></div>
+                    <div style="display: flex; justify-content: space-between; padding: 0.4rem 0; border-bottom: 1px solid var(--border-color);"><span class="kbd">1</span><span style="color: var(--text-secondary);">Show all devices</span></div>
+                    <div style="display: flex; justify-content: space-between; padding: 0.4rem 0; border-bottom: 1px solid var(--border-color);"><span class="kbd">2</span><span style="color: var(--text-secondary);">Show watched only</span></div>
+                    <div style="display: flex; justify-content: space-between; padding: 0.4rem 0; border-bottom: 1px solid var(--border-color);"><span class="kbd">3</span><span style="color: var(--text-secondary);">Filter phones</span></div>
+                    <div style="display: flex; justify-content: space-between; padding: 0.4rem 0; border-bottom: 1px solid var(--border-color);"><span class="kbd">4</span><span style="color: var(--text-secondary);">Filter laptops</span></div>
+                    <div style="display: flex; justify-content: space-between; padding: 0.4rem 0;"><span class="kbd">5</span><span style="color: var(--text-secondary);">Filter audio</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <script>
         function applyTheme(theme) {
@@ -3654,43 +4589,78 @@ LIVE_TEMPLATE = """
             const btn = document.getElementById('theme-toggle');
             if (btn) btn.textContent = theme === 'light' ? '☽' : '☀';
         }
+
         function toggleTheme() {
             const current = document.documentElement.getAttribute('data-theme') || 'dark';
             const next = current === 'dark' ? 'light' : 'dark';
             localStorage.setItem('bluehood_theme', next);
             applyTheme(next);
         }
+
         applyTheme(localStorage.getItem('bluehood_theme') || 'dark');
 
-        const ACTIVE_WINDOW_SECONDS = 60;
-        const REFRESH_MS = 3000;
-        let sortColumn = 'last_seen';
-        let sortDirection = 'desc';
+        const PAGE_SIZE_OPTIONS = [25, 50, 100, 150, 250];
+        const PAGE_SIZE_STORAGE_KEY = 'bluehood_page_size_v2';
 
-        function escapeHtml(s) {
-            const d = document.createElement('div');
-            d.textContent = s == null ? '' : String(s);
-            return d.innerHTML;
+        function normalizePageSize(value) {
+            const parsed = Number.parseInt(value, 10);
+            if (!Number.isFinite(parsed)) return 50;
+            if (PAGE_SIZE_OPTIONS.includes(parsed)) return parsed;
+            return 50;
         }
 
-        function getTypeClass(type) {
-            const known = ['phone', 'laptop', 'computer', 'audio', 'speaker', 'watch', 'smart', 'tv', 'vehicle'];
-            if (type === 'computer') return 'type-laptop';
-            if (type === 'speaker') return 'type-audio';
-            return known.includes(type) ? 'type-' + type : 'type-unknown';
+        let allDevices = [];
+        let currentFilter = 'all';
+        let currentGroupId = null;
+        let hideCategorized = localStorage.getItem('bluehood_hide_categorized') === 'true';
+        let dateFilteredDevices = null;
+        let compactView = localStorage.getItem('bluehood_compact_view') === 'true';
+        let screenshotMode = localStorage.getItem('bluehood_screenshot_mode') === 'true';
+        let clickToOpen = localStorage.getItem('bluehood_click_to_open') === 'true';
+        const defaultSortState = { column: 'last_seen', direction: 'desc' };
+        let sortState = { ...defaultSortState };
+        let selectedMacs = new Set();
+        let lastSelectedIndex = null;
+        let currentVisibleDevices = [];
+        let rowClickTimer = null;
+        let searchDebounceTimer = null;
+        let pagination = {
+            page: 1,
+            pageSize: normalizePageSize(localStorage.getItem(PAGE_SIZE_STORAGE_KEY)),
+            totalPages: 1,
+            totalMatching: 0,
+            hasPrev: false,
+            hasNext: false,
+        };
+
+        function getServerSortDirection() {
+            return sortState.direction;
         }
 
-        function formatLastSeen(iso) {
-            if (!iso) return '--';
-            const seconds = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
-            if (seconds < 5) return 'NOW';
-            if (seconds < 60) return Math.floor(seconds) + 's ago';
-            return Math.floor(seconds / 60) + 'm ago';
+        function buildDevicesUrl() {
+            const params = new URLSearchParams();
+            params.set('page', pagination.page);
+            params.set('page_size', pagination.pageSize);
+            params.set('filter', currentFilter);
+            params.set('active_within', '60');
+            if (hideCategorized) {
+                params.set('only_uncategorized', '1');
+            } else if (currentGroupId !== null) {
+                params.set('group_id', currentGroupId);
+            }
+            params.set('sort', sortState.column);
+            params.set('direction', getServerSortDirection());
+
+            const searchInput = document.getElementById('search');
+            const searchTerm = searchInput ? searchInput.value.trim() : '';
+            if (searchTerm) params.set('search', searchTerm);
+
+            return '/api/devices?' + params.toString();
         }
 
         async function loadLiveStats() {
             try {
-                const response = await fetch('/api/live-stats?window=' + ACTIVE_WINDOW_SECONDS);
+                const response = await fetch('/api/live-stats?window=60');
                 const data = await response.json();
                 document.getElementById('stat-active-now').textContent = data.active_now ?? '--';
                 document.getElementById('stat-total-devices').textContent = data.total_devices ?? '--';
@@ -3706,70 +4676,1446 @@ LIVE_TEMPLATE = """
             } catch (error) { console.error('Error loading live stats:', error); }
         }
 
-        async function loadLiveDevices() {
-            const tbody = document.getElementById('live-device-list');
-            try {
-                const params = new URLSearchParams({
-                    active_within: ACTIVE_WINDOW_SECONDS,
-                    sort: sortColumn,
-                    direction: sortDirection,
-                    page_size: 200,
-                });
-                const response = await fetch('/api/devices?' + params.toString());
-                const data = await response.json();
-                const devices = data.devices || [];
+        function queueDeviceRefresh(resetPage = false) {
+            if (resetPage) pagination.page = 1;
+            if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+            searchDebounceTimer = setTimeout(() => {
+                searchDebounceTimer = null;
+                refreshDevices();
+            }, 250);
+        }
 
-                document.querySelectorAll('.device-table th').forEach(th => {
-                    th.classList.toggle('active', th.dataset.sort === sortColumn);
-                });
+        function toggleViewMode() {
+            compactView = !compactView;
+            localStorage.setItem('bluehood_compact_view', compactView);
+            updateViewToggle();
+            renderDevices();
+        }
 
-                if (devices.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="8" class="empty-state">Nothing in range right now</td></tr>';
-                    return;
-                }
-
-                tbody.innerHTML = devices.map(d => {
-                    let groupHtml = '—';
-                    if (d.group_name && d.group_color) {
-                        groupHtml = '<span style="background: ' + d.group_color + '; color: white; padding: 0.15rem 0.5rem; border-radius: 3px; font-size: 0.7rem; font-weight: 500;">' + escapeHtml(d.group_name) + '</span>';
-                    }
-                    return '<tr>' +
-                        '<td class="mac-addr">' + escapeHtml(d.mac) + '</td>' +
-                        '<td>' + (d.friendly_name ? escapeHtml(d.friendly_name) : '—') + '</td>' +
-                        '<td>' + (d.vendor ? escapeHtml(d.vendor) : '—') + '</td>' +
-                        '<td>' + (d.last_rssi != null ? d.last_rssi + ' dBm' : '—') + '</td>' +
-                        '<td>' + d.total_sightings + '</td>' +
-                        '<td>' + formatLastSeen(d.last_seen) + '</td>' +
-                        '<td><span class="type-badge ' + getTypeClass(d.device_type) + '">' + escapeHtml(d.type_icon || '') + ' ' + escapeHtml(d.type_label || '') + '</span></td>' +
-                        '<td>' + groupHtml + '</td>' +
-                        '</tr>';
-                }).join('');
-            } catch (error) {
-                console.error('Error loading live devices:', error);
-                tbody.innerHTML = '<tr><td colspan="8" class="empty-state">Error loading devices</td></tr>';
+        function updateViewToggle() {
+            const btn = document.getElementById('view-toggle');
+            if (btn) {
+                btn.innerHTML = compactView ? '◫ Detailed View' : '☰ Compact View';
             }
         }
 
-        document.querySelectorAll('.device-table th').forEach(th => {
-            th.addEventListener('click', () => {
-                const col = th.dataset.sort;
-                if (sortColumn === col) {
-                    sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
-                } else {
-                    sortColumn = col;
-                    sortDirection = col === 'last_seen' || col === 'sightings' || col === 'rssi' ? 'desc' : 'asc';
-                }
-                loadLiveDevices();
-            });
-        });
-
-        function refreshAll() {
-            loadLiveStats();
-            loadLiveDevices();
+        function toggleScreenshotMode() {
+            screenshotMode = !screenshotMode;
+            localStorage.setItem('bluehood_screenshot_mode', screenshotMode);
+            updateScreenshotToggle();
+            renderDevices();
         }
 
-        refreshAll();
-        setInterval(refreshAll, REFRESH_MS);
+        function updateScreenshotToggle() {
+            const btn = document.getElementById('screenshot-toggle');
+            if (btn) {
+                btn.innerHTML = screenshotMode ? '📷 Screenshot Mode ON' : '📷 Screenshot Mode';
+                btn.style.background = screenshotMode ? 'var(--accent-red)' : '';
+                btn.style.color = screenshotMode ? 'white' : '';
+            }
+        }
+
+        function toggleClickToOpen() {
+            clickToOpen = !clickToOpen;
+            localStorage.setItem('bluehood_click_to_open', clickToOpen);
+            updateClickToOpenToggle();
+        }
+
+        function updateClickToOpenToggle() {
+            const btn = document.getElementById('click-to-open-toggle');
+            if (btn) {
+                btn.innerHTML = clickToOpen ? '👆 Click to Open ON' : '👆 Click to Open';
+                btn.style.background = clickToOpen ? 'var(--accent-blue)' : '';
+                btn.style.color = clickToOpen ? 'white' : '';
+            }
+        }
+
+        let nameGroupsActive = false;
+
+        function toggleNameGroups() {
+            nameGroupsActive = !nameGroupsActive;
+            const devicesEl = document.getElementById('devices-container');
+            const groupsEl = document.getElementById('name-groups-container');
+            if (devicesEl) devicesEl.style.display = nameGroupsActive ? 'none' : '';
+            if (groupsEl) groupsEl.style.display = nameGroupsActive ? '' : 'none';
+            const btn = document.getElementById('name-groups-toggle');
+            if (btn) {
+                btn.innerHTML = nameGroupsActive ? '🔗 Group by Name ON' : '🔗 Group by Name';
+                btn.style.background = nameGroupsActive ? 'var(--accent-blue)' : '';
+                btn.style.color = nameGroupsActive ? 'white' : '';
+            }
+            if (nameGroupsActive) loadNameGroups();
+        }
+
+        async function loadNameGroups() {
+            const container = document.getElementById('name-groups-list');
+            const countEl = document.getElementById('name-groups-count');
+            if (!container) return;
+            container.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--text-muted);">Loading...</div>';
+            try {
+                const response = await fetch('/api/name-groups');
+                const data = await response.json();
+                const groups = data.groups || [];
+                if (countEl) {
+                    countEl.style.display = '';
+                    countEl.textContent = '· ' + groups.length + ' name' + (groups.length === 1 ? '' : 's');
+                }
+                if (groups.length === 0) {
+                    container.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--text-muted);">No names are shared across multiple addresses.</div>';
+                    return;
+                }
+                container.innerHTML = groups.map(renderNameGroup).join('');
+            } catch (error) {
+                container.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--text-muted);">Error loading name groups</div>';
+            }
+        }
+
+        function renderNameGroup(g) {
+            const name = obfuscateName(g.name) || '(unnamed)';
+            const { text: lastSeen, tooltip: lastSeenTooltip } = formatLastSeen(g.last_seen);
+            const vendor = g.vendor ? ' · ' + g.vendor : '';
+            const randomized = g.randomized_count > 0
+                ? '<span title="' + g.randomized_count + ' of ' + g.device_count + ' addresses are randomized" style="font-size: 0.65rem; color: var(--accent-amber); border: 1px solid var(--accent-amber); border-radius: 3px; padding: 0 0.3rem; margin-left: 0.5rem;">' + g.randomized_count + ' randomized</span>'
+                : '';
+            const members = (g.macs || []).map(mac => {
+                const shownMac = isMacOSUUID(mac) ? obfuscateMAC(mac).substring(0, 13) + '...' : obfuscateMAC(mac);
+                return '<div onclick="showDevice(\\'' + mac + '\\')" title="' + mac + '" style="font-family: monospace; font-size: 0.72rem; color: var(--text-secondary); padding: 0.25rem 0.5rem; border-bottom: 1px solid var(--border-color); cursor: pointer;">' + shownMac + '</div>';
+            }).join('');
+            return '<div style="margin-bottom: 1rem; border: 1px solid var(--border-color); border-radius: 6px; overflow: hidden;">' +
+                '<div style="display: flex; justify-content: space-between; align-items: center; padding: 0.6rem 0.75rem; background: var(--bg-tertiary);">' +
+                '<div style="min-width: 0;">' +
+                '<span style="font-size: 0.85rem; color: var(--text-primary); font-weight: 600;">' + (g.type_icon || '') + ' ' + name + '</span>' + randomized +
+                '<div style="font-size: 0.65rem; color: var(--text-muted);">' + g.device_count + ' addresses' + vendor + ' · ' + g.total_sightings + ' sightings · last seen <span title="' + lastSeenTooltip + '">' + lastSeen + '</span></div>' +
+                '</div>' +
+                '<span style="font-size: 1.1rem; font-weight: 700; color: var(--accent-blue); margin-left: 0.75rem;">' + g.device_count + '</span>' +
+                '</div>' + members + '</div>';
+        }
+
+        function isMacOSUUID(addr) {
+            return /^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$/.test(addr);
+        }
+
+        function obfuscateMAC(mac) {
+            if (!screenshotMode || !mac) return mac;
+            // Handle macOS UUID-format addresses
+            if (isMacOSUUID(mac)) {
+                return mac.substring(0, 8) + '-XXXX-XXXX-XXXX-XXXXXXXXXXXX';
+            }
+            // Show first 2 octets, hide the rest: AA:BB:XX:XX:XX:XX
+            const parts = mac.split(':');
+            if (parts.length === 6) {
+                return parts[0] + ':' + parts[1] + ':XX:XX:XX:XX';
+            }
+            return mac.substring(0, 5) + ':XX:XX:XX:XX';
+        }
+
+        function obfuscateName(name) {
+            if (!screenshotMode || !name) return name;
+            // Show first 2 chars, then asterisks
+            if (name.length <= 2) return '**';
+            return name.substring(0, 2) + '*'.repeat(Math.min(name.length - 2, 8));
+        }
+
+        function showShortcutsModal() {
+            document.getElementById('shortcuts-modal').classList.add('active');
+        }
+
+        function closeShortcutsModal() {
+            document.getElementById('shortcuts-modal').classList.remove('active');
+        }
+
+        async function refreshDevices() {
+            try {
+                const response = await fetch(buildDevicesUrl());
+                const data = await response.json();
+                allDevices = data.devices || [];
+                const knownMacs = new Set(allDevices.map(d => d.mac));
+                selectedMacs = new Set([...selectedMacs].filter(mac => knownMacs.has(mac)));
+                pagination.page = data.page || pagination.page;
+                pagination.pageSize = data.page_size || pagination.pageSize;
+                pagination.totalPages = data.total_pages || 1;
+                pagination.totalMatching = data.total_matching || 0;
+                pagination.hasPrev = !!data.has_prev;
+                pagination.hasNext = !!data.has_next;
+                localStorage.setItem(PAGE_SIZE_STORAGE_KEY, String(pagination.pageSize));
+                updateStats(data);
+                updateFilterCounts(data.filter_counts);
+                updatePaginationUI();
+                if (!dateFilteredDevices) renderDevices();
+                updateSelectionUI();
+            } catch (error) {
+                console.error('Scan error:', error);
+            }
+        }
+
+        function updateStats(data) {
+            // (Total units seen was removed from the header -- data.total
+            // is still returned by the API but nothing displays it now.)
+        }
+
+        // ==================== Categories (sidebar tree) ====================
+        let categoriesCache = [];
+
+        async function loadCategories() {
+            try {
+                const res = await fetch('/api/groups');
+                const data = await res.json();
+                categoriesCache = data.groups || [];
+                cachedGroups = categoriesCache;  // single source of truth -- see loadGroupsForDevice/loadGroupsForBulkSelect
+                renderCategoryTree();
+            } catch (e) {
+                console.error('Failed to load categories:', e);
+            }
+        }
+
+        function groupOptionLabel(g) {
+            if (g.parent_id) {
+                const parent = cachedGroups.find(p => p.id === g.parent_id);
+                return (parent ? parent.name + ' › ' : '') + g.name;
+            }
+            return g.name;
+        }
+
+        function renderCategoryTree() {
+            const el = document.getElementById('categories-tree');
+            if (!el) return;
+            const topLevel = categoriesCache.filter(g => !g.parent_id);
+            if (topLevel.length === 0) {
+                el.innerHTML = '<div style="font-size: 0.75rem; color: var(--text-muted); padding: 0.5rem 0.25rem;">No categories yet</div>';
+                return;
+            }
+            el.innerHTML = topLevel.map(g => renderCategoryNode(g)).join('');
+        }
+
+        function renderCategoryNode(group) {
+            const children = categoriesCache.filter(g => g.parent_id === group.id);
+            const childrenHtml = children.length
+                ? '<div class="category-children">' + children.map(c => renderCategoryNode(c)).join('') + '</div>'
+                : '';
+            const isActive = currentGroupId === group.id;
+            return (
+                '<div class="category-node' + (isActive ? ' active' : '') + '" draggable="true" data-id="' + group.id + '" ' +
+                'ondragstart="onCategoryDragStart(event, ' + group.id + ')" ' +
+                'ondragover="onCategoryDragOver(event)" ' +
+                'ondragleave="onCategoryDragLeave(event)" ' +
+                'ondrop="onCategoryDrop(event, ' + group.id + ')">' +
+                '<span class="category-label" style="color:' + (group.color || '#3b82f6') + '" onclick="selectCategory(' + group.id + ')" title="Click to show only this category\\'s devices, drag onto another category to nest it as a subcategory">' +
+                (group.icon || '📁') + ' ' + escapeHtml(group.name) +
+                '</span>' +
+                '<button class="category-delete" onclick="deleteCategory(' + group.id + ')" title="Delete category">×</button>' +
+                '</div>' + childrenHtml
+            );
+        }
+
+        function selectCategory(groupId) {
+            currentGroupId = (currentGroupId === groupId) ? null : groupId;
+            currentFilter = 'all';
+            const allBtn = document.getElementById('all-devices-btn');
+            if (allBtn) allBtn.classList.remove('active');
+            renderCategoryTree();
+            selectedMacs.clear();
+            lastSelectedIndex = null;
+            pagination.page = 1;
+            refreshDevices();
+        }
+
+        function showAllDevices() {
+            currentGroupId = '__all__';
+            currentFilter = 'all';
+            renderCategoryTree();
+            selectedMacs.clear();
+            lastSelectedIndex = null;
+            pagination.page = 1;
+            refreshDevices();
+        }
+
+        function toggleHideCategorized() {
+            const checkbox = document.getElementById('hide-categorized-toggle');
+            hideCategorized = checkbox ? checkbox.checked : false;
+            localStorage.setItem('bluehood_hide_categorized', hideCategorized);
+            selectedMacs.clear();
+            lastSelectedIndex = null;
+            pagination.page = 1;
+            refreshDevices();
+        }
+
+        function escapeHtml(s) {
+            const d = document.createElement('div');
+            d.textContent = s;
+            return d.innerHTML;
+        }
+
+        async function createCategory() {
+            const input = document.getElementById('new-category-name');
+            const name = (input.value || '').trim();
+            if (!name) return;
+            try {
+                await fetch('/api/groups', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, color: '#3b82f6', icon: '📁' }),
+                });
+                input.value = '';
+                await loadCategories();
+            } catch (e) {
+                console.error('Failed to create category:', e);
+            }
+        }
+
+        async function deleteCategory(groupId) {
+            if (!confirm('Delete this category? Devices in it revert to Unknown; subcategories are promoted to top-level.')) return;
+            try {
+                await fetch('/api/groups/' + groupId, { method: 'DELETE' });
+                await loadCategories();
+            } catch (e) {
+                console.error('Failed to delete category:', e);
+            }
+        }
+
+        let draggedCategoryId = null;
+        let draggedDeviceMac = null;
+
+        function onCategoryDragStart(event, groupId) {
+            draggedCategoryId = groupId;
+            draggedDeviceMac = null;
+            event.dataTransfer.effectAllowed = 'move';
+        }
+
+        function onDeviceDragStart(event, mac) {
+            draggedDeviceMac = mac;
+            draggedCategoryId = null;
+            event.dataTransfer.effectAllowed = 'move';
+        }
+
+        function onCategoryDragOver(event) {
+            event.preventDefault();
+            event.currentTarget.classList.add('category-drop-target');
+        }
+
+        function onCategoryDragLeave(event) {
+            event.currentTarget.classList.remove('category-drop-target');
+        }
+
+        async function onCategoryDrop(event, targetGroupId) {
+            event.preventDefault();
+            event.stopPropagation();
+            event.currentTarget.classList.remove('category-drop-target');
+
+            if (draggedDeviceMac !== null) {
+                const mac = draggedDeviceMac;
+                draggedDeviceMac = null;
+                try {
+                    await fetch('/api/device/' + encodeURIComponent(mac) + '/group', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ group_id: targetGroupId }),
+                    });
+                    await refreshDevices();
+                } catch (e) {
+                    console.error('Failed to assign device to category:', e);
+                }
+                return;
+            }
+
+            if (draggedCategoryId === null || draggedCategoryId === targetGroupId) return;
+            try {
+                const res = await fetch('/api/groups/' + draggedCategoryId + '/reparent', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ parent_id: targetGroupId }),
+                });
+                if (!res.ok) {
+                    const err = await res.json();
+                    alert(err.error || 'Could not nest that category there');
+                }
+                draggedCategoryId = null;
+                await loadCategories();
+            } catch (e) {
+                console.error('Failed to reparent category:', e);
+            }
+        }
+
+        function updateFilterCounts(serverCounts = null) {
+            const counts = serverCounts || { all: 0, watched: 0, phone: 0, laptop: 0, audio: 0, smart: 0, unknown: 0 };
+            if (!serverCounts) {
+                allDevices.forEach(d => {
+                    counts.all++;
+                    if (d.watched) counts.watched++;
+                    if (d.device_type === 'phone') counts.phone++;
+                    else if (d.device_type === 'laptop' || d.device_type === 'computer') counts.laptop++;
+                    else if (d.device_type === 'audio' || d.device_type === 'speaker') counts.audio++;
+                    else if (d.device_type === 'smart') counts.smart++;
+                    else if (d.device_type === 'unknown') counts.unknown++;
+                });
+            }
+            Object.keys(counts).forEach(k => {
+                const el = document.getElementById('count-' + k);
+                if (el) el.textContent = counts[k];
+            });
+        }
+
+        async function searchByDateRange() {
+            const startInput = document.getElementById('search-start').value;
+            const endInput = document.getElementById('search-end').value;
+            if (!startInput && !endInput) { clearDateFilters(); return; }
+            try {
+                let url = '/api/search?';
+                if (startInput) url += 'start=' + encodeURIComponent(startInput) + '&';
+                if (endInput) url += 'end=' + encodeURIComponent(endInput);
+                const response = await fetch(url);
+                const data = await response.json();
+                if (!response.ok) {
+                    alert('Date query failed: ' + (data.error || response.status));
+                    return;
+                }
+                dateFilteredDevices = data.devices || [];
+                selectedMacs.clear();
+                lastSelectedIndex = null;
+                updatePaginationUI();
+                renderDevices();
+                if (dateFilteredDevices.length === 0) {
+                    alert('No devices had a sighting in that date range.');
+                }
+            } catch (error) {
+                console.error('Query error:', error);
+                alert('Date query failed: ' + error.message);
+            }
+        }
+
+        function clearDateFilters() {
+            document.getElementById('search-start').value = '';
+            document.getElementById('search-end').value = '';
+            dateFilteredDevices = null;
+            updatePaginationUI();
+            refreshDevices();
+        }
+
+        function resetSort() {
+            sortState = { ...defaultSortState };
+            updateSortIndicators();
+            if (dateFilteredDevices !== null) {
+                renderDevices();
+                return;
+            }
+            pagination.page = 1;
+            refreshDevices();
+        }
+
+        function setSort(column) {
+            if (sortState.column === column) {
+                sortState.direction = sortState.direction === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortState.column = column;
+                sortState.direction = 'asc';
+            }
+            updateSortIndicators();
+            if (dateFilteredDevices !== null) {
+                renderDevices();
+                return;
+            }
+            pagination.page = 1;
+            refreshDevices();
+        }
+
+        function updatePaginationUI() {
+            const pageInfo = document.getElementById('page-info');
+            const prevBtn = document.getElementById('prev-page-btn');
+            const nextBtn = document.getElementById('next-page-btn');
+            const pageNumbers = document.getElementById('page-numbers');
+            const pageSizeSelect = document.getElementById('page-size-select');
+            if (!pageInfo || !prevBtn || !nextBtn || !pageNumbers) return;
+            if (pageSizeSelect) {
+                pageSizeSelect.value = String(pagination.pageSize);
+            }
+
+            const paginationCenter = document.querySelector('.pagination-center');
+            const paginationRight = document.querySelector('.pagination-right');
+
+            if (dateFilteredDevices !== null) {
+                pageInfo.textContent = 'Date range query — showing all ' + dateFilteredDevices.length + ' matching devices (no paging)';
+                if (paginationCenter) paginationCenter.style.display = 'none';
+                if (paginationRight) paginationRight.style.display = 'none';
+                return;
+            }
+
+            if (paginationCenter) paginationCenter.style.display = '';
+            if (paginationRight) paginationRight.style.display = '';
+            pageInfo.textContent = 'Page ' + pagination.page + '/' + Math.max(1, pagination.totalPages);
+            prevBtn.disabled = !pagination.hasPrev;
+            nextBtn.disabled = !pagination.hasNext;
+            if (pageSizeSelect) pageSizeSelect.disabled = false;
+            renderPageNumbers(pageNumbers);
+        }
+
+        function getPageTokens(totalPages, currentPage) {
+            if (totalPages <= 7) {
+                return Array.from({ length: totalPages }, (_, i) => i + 1);
+            }
+
+            const tokens = [1];
+            let start = Math.max(2, currentPage - 1);
+            let end = Math.min(totalPages - 1, currentPage + 1);
+
+            if (currentPage <= 3) {
+                start = 2;
+                end = 4;
+            } else if (currentPage >= totalPages - 2) {
+                start = totalPages - 3;
+                end = totalPages - 1;
+            }
+
+            if (start > 2) tokens.push('…');
+            for (let page = start; page <= end; page++) tokens.push(page);
+            if (end < totalPages - 1) tokens.push('…');
+            tokens.push(totalPages);
+
+            return tokens;
+        }
+
+        function renderPageNumbers(container) {
+            const totalPages = Math.max(1, pagination.totalPages);
+            const currentPage = Math.min(Math.max(1, pagination.page), totalPages);
+            const tokens = getPageTokens(totalPages, currentPage);
+
+            container.innerHTML = tokens.map(token => {
+                if (typeof token !== 'number') {
+                    return '<span class="page-ellipsis">' + token + '</span>';
+                }
+
+                const activeClass = token === currentPage ? ' active' : '';
+                return (
+                    '<button class="btn page-number-btn' + activeClass + '"' +
+                    ' onclick="goToPage(' + token + ')">' +
+                    token +
+                    '</button>'
+                );
+            }).join('');
+        }
+
+        function goToPage(page) {
+            if (dateFilteredDevices !== null) return;
+            const targetPage = Math.max(1, Math.min(page, pagination.totalPages));
+            if (targetPage === pagination.page) return;
+            pagination.page = targetPage;
+            selectedMacs.clear();
+            lastSelectedIndex = null;
+            refreshDevices();
+        }
+
+        function changePage(delta) {
+            if (dateFilteredDevices !== null) return;
+            const nextPage = pagination.page + delta;
+            goToPage(nextPage);
+        }
+
+        function changePageSize(value) {
+            const nextPageSize = normalizePageSize(value);
+            if (nextPageSize === pagination.pageSize) return;
+            pagination.pageSize = nextPageSize;
+            localStorage.setItem(PAGE_SIZE_STORAGE_KEY, String(nextPageSize));
+            pagination.page = 1;
+            selectedMacs.clear();
+            lastSelectedIndex = null;
+
+            if (dateFilteredDevices !== null) {
+                updatePaginationUI();
+                return;
+            }
+            refreshDevices();
+        }
+
+        function updateSortIndicators() {
+            document.querySelectorAll('.device-table th.sortable').forEach(th => {
+                const indicator = th.querySelector('.sort-indicator');
+                if (!indicator) return;
+                const isActive = th.dataset.sort === sortState.column;
+                th.classList.toggle('active', isActive);
+                if (!isActive) {
+                    indicator.textContent = '';
+                } else {
+                    indicator.textContent = sortState.direction === 'asc' ? '▲' : '▼';
+                }
+            });
+        }
+
+        function getSortValue(device, column) {
+            switch (column) {
+                case 'class':
+                    return (device.type_label || device.device_type || '').toLowerCase();
+                case 'mac':
+                    return (device.mac || '').toLowerCase();
+                case 'vendor':
+                    return (device.vendor || '').toLowerCase();
+                case 'identifier':
+                    return (device.friendly_name || '').toLowerCase();
+                case 'sightings':
+                    return Number.isFinite(device.total_sightings) ? device.total_sightings : -1;
+                case 'last_seen':
+                    // Raw timestamp (ms since epoch) so normal asc/desc sorting is
+                    // intuitive: desc = highest timestamp = most recent first.
+                    // Undated devices sort as the oldest possible value.
+                    return device.last_seen ? new Date(device.last_seen).getTime() : Number.NEGATIVE_INFINITY;
+                case 'group':
+                    return (device.group_name || '').toLowerCase();
+                default:
+                    return '';
+            }
+        }
+
+        function applySort(devices) {
+            const sorted = [...devices];
+            const direction = sortState.direction === 'asc' ? 1 : -1;
+            sorted.sort((a, b) => {
+                const aVal = getSortValue(a, sortState.column);
+                const bVal = getSortValue(b, sortState.column);
+                if (aVal < bVal) return -1 * direction;
+                if (aVal > bVal) return 1 * direction;
+                return 0;
+            });
+            return sorted;
+        }
+
+        function updateSelectionUI() {
+            const selectedCount = selectedMacs.size;
+            const summary = document.getElementById('selected-count');
+            if (summary) {
+                if (selectedCount > 0) {
+                    summary.style.display = 'inline';
+                    summary.textContent = '· ' + selectedCount + ' selected';
+                } else {
+                    summary.style.display = 'none';
+                    summary.textContent = '';
+                }
+            }
+
+            updateSelectAllCheckbox();
+            updateBulkActionState();
+        }
+
+        function updateSelectAllCheckbox() {
+            const checkbox = document.getElementById('select-all-checkbox');
+            if (!checkbox) return;
+            if (!currentVisibleDevices || currentVisibleDevices.length === 0) {
+                checkbox.checked = false;
+                checkbox.indeterminate = false;
+                checkbox.disabled = true;
+                return;
+            }
+            checkbox.disabled = false;
+            const selectedVisibleCount = currentVisibleDevices.filter(d => selectedMacs.has(d.mac)).length;
+            checkbox.checked = selectedVisibleCount > 0 && selectedVisibleCount === currentVisibleDevices.length;
+            checkbox.indeterminate = selectedVisibleCount > 0 && selectedVisibleCount < currentVisibleDevices.length;
+        }
+
+        function updateBulkActionState() {
+            const hasSelection = selectedMacs.size > 0;
+            const bulkGroupSelect = document.getElementById('bulk-group-select');
+            const bulkGroupApply = document.getElementById('bulk-group-apply');
+            const bulkWatchSelect = document.getElementById('bulk-watch-select');
+            const bulkWatchApply = document.getElementById('bulk-watch-apply');
+            const clearBtn = document.getElementById('clear-selection-btn');
+
+            if (bulkGroupSelect) bulkGroupSelect.disabled = !hasSelection;
+            if (bulkGroupApply) bulkGroupApply.disabled = !hasSelection;
+            if (bulkWatchSelect) bulkWatchSelect.disabled = !hasSelection;
+            if (bulkWatchApply) bulkWatchApply.disabled = !hasSelection;
+            if (clearBtn) clearBtn.disabled = !hasSelection;
+        }
+
+        function clearSelection() {
+            selectedMacs.clear();
+            lastSelectedIndex = null;
+            renderDevices();
+        }
+
+        function toggleSelectAllVisible() {
+            if (!currentVisibleDevices || currentVisibleDevices.length === 0) return;
+            const allSelected = currentVisibleDevices.every(d => selectedMacs.has(d.mac));
+            if (allSelected) {
+                currentVisibleDevices.forEach(d => selectedMacs.delete(d.mac));
+            } else {
+                currentVisibleDevices.forEach(d => selectedMacs.add(d.mac));
+            }
+            renderDevices();
+        }
+
+        function toggleRowCheckbox(event, mac, index) {
+            event.stopPropagation();
+            if (event.target.checked) {
+                selectedMacs.add(mac);
+            } else {
+                selectedMacs.delete(mac);
+            }
+            lastSelectedIndex = index;
+            renderDevices();
+        }
+
+        function handleRowClick(event, mac, index) {
+            if (event.target && event.target.closest('input.row-select-checkbox')) return;
+            const isCtrl = event.ctrlKey || event.metaKey;
+            const isShift = event.shiftKey;
+
+            if (!isCtrl && !isShift) {
+                showDevice(mac);
+                return;
+            }
+
+            if (isShift && lastSelectedIndex !== null && currentVisibleDevices.length > 0) {
+                const start = Math.max(0, Math.min(lastSelectedIndex, index));
+                const end = Math.min(currentVisibleDevices.length - 1, Math.max(lastSelectedIndex, index));
+                if (!isCtrl) selectedMacs.clear();
+                for (let i = start; i <= end; i++) {
+                    selectedMacs.add(currentVisibleDevices[i].mac);
+                }
+            } else if (isCtrl) {
+                if (selectedMacs.has(mac)) {
+                    selectedMacs.delete(mac);
+                } else {
+                    selectedMacs.add(mac);
+                }
+            } else {
+                if (selectedMacs.has(mac)) {
+                    selectedMacs.delete(mac);
+                } else {
+                    selectedMacs.clear();
+                    selectedMacs.add(mac);
+                }
+            }
+
+            lastSelectedIndex = index;
+            // Delay renderDevices so the dblclick event can fire on the original
+            // <tr> element before innerHTML replaces it. Without this delay,
+            // the first click destroys the row and dblclick never fires.
+            if (rowClickTimer) clearTimeout(rowClickTimer);
+            rowClickTimer = setTimeout(() => { rowClickTimer = null; renderDevices(); }, 250);
+        }
+
+        function getContrastColor(hexColor) {
+            if (!hexColor) return 'var(--text-primary)';
+            // Remove # if present
+            const hex = hexColor.replace('#', '');
+            // Parse RGB values
+            const r = parseInt(hex.substr(0, 2), 16);
+            const g = parseInt(hex.substr(2, 2), 16);
+            const b = parseInt(hex.substr(4, 2), 16);
+            // Calculate relative luminance
+            const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+            // Return black for light backgrounds, white for dark
+            return luminance > 0.5 ? '#000000' : '#ffffff';
+        }
+
+        function renderDevices() {
+            const tbody = document.getElementById('device-list');
+            const sourceDevices = dateFilteredDevices !== null ? dateFilteredDevices : allDevices;
+            let visibleDevices = sourceDevices;
+
+            if (dateFilteredDevices !== null) {
+                const searchTerm = document.getElementById('search').value.toLowerCase();
+                visibleDevices = sourceDevices.filter(d => {
+                    if (currentFilter === 'watched') {
+                        if (!d.watched) return false;
+                    } else if (currentFilter === 'laptop') {
+                        if (d.device_type !== 'laptop' && d.device_type !== 'computer') return false;
+                    } else if (currentFilter !== 'all' && d.device_type !== currentFilter) {
+                        return false;
+                    }
+                    if (searchTerm) {
+                        const searchable = [d.mac, d.vendor, d.friendly_name].join(' ').toLowerCase();
+                        if (!searchable.includes(searchTerm)) return false;
+                    }
+                    return true;
+                });
+                visibleDevices = applySort(visibleDevices);
+                document.getElementById('visible-count').textContent = visibleDevices.length;
+            } else {
+                document.getElementById('visible-count').textContent = pagination.totalMatching || visibleDevices.length;
+            }
+
+            currentVisibleDevices = visibleDevices;
+
+            if (visibleDevices.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; padding: 2rem; color: var(--text-muted);">No targets match criteria</td></tr>';
+                updateSelectionUI();
+                return;
+            }
+
+            tbody.innerHTML = visibleDevices.map((d, index) => {
+                const typeClass = getTypeClass(d.device_type);
+                const { text: lastSeen, tooltip: lastSeenTooltip } = formatLastSeen(d.last_seen);
+                const isRecent = isRecentlySeen(d.last_seen);
+                const watchedStar = d.watched ? '<span class="watched-star">★</span>' : '';
+                const isSelected = selectedMacs.has(d.mac);
+                const rowClass = isSelected ? 'selected' : '';
+                const checkedAttr = isSelected ? 'checked' : '';
+
+                // Build group pill HTML
+                let groupHtml = '—';
+                if (d.group_name && d.group_color) {
+                    const textColor = getContrastColor(d.group_color);
+                    groupHtml = '<span style="background: ' + d.group_color + '; color: ' + textColor + '; padding: 0.15rem 0.5rem; border-radius: 3px; font-size: 0.7rem; font-weight: 500;">' + d.group_name + '</span>';
+                } else if (d.group_name) {
+                    groupHtml = '<span style="background: var(--bg-tertiary); color: var(--text-secondary); padding: 0.15rem 0.5rem; border-radius: 3px; font-size: 0.7rem;">' + d.group_name + '</span>';
+                }
+
+                if (compactView) {
+                    // Compact: Type, Name/MAC, Sightings, Last Seen, Group
+                    const rawDisplayName = d.friendly_name || d.vendor || d.mac;
+                    let displayName = d.friendly_name ? obfuscateName(rawDisplayName) : (d.vendor ? rawDisplayName : obfuscateMAC(rawDisplayName));
+                    // Truncate long macOS UUID addresses in compact view
+                    if (!d.friendly_name && !d.vendor && isMacOSUUID(d.mac)) {
+                        displayName = displayName.substring(0, 13) + '...';
+                    }
+                    return '<tr class="' + rowClass + '" draggable="true" ondragstart="onDeviceDragStart(event, \\'' + d.mac + '\\')" onclick="handleRowClick(event, \\'' + d.mac + '\\', ' + index + ')" ondblclick="showDevice(\\'' + d.mac + '\\')" style="height: auto;">' +
+                        '<td class="select-col"><input type="checkbox" class="row-select-checkbox" ' + checkedAttr + ' onclick="toggleRowCheckbox(event, \\'' + d.mac + '\\', ' + index + ')"></td>' +
+                        '<td style="padding: 0.4rem 0.5rem;"><span class="type-badge ' + typeClass + '" style="font-size: 0.65rem; padding: 0.15rem 0.4rem;">' + watchedStar + d.type_icon + '</span></td>' +
+                        '<td colspan="3" style="padding: 0.4rem 0.5rem; font-size: 0.75rem;">' + displayName + '</td>' +
+                        '<td style="padding: 0.4rem 0.5rem; font-size: 0.7rem;">' + (d.last_rssi != null ? d.last_rssi + ' dBm' : '—') + '</td>' +
+                        '<td style="padding: 0.4rem 0.5rem; font-size: 0.7rem;">' + d.total_sightings + '</td>' +
+                        '<td style="padding: 0.4rem 0.5rem; font-size: 0.7rem;" class="' + (isRecent ? 'recent' : '') + '" title="' + lastSeenTooltip + '">' + lastSeen + '</td>' +
+                        '<td style="padding: 0.4rem 0.5rem; font-size: 0.7rem;">' + groupHtml + '</td>' +
+                        '</tr>';
+                }
+
+                return '<tr class="' + rowClass + '" draggable="true" ondragstart="onDeviceDragStart(event, \\'' + d.mac + '\\')" onclick="handleRowClick(event, \\'' + d.mac + '\\', ' + index + ')" ondblclick="showDevice(\\'' + d.mac + '\\')">' +
+                    '<td class="select-col"><input type="checkbox" class="row-select-checkbox" ' + checkedAttr + ' onclick="toggleRowCheckbox(event, \\'' + d.mac + '\\', ' + index + ')"></td>' +
+                    '<td><span class="type-badge ' + typeClass + '">' + watchedStar + d.type_icon + ' ' + d.type_label + '</span></td>' +
+                    '<td class="vendor-name">' + (d.vendor || '—') + '</td>' +
+                    '<td class="mac-addr" title="' + d.mac + '">' + (isMacOSUUID(d.mac) ? obfuscateMAC(d.mac).substring(0, 13) + '...' : obfuscateMAC(d.mac)) + '</td>' +
+                    '<td class="device-name">' + (d.friendly_name ? obfuscateName(d.friendly_name) : '—') +
+                    (d.identity_mac_count > 1 ? ' <span class="identity-badge" title="' + d.identity_mac_count + ' MAC addresses clustered as one device (rotation)">×' + d.identity_mac_count + '</span>' : '') +
+                    '</td>' +
+                    '<td class="rssi-value">' + (d.last_rssi != null ? d.last_rssi + ' dBm' : '—') + '</td>' +
+                    '<td class="sighting-count">' + d.total_sightings + '</td>' +
+                    '<td class="last-seen ' + (isRecent ? 'recent' : '') + '" title="' + lastSeenTooltip + '">' + lastSeen + '</td>' +
+                    '<td class="group-name">' + groupHtml + '</td>' +
+                    '</tr>';
+            }).join('');
+            updateSelectionUI();
+        }
+
+        function getTypeClass(type) {
+            const classes = { phone: 'type-phone', laptop: 'type-laptop', computer: 'type-laptop', tablet: 'type-phone', smart: 'type-smart', audio: 'type-audio', speaker: 'type-audio', watch: 'type-watch', wearable: 'type-watch', tv: 'type-tv', vehicle: 'type-vehicle' };
+            return classes[type] || 'type-unknown';
+        }
+
+        function formatLastSeen(isoString) {
+            if (!isoString) return { text: '—', tooltip: '' };
+            const date = new Date(isoString);
+            const now = new Date();
+            const tooltip = date.toLocaleString();
+            const diffMins = Math.floor((now - date) / 60000);
+            let text;
+            if (diffMins < 1) text = 'NOW';
+            else if (diffMins < 60) text = diffMins + 'm ago';
+            else if (diffMins < 1440) {
+                const h = Math.floor(diffMins / 60);
+                const m = diffMins % 60;
+                text = m > 0 ? h + 'h ' + m + 'm ago' : h + 'h ago';
+            } else {
+                const diffDays = Math.floor(diffMins / 1440);
+                if (diffDays === 1) text = 'Yesterday ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                else if (diffDays < 7) text = diffDays + 'd ago';
+                else text = date.toLocaleDateString();
+            }
+            return { text, tooltip };
+        }
+
+        function isRecentlySeen(isoString) {
+            if (!isoString) return false;
+            return (new Date() - new Date(isoString)) < 600000;
+        }
+
+        async function showDevice(mac) {
+            // Cancel any pending single-click re-render so it doesn't
+            // disrupt the modal that the double-click is about to open.
+            if (rowClickTimer) { clearTimeout(rowClickTimer); rowClickTimer = null; }
+            try {
+                const response = await fetch('/api/device/' + encodeURIComponent(mac));
+                const data = await response.json();
+                renderModal(data);
+                document.getElementById('device-modal').classList.add('active');
+            } catch (error) { console.error('Error:', error); }
+        }
+
+        let currentDeviceMac = null;
+
+        function renderModal(data) {
+            const d = data.device;
+            currentDeviceMac = d.mac;
+            const content = document.getElementById('modal-content');
+
+            let rssiDisplay = '—';
+            if (data.avg_rssi !== null && data.avg_rssi !== undefined) {
+                const rssi = data.avg_rssi;
+                let strength = 'WEAK';
+                if (rssi > -50) strength = 'STRONG';
+                else if (rssi > -60) strength = 'GOOD';
+                else if (rssi > -70) strength = 'FAIR';
+                rssiDisplay = rssi + ' dBm (' + strength + ')';
+            }
+
+            const proximityColors = { immediate: '#16a34a', near: '#d97706', far: '#ea580c', remote: '#dc2626', unknown: '#555' };
+            const proximityZone = data.proximity_zone || 'unknown';
+            const proximityColor = proximityColors[proximityZone] || '#555';
+
+            const watchBtnText = d.watched ? '★ WATCHING' : '☆ WATCH TARGET';
+            const watchBtnClass = d.watched ? 'btn btn-watch active' : 'btn btn-watch';
+
+            content.innerHTML = '<div class="action-row">' +
+                '<button class="' + watchBtnClass + '" id="watch-btn" onclick="toggleWatch(\\'' + d.mac + '\\')">' + watchBtnText + '</button>' +
+                '</div>' +
+                '<div class="detail-grid">' +
+                '<div class="detail-item"><div class="detail-label">Address</div><div class="detail-value mono" style="font-size:' + (isMacOSUUID(d.mac) ? '0.65rem' : '0.85rem') + '; word-break: break-all;">' + obfuscateMAC(d.mac) + '</div></div>' +
+                '<div class="detail-item"><div class="detail-label">Classification</div><div class="detail-value">' + data.type_label + '</div></div>' +
+                '<div class="detail-item"><div class="detail-label">Vendor OUI</div><input class="form-input" id="device-vendor" value="' + escapeHtml(d.vendor || '') + '" placeholder="Unknown -- set manually" style="font-size: 0.85rem;" onchange="setDeviceVendor(\\'' + d.mac + '\\', this.value)"></div>' +
+                '<div class="detail-item"><div class="detail-label">Proximity Zone</div><div class="detail-value" style="color: ' + proximityColor + '; ">' + proximityZone + '</div></div>' +
+                '<div class="detail-item"><div class="detail-label">First Contact</div><div class="detail-value mono">' + (d.first_seen ? new Date(d.first_seen).toLocaleString() : '—') + '</div></div>' +
+                '<div class="detail-item"><div class="detail-label">Last seen</div><div class="detail-value mono">' + (d.last_seen ? new Date(d.last_seen).toLocaleString() : '—') + '</div></div>' +
+                '<div class="detail-item"><div class="detail-label">Total Sightings</div><div class="detail-value highlight">' + d.total_sightings + '</div></div>' +
+                '<div class="detail-item"><div class="detail-label">Signal Strength</div><div class="detail-value">' + rssiDisplay + '</div></div>' +
+                '<div class="detail-item full"><div class="detail-label">Behavioral Pattern</div><div class="detail-value">' + (data.pattern || 'Insufficient data') + '</div></div>' +
+                '<div class="detail-item full"><div class="detail-label">BLE Service Fingerprint</div><div class="detail-value mono" style="font-size:0.75rem;">' + (data.uuid_names && data.uuid_names.length > 0 ? data.uuid_names.join(', ') : '—') + '</div></div>' +
+                '<div class="detail-item full"><div class="detail-label">Operator Notes</div><textarea class="form-input" id="device-notes" rows="2" style="font-size: 0.8rem; resize: vertical;" placeholder="Add notes...">' + (d.notes || '') + '</textarea><button class="btn" style="margin-top: 0.5rem;" onclick="saveNotes(\\'' + d.mac + '\\')">Save Notes</button></div>' +
+                '<div class="detail-item full"><div class="detail-label">Assign to Group</div><select class="form-input" id="device-group" onchange="setDeviceGroup(\\'' + d.mac + '\\', this.value)" style="font-size: 0.8rem;"><option value="">No group</option></select></div>' +
+                '</div>' +
+                '<div class="heatmap-section">' +
+                '<div class="heatmap-title">Dwell Time Analysis (30d)</div>' +
+                '<div id="dwell-stats" class="heatmap" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; text-align: center;"><div style="color: var(--text-muted);">Loading...</div></div>' +
+                '</div>' +
+                '<div class="heatmap-section">' +
+                '<div class="heatmap-title">Hourly Activity (30d)</div>' +
+                '<div class="heatmap">' + renderHourlyHeatmap(data.hourly_data) + '</div>' +
+                '</div>' +
+                '<div class="heatmap-section">' +
+                '<div class="heatmap-title">Daily Activity</div>' +
+                '<div class="heatmap">' + renderDailyHeatmap(data.daily_data) + '</div>' +
+                '</div>' +
+                '<div class="heatmap-section">' +
+                '<div class="heatmap-title">Presence Timeline (30d)</div>' +
+                renderTimeline(data.timeline) +
+                '</div>' +
+                '<div class="heatmap-section" id="rssi-section">' +
+                '<div class="heatmap-title">Signal History (7d)</div>' +
+                '<div class="rssi-chart" id="rssi-chart"><div style="color: var(--text-muted); font-size: 0.75rem; text-align: center; padding-top: 1.5rem;">Loading...</div></div>' +
+                '</div>' +
+                (d.identity_id ? (
+                    '<div class="heatmap-section">' +
+                    '<div class="heatmap-title">Known MAC Addresses (' + (d.identity_mac_count || 1) + ', tracking for rotation-vs-separate-devices pattern)</div>' +
+                    '<div id="identity-macs" class="heatmap">Loading...</div>' +
+                    '</div>'
+                ) : '') +
+                '';
+
+            loadRssiChart(d.mac);
+            loadDwellStats(d.mac);
+            loadGroupsForDevice(d.group_id);
+            if (d.identity_id) loadIdentityMacs(d.identity_id, d.mac);
+        }
+
+        async function loadIdentityMacs(identityId, currentMac) {
+            const el = document.getElementById('identity-macs');
+            if (!el) return;
+            try {
+                const res = await fetch('/api/identity/' + identityId + '/macs');
+                const data = await res.json();
+                el.innerHTML = (data.macs || []).map(m =>
+                    '<div style="display:flex; justify-content:space-between; align-items:center; padding:0.3rem 0; border-bottom:1px solid var(--border-color); font-size:0.75rem; gap:0.5rem;">' +
+                    '<span class="mono">' + m.mac + (m.mac === currentMac ? ' (current)' : '') + '</span>' +
+                    '<span style="color:var(--text-muted);">first ' + (m.first_seen ? new Date(m.first_seen).toLocaleString() : '—') + '</span>' +
+                    '<span style="color:var(--text-muted);">last ' + (m.last_seen ? new Date(m.last_seen).toLocaleString() : '—') + '</span>' +
+                    '<span style="color:var(--text-muted);">' + m.total_sightings + ' sightings</span>' +
+                    '<button class="btn" style="padding:0.1rem 0.4rem; font-size:0.65rem;" onclick="unmergeAndRefresh(\\'' + m.mac + '\\')">Unmerge</button>' +
+                    '</div>'
+                ).join('');
+            } catch (e) {
+                el.textContent = 'Failed to load';
+            }
+        }
+
+        async function unmergeAndRefresh(mac) {
+            await fetch('/api/device/' + encodeURIComponent(mac) + '/unmerge', { method: 'POST' });
+            await refreshDevices();
+            showDevice(mac);
+        }
+
+        let cachedGroups = [];
+
+        async function loadGroupsForDevice(currentGroupId) {
+            const select = document.getElementById('device-group');
+            if (!select) return;
+
+            // Use cached groups if available
+            if (cachedGroups.length === 0) {
+                try {
+                    const response = await fetch('/api/groups');
+                    const data = await response.json();
+                    cachedGroups = data.groups || [];
+                } catch (error) { return; }
+            }
+
+            select.innerHTML = '<option value="">No group</option>' +
+                cachedGroups.map(g => '<option value="' + g.id + '"' + (g.id === currentGroupId ? ' selected' : '') + '>' + groupOptionLabel(g) + '</option>').join('');
+        }
+
+        async function loadGroupsForBulkSelect() {
+            const select = document.getElementById('bulk-group-select');
+            if (!select) return;
+
+            if (cachedGroups.length === 0) {
+                try {
+                    const response = await fetch('/api/groups');
+                    const data = await response.json();
+                    cachedGroups = data.groups || [];
+                } catch (error) {
+                    return;
+                }
+            }
+
+            select.innerHTML = '<option value="">Assign group...</option>' +
+                '<option value="__none__">No group</option>' +
+                cachedGroups.map(g => '<option value="' + g.id + '">' + groupOptionLabel(g) + '</option>').join('');
+        }
+
+        async function setDeviceVendor(mac, vendor) {
+            try {
+                await fetch('/api/device/' + encodeURIComponent(mac) + '/vendor', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ vendor: vendor })
+                });
+                refreshDevices();
+            } catch (error) { console.error('Error setting vendor:', error); }
+        }
+
+        async function setDeviceGroup(mac, groupId) {
+            try {
+                await fetch('/api/device/' + encodeURIComponent(mac) + '/group', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ group_id: groupId ? parseInt(groupId) : null })
+                });
+                refreshDevices();
+            } catch (error) { console.error('Error setting group:', error); }
+        }
+
+        async function applyBulkMerge() {
+            const macs = Array.from(selectedMacs);
+            if (macs.length < 2) {
+                alert('Select at least 2 devices to merge as one.');
+                return;
+            }
+            const deviceMap = new Map(allDevices.map(d => [d.mac, d]));
+            const names = new Set(macs.map(m => (deviceMap.get(m) || {}).friendly_name).filter(Boolean));
+            let name;
+            if (names.size === 1) {
+                name = [...names][0];
+            } else {
+                name = prompt(
+                    names.size > 1
+                        ? 'Selected devices have different names (' + [...names].join(', ') + '). Name for the merged device:'
+                        : 'Name for the merged device:',
+                    ''
+                );
+                if (!name) return;
+            }
+            try {
+                await fetch('/api/devices/merge', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ macs, name }),
+                });
+                clearSelection();
+                await refreshDevices();
+            } catch (error) {
+                console.error('Error merging devices:', error);
+            }
+        }
+
+        async function applyBulkGroup() {
+            const select = document.getElementById('bulk-group-select');
+            if (!select || !select.value) return;
+            if (selectedMacs.size === 0) return;
+
+            const groupValue = select.value;
+            const groupId = groupValue === '__none__' ? null : parseInt(groupValue);
+            const macs = Array.from(selectedMacs);
+
+            try {
+                await Promise.all(macs.map(mac =>
+                    fetch('/api/device/' + encodeURIComponent(mac) + '/group', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ group_id: groupId })
+                    })
+                ));
+                refreshDevices();
+            } catch (error) {
+                console.error('Error applying bulk group:', error);
+            }
+        }
+
+        async function applyBulkWatch() {
+            const select = document.getElementById('bulk-watch-select');
+            if (!select || !select.value) return;
+            if (selectedMacs.size === 0) return;
+
+            const desired = select.value;
+            const deviceMap = new Map(allDevices.map(d => [d.mac, d]));
+            const macs = Array.from(selectedMacs);
+            const requests = [];
+
+            macs.forEach(mac => {
+                const device = deviceMap.get(mac);
+                if (!device) return;
+                if (desired === 'on' && !device.watched) {
+                    requests.push(fetch('/api/device/' + encodeURIComponent(mac) + '/watch', { method: 'POST' }));
+                }
+                if (desired === 'off' && device.watched) {
+                    requests.push(fetch('/api/device/' + encodeURIComponent(mac) + '/watch', { method: 'POST' }));
+                }
+            });
+
+            try {
+                await Promise.all(requests);
+                refreshDevices();
+            } catch (error) {
+                console.error('Error applying bulk watch:', error);
+            }
+        }
+
+        async function loadDwellStats(mac) {
+            const container = document.getElementById('dwell-stats');
+            if (!container) return;
+            try {
+                const response = await fetch('/api/device/' + encodeURIComponent(mac) + '/dwell?days=30');
+                const data = await response.json();
+                container.innerHTML = '<div><div style="font-size: 1.25rem; color: var(--accent-amber);">' + Math.round(data.total_minutes) + '</div><div style="font-size: 0.65rem; color: var(--text-muted);">TOTAL MIN</div></div>' +
+                    '<div><div style="font-size: 1.25rem; color: var(--accent-green);">' + data.session_count + '</div><div style="font-size: 0.65rem; color: var(--text-muted);">SESSIONS</div></div>' +
+                    '<div><div style="font-size: 1.25rem; color: var(--accent-blue);">' + Math.round(data.avg_session_minutes) + '</div><div style="font-size: 0.65rem; color: var(--text-muted);">AVG MIN</div></div>' +
+                    '<div><div style="font-size: 1.25rem; color: var(--accent-red);">' + Math.round(data.longest_session_minutes) + '</div><div style="font-size: 0.65rem; color: var(--text-muted);">LONGEST</div></div>';
+            } catch (error) {
+                container.innerHTML = '<div style="color: var(--text-muted);">Error loading data</div>';
+            }
+        }
+
+        let correlationMac = null;
+
+        function reloadCorrelated() {
+            if (correlationMac) loadCorrelatedDevices(correlationMac);
+        }
+
+        async function loadCorrelatedDevices(mac) {
+            correlationMac = mac;
+            const container = document.getElementById('correlated-devices');
+            if (!container) return;
+            const gapEl = document.getElementById('corr-gap');
+            const edgeEl = document.getElementById('corr-edge');
+            const gap = Math.max(1, parseInt(gapEl && gapEl.value) || 15);
+            const edge = Math.max(1, parseInt(edgeEl && edgeEl.value) || 5);
+            try {
+                const response = await fetch('/api/device/' + encodeURIComponent(mac) + '/correlation?days=30&gap=' + gap + '&edge=' + edge);
+                const data = await response.json();
+                if (!data.correlated_devices || data.correlated_devices.length === 0) {
+                    container.innerHTML = '<div style="color: var(--text-muted); font-size: 0.75rem;">No correlated devices found</div>';
+                    return;
+                }
+                container.innerHTML = data.correlated_devices.slice(0, 5).map(c => {
+                    const rawPrimaryName = c.friendly_name || c.vendor || 'Unknown';
+                    const primaryName = c.friendly_name ? obfuscateName(rawPrimaryName) : rawPrimaryName;
+                    const rawSecondaryInfo = c.friendly_name ? (c.vendor || c.mac) : c.mac;
+                    const secondaryInfo = (c.friendly_name && c.vendor) ? rawSecondaryInfo : obfuscateMAC(rawSecondaryInfo);
+                    const corrBar = '<div style="background: var(--accent-red); height: 4px; width: ' + c.correlation_score + '%; border-radius: 2px;"></div>';
+                    const syncedEdges = (c.synced_arrivals || 0) + (c.synced_departures || 0);
+                    const syncLine = syncedEdges > 0
+                        ? '<div style="font-size: 0.65rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">⇄ ' + (c.synced_arrivals || 0) + ' arrivals / ' + (c.synced_departures || 0) + ' departures in sync</div>'
+                        : '';
+                    const corrTitle = 'Correlation ' + c.correlation_score + '% (co-presence ' + (c.cooccurrence_score != null ? c.cooccurrence_score : 0) + '%, transition sync ' + (c.transition_score != null ? c.transition_score : 0) + '%)';
+                    return '<div title="' + corrTitle + '" style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0; border-bottom: 1px solid var(--border-color); cursor: pointer;" onclick="showDevice(\\'' + c.mac + '\\')">' +
+                        '<div style="flex: 1; min-width: 0;">' +
+                        '<div style="font-size: 0.8rem; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">' + primaryName + '</div>' +
+                        '<div style="font-size: 0.65rem; color: var(--text-muted); font-family: var(--font-mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">' + secondaryInfo + '</div>' +
+                        syncLine +
+                        '</div>' +
+                        '<div style="display: flex; align-items: center; gap: 0.5rem; margin-left: 0.5rem;">' +
+                        '<div style="width: 50px;">' + corrBar + '</div>' +
+                        '<span style="font-size: 0.7rem; color: var(--accent-amber); min-width: 32px; text-align: right;">' + c.correlation_score + '%</span>' +
+                        '</div></div>';
+                }).join('');
+            } catch (error) {
+                container.innerHTML = '<div style="color: var(--text-muted);">Error loading data</div>';
+            }
+        }
+
+        function formatPing(seconds) {
+            if (seconds == null) return 'n/a';
+            if (seconds >= 90) return '~' + Math.round(seconds / 60) + 'm';
+            return '~' + Math.round(seconds) + 's';
+        }
+
+        async function loadRotationCandidates(mac) {
+            const container = document.getElementById('rotation-candidates');
+            if (!container) return;
+            try {
+                const response = await fetch('/api/device/' + encodeURIComponent(mac) + '/rotation?days=7');
+                const data = await response.json();
+                const candidates = data.candidates || [];
+                const t = data.target;
+                let html = '';
+                if (t) {
+                    html += '<div style="font-size: 0.65rem; color: var(--text-muted); margin-bottom: 0.4rem;">This device: RSSI ' + t.mean_rssi + '±' + t.rssi_stddev + ' dBm · ping ' + formatPing(t.ping_interval_seconds) + '</div>';
+                }
+                if (candidates.length === 0) {
+                    html += '<div style="color: var(--text-muted); font-size: 0.75rem;">No likely rotation siblings found</div>';
+                    container.innerHTML = html;
+                    return;
+                }
+                html += candidates.map(c => {
+                    const rawPrimary = c.friendly_name || c.vendor || c.mac;
+                    const primaryName = c.friendly_name ? obfuscateName(rawPrimary) : (c.vendor ? rawPrimary : obfuscateMAC(c.mac));
+                    const overlapPct = Math.round((c.overlap_ratio || 0) * 100);
+                    const detail = 'RSSI ' + c.mean_rssi + '±' + c.rssi_stddev + ' (Δ' + c.rssi_delta + ') · ping ' + formatPing(c.ping_interval_seconds) + ' · ' + overlapPct + '% overlap';
+                    const nameBadge = c.name_match ? ' <span style="font-size: 0.6rem; color: var(--accent-amber); border: 1px solid var(--accent-amber); border-radius: 3px; padding: 0 0.25rem; vertical-align: middle;">name match</span>' : '';
+                    const bar = '<div style="background: var(--accent-amber); height: 4px; width: ' + c.confidence + '%; border-radius: 2px;"></div>';
+                    const title = 'Confidence ' + c.confidence + '% — ' + (c.name_match ? 'shares this device\\'s advertised name, plus ' : '') + 'similar signal strength, non-overlapping presence, similar ping cadence. Heuristic, not definitive.';
+                    return '<div title="' + title + '" style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0; border-bottom: 1px solid var(--border-color); cursor: pointer;" onclick="showDevice(\\'' + c.mac + '\\')">' +
+                        '<div style="flex: 1; min-width: 0;">' +
+                        '<div style="font-size: 0.8rem; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">' + primaryName + nameBadge + '</div>' +
+                        '<div style="font-size: 0.65rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">' + detail + '</div>' +
+                        '</div>' +
+                        '<div style="display: flex; align-items: center; gap: 0.5rem; margin-left: 0.5rem;">' +
+                        '<div style="width: 50px;">' + bar + '</div>' +
+                        '<span style="font-size: 0.7rem; color: var(--accent-amber); min-width: 32px; text-align: right;">' + c.confidence + '%</span>' +
+                        '</div></div>';
+                }).join('');
+                container.innerHTML = html;
+            } catch (error) {
+                container.innerHTML = '<div style="color: var(--text-muted);">Error loading data</div>';
+            }
+        }
+
+        async function saveNotes(mac) {
+            const notes = document.getElementById('device-notes').value;
+            try {
+                await fetch('/api/device/' + encodeURIComponent(mac) + '/notes', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ notes: notes })
+                });
+            } catch (error) { console.error('Error:', error); }
+        }
+
+        function renderHourlyHeatmap(hourlyData) {
+            if (!hourlyData || Object.keys(hourlyData).length === 0) return '<div style="color: var(--text-muted); font-size: 0.75rem; text-align: center; padding: 1rem 0;">No data</div>';
+            var offset = -(new Date().getTimezoneOffset() / 60);
+            var shifted = {};
+            for (var h in hourlyData) {
+                var localHour = ((parseInt(h) + offset) % 24 + 24) % 24;
+                shifted[localHour] = (shifted[localHour] || 0) + hourlyData[h];
+            }
+            var max = Math.max(...Object.values(shifted), 1);
+            var cells = '';
+            var labels = '';
+            for (var i = 0; i < 24; i++) {
+                var count = shifted[i] || 0;
+                var level = count === 0 ? 0 : Math.ceil((count / max) * 4);
+                var label = i < 10 ? '0' + i : '' + i;
+                cells += '<div class="activity-cell l' + level + '" title="' + label + ':00 — ' + count + ' sightings"></div>';
+                labels += '<span>' + (i % 6 === 0 ? label : '') + '</span>';
+            }
+            return '<div class="activity-grid hourly">' + cells + '</div><div class="activity-labels hourly">' + labels + '</div>';
+        }
+
+        function renderDailyHeatmap(dailyData) {
+            if (!dailyData || Object.keys(dailyData).length === 0) return '<div style="color: var(--text-muted); font-size: 0.75rem; text-align: center; padding: 1rem 0;">No data</div>';
+            var days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+            var max = Math.max(...Object.values(dailyData), 1);
+            var cells = '';
+            var labels = '';
+            for (var d = 0; d < 7; d++) {
+                var count = dailyData[d] || dailyData[String(d)] || 0;
+                var level = count === 0 ? 0 : Math.ceil((count / max) * 4);
+                cells += '<div class="activity-cell l' + level + '" title="' + days[d] + ' — ' + count + ' sightings"></div>';
+                labels += '<span>' + days[d] + '</span>';
+            }
+            return '<div class="activity-grid daily">' + cells + '</div><div class="activity-labels daily">' + labels + '</div>';
+        }
+
+        function renderTimeline(timeline) {
+            if (!timeline || timeline.length === 0) return '<div style="color: var(--text-muted); font-size: 0.75rem;">No data</div>';
+            const maxCount = Math.max(...timeline.map(d => d.count));
+            const bars = timeline.map(d => {
+                const height = maxCount > 0 ? (d.count / maxCount * 100) : 0;
+                const date = new Date(d.date);
+                const tooltip = date.toLocaleDateString() + ': ' + d.count + ' sightings';
+                return '<div class="timeline-bar" style="height: ' + height + '%" title="' + tooltip + '"></div>';
+            }).join('');
+            const firstDate = new Date(timeline[0].date);
+            const lastDate = new Date(timeline[timeline.length - 1].date);
+            const formatDate = (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            return '<div class="timeline-chart">' + bars + '</div><div class="timeline-labels"><span>' + formatDate(firstDate) + '</span><span>' + formatDate(lastDate) + '</span></div>';
+        }
+
+        async function loadRssiChart(mac) {
+            const container = document.getElementById('rssi-chart');
+            if (!container) return;
+            try {
+                const response = await fetch('/api/device/' + encodeURIComponent(mac) + '/rssi?days=7');
+                const data = await response.json();
+                if (!data.rssi_history || data.rssi_history.length < 2) {
+                    container.innerHTML = '<div style="color: var(--text-muted); font-size: 0.75rem; text-align: center; padding-top: 1.5rem;">Insufficient data</div>';
+                    return;
+                }
+                renderRssiChart(container, data.rssi_history);
+            } catch (error) {
+                container.innerHTML = '<div style="color: var(--text-muted); font-size: 0.75rem; text-align: center; padding-top: 1.5rem;">Error</div>';
+            }
+        }
+
+        function renderRssiChart(container, rssiData) {
+            const width = container.clientWidth - 20;
+            const height = 50;
+            const padding = { left: 30, right: 10, top: 5, bottom: 15 };
+            const rssiValues = rssiData.map(d => d.rssi);
+            const minRssi = Math.min(...rssiValues);
+            const maxRssi = Math.max(...rssiValues);
+            const xScale = (i) => padding.left + (i / (rssiData.length - 1)) * (width - padding.left - padding.right);
+            const yScale = (rssi) => {
+                const range = maxRssi - minRssi || 1;
+                return padding.top + (1 - (rssi - minRssi) / range) * (height - padding.top - padding.bottom);
+            };
+            const linePath = rssiData.map((d, i) => (i === 0 ? 'M' : 'L') + xScale(i) + ',' + yScale(d.rssi)).join(' ');
+            const areaPath = linePath + ' L' + xScale(rssiData.length - 1) + ',' + (height - padding.bottom) + ' L' + padding.left + ',' + (height - padding.bottom) + ' Z';
+            const firstTime = new Date(rssiData[0].timestamp);
+            const lastTime = new Date(rssiData[rssiData.length - 1].timestamp);
+            const formatTime = (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+            container.innerHTML = '<svg viewBox="0 0 ' + width + ' ' + height + '" preserveAspectRatio="none">' +
+                '<defs><linearGradient id="rssiGradient" x1="0%" y1="0%" x2="0%" y2="100%">' +
+                '<stop offset="0%" style="stop-color: #dc2626; stop-opacity: 0.3"/>' +
+                '<stop offset="100%" style="stop-color: #dc2626; stop-opacity: 0.05"/>' +
+                '</linearGradient></defs>' +
+                '<path class="rssi-area" d="' + areaPath + '"/>' +
+                '<path class="rssi-line" d="' + linePath + '"/>' +
+                '<text class="rssi-label" x="' + padding.left + '" y="' + (height - 2) + '">' + formatTime(firstTime) + '</text>' +
+                '<text class="rssi-label" x="' + (width - padding.right) + '" y="' + (height - 2) + '" text-anchor="end">' + formatTime(lastTime) + '</text>' +
+                '<text class="rssi-label" x="2" y="' + (padding.top + 6) + '">' + maxRssi + '</text>' +
+                '<text class="rssi-label" x="2" y="' + (height - padding.bottom - 2) + '">' + minRssi + '</text>' +
+                '</svg>';
+        }
+
+        async function toggleWatch(mac) {
+            try {
+                const response = await fetch('/api/device/' + encodeURIComponent(mac) + '/watch', { method: 'POST' });
+                const data = await response.json();
+                const btn = document.getElementById('watch-btn');
+                if (data.watched) {
+                    btn.textContent = '★ WATCHING';
+                    btn.className = 'btn btn-watch active';
+                } else {
+                    btn.textContent = '☆ WATCH TARGET';
+                    btn.className = 'btn btn-watch';
+                }
+                refreshDevices();
+            } catch (error) { console.error('Error:', error); }
+        }
+
+        function closeModal() { document.getElementById('device-modal').classList.remove('active'); }
+
+        function csvField(val) {
+            const s = String(val);
+            if (s.includes(',') || s.includes('"') || s.includes('\\n')) {
+                return '"' + s.replace(/"/g, '""') + '"';
+            }
+            return s;
+        }
+
+        document.querySelectorAll('.device-table th.sortable').forEach(th => {
+            th.addEventListener('click', () => setSort(th.dataset.sort));
+        });
+
+        const selectAllCheckbox = document.getElementById('select-all-checkbox');
+        if (selectAllCheckbox) {
+            selectAllCheckbox.addEventListener('change', toggleSelectAllVisible);
+        }
+
+        document.getElementById('search').addEventListener('input', () => {
+            if (dateFilteredDevices !== null) {
+                renderDevices();
+                return;
+            }
+            selectedMacs.clear();
+            lastSelectedIndex = null;
+            queueDeviceRefresh(true);
+        });
+        document.getElementById('device-modal').addEventListener('click', (e) => { if (e.target.id === 'device-modal') closeModal(); });
+        document.getElementById('shortcuts-modal').addEventListener('click', (e) => { if (e.target.id === 'shortcuts-modal') closeShortcutsModal(); });
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            // Ignore if typing in input/textarea
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+            const modalActive = document.getElementById('device-modal').classList.contains('active');
+
+            if (e.key === 'Escape') {
+                closeModal();
+                closeShortcutsModal();
+            } else if (e.key === 'r' || e.key === 'R') {
+                // Refresh
+                refreshDevices();
+            } else if (e.key === '/') {
+                // Focus search
+                e.preventDefault();
+                document.getElementById('search').focus();
+            } else if (e.key === 'w' && modalActive && currentDeviceMac) {
+                // Toggle watch on current device
+                toggleWatch(currentDeviceMac);
+            } else if (e.key === '1') {
+                document.querySelector('[data-filter="all"]').click();
+            } else if (e.key === '2') {
+                document.querySelector('[data-filter="watched"]').click();
+            } else if (e.key === '3') {
+                document.querySelector('[data-filter="phone"]').click();
+            } else if (e.key === '4') {
+                document.querySelector('[data-filter="laptop"]').click();
+            } else if (e.key === '5') {
+                document.querySelector('[data-filter="audio"]').click();
+            } else if (e.key === '?') {
+                showShortcutsModal();
+            }
+        });
+
+        function toDatetimeLocalValue(date) {
+            const pad = n => String(n).padStart(2, '0');
+            return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate()) +
+                'T' + pad(date.getHours()) + ':' + pad(date.getMinutes());
+        }
+
+        (function initDateRangeDefaults() {
+            const startEl = document.getElementById('search-start');
+            const endEl = document.getElementById('search-end');
+            if (!startEl || !endEl) return;
+            const now = new Date();
+            const anHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+            startEl.value = toDatetimeLocalValue(anHourAgo);
+            endEl.value = toDatetimeLocalValue(now);
+        })();
+
+        (function initHideCategorized() {
+            const checkbox = document.getElementById('hide-categorized-toggle');
+            if (checkbox) checkbox.checked = hideCategorized;
+        })();
+
+        updateViewToggle();
+        updateSortIndicators();
+        loadGroupsForBulkSelect();
+        loadCategories();
+        updateSelectionUI();
+        updatePaginationUI();
+        refreshDevices();
+        loadLiveStats();
+        setInterval(refreshDevices, 10000);
+        setInterval(loadLiveStats, 10000);
     </script>
 </body>
 </html>
