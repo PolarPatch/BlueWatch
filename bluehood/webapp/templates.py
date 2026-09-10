@@ -905,7 +905,7 @@ HTML_TEMPLATE = """
                 <span class="brand-text">Blue<span>Watch</span></span>
             </a>
             <nav class="nav">
-                <a href="/" class="nav-link">Live</a>
+                <a href="/" class="nav-link">Dashboard</a>
                 <a href="/all" class="nav-link active">All devices</a>
                 <a href="/settings" class="nav-link">Config</a>
             </nav>
@@ -2666,7 +2666,7 @@ SETTINGS_TEMPLATE = """
         <div class="topbar-left">
             <a href="/" class="brand"><svg class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 7 10 10-5 5V2l5 5L7 17"/></svg><span class="brand-text">Blue<span>Watch</span></span></a>
             <nav class="nav">
-                <a href="/" class="nav-link">Live</a>
+                <a href="/" class="nav-link">Dashboard</a>
                 <a href="/all" class="nav-link">All devices</a>
                 <a href="/settings" class="nav-link active">Config</a>
             </nav>
@@ -3410,7 +3410,7 @@ ABOUT_TEMPLATE = """
         <div class="topbar-left">
             <a href="/" class="brand"><svg class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 7 10 10-5 5V2l5 5L7 17"/></svg><span class="brand-text">Blue<span>Watch</span></span></a>
             <nav class="nav">
-                <a href="/" class="nav-link">Live</a>
+                <a href="/" class="nav-link">Dashboard</a>
                 <a href="/all" class="nav-link">All devices</a>
                 <a href="/settings" class="nav-link">Config</a>
             </nav>
@@ -4414,7 +4414,7 @@ LIVE_TEMPLATE = """
                 <span class="brand-text">Blue<span>Watch</span></span>
             </a>
             <nav class="nav">
-                <a href="/" class="nav-link active">Live</a>
+                <a href="/" class="nav-link active">Dashboard</a>
                 <a href="/all" class="nav-link">All devices</a>
                 <a href="/settings" class="nav-link">Config</a>
             </nav>
@@ -6114,8 +6114,8 @@ LIVE_TEMPLATE = """
         updatePaginationUI();
         refreshDevices();
         loadLiveStats();
-        setInterval(refreshDevices, 10000);
-        setInterval(loadLiveStats, 10000);
+        setInterval(refreshDevices, 3000);
+        setInterval(loadLiveStats, 3000);
     </script>
 </body>
 </html>
