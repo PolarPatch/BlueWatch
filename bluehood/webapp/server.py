@@ -612,11 +612,12 @@ class WebServer:
 
         Body: {"event": "arrive"|"depart", "mode": null|"off"|"always"|"temp",
         "hours": <required when mode is "temp">}
+
+        Works even for a MAC never actually sighted yet -- db.set_device_notify
+        creates a bare placeholder row, so a known device's address can be
+        pre-armed for an arrival alert ahead of its first appearance.
         """
         mac = request.match_info["mac"]
-        device = await db.get_device(mac)
-        if not device:
-            return web.json_response({"error": "Device not found"}, status=404)
 
         try:
             data = await request.json()

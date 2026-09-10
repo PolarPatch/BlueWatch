@@ -1486,6 +1486,11 @@ async def set_device_notify(
     mode_col = f"notify_{event}"
     expires_col = f"notify_{event}_expires_at"
     async with _connect() as db:
+        # Pre-registering a "watch for this address" override on a MAC we
+        # haven't actually seen yet (e.g. a known device's fixed address,
+        # ahead of it ever broadcasting) is a legitimate use -- create a
+        # bare placeholder row rather than requiring a prior sighting.
+        await db.execute("INSERT OR IGNORE INTO devices (mac) VALUES (?)", (mac,))
         await db.execute(
             f"UPDATE devices SET {mode_col} = ?, {expires_col} = ? WHERE mac = ?",
             (mode, expires_at, mac)
