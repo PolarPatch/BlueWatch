@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 from dataclasses import dataclass
 
+from . import rpa
 from .config import DB_PATH, HEARTBEAT_URL, HEARTBEAT_INTERVAL, PRUNE_DAYS, PRUNE_MIN_SIGHTINGS
 
 logger = logging.getLogger(__name__)
@@ -136,6 +137,13 @@ CREATE TABLE IF NOT EXISTS name_vendor_map (
 CREATE TABLE IF NOT EXISTS identities (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS irk_keys (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    label TEXT NOT NULL,
+    irk_hex TEXT NOT NULL UNIQUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -760,6 +768,14 @@ async def upsert_device(
     now = datetime.now()
     uuids_json = json.dumps(service_uuids) if service_uuids else None
 
+    # A cryptographic IRK match (if any key is configured and resolves this
+    # address) is strictly stronger evidence than the advertised-name
+    # heuristic below, so it's resolved first and takes precedence wherever
+    # both would apply. Uses its own connection since it's a self-contained
+    # read-mostly lookup, cheap even when no IRKs are configured (bails
+    # immediately for non-randomized MACs).
+    irk_identity_id = await resolve_irk_identity(mac)
+
     async with _connect() as db:
         db.row_factory = aiosqlite.Row
         # Check if device exists
@@ -827,6 +843,13 @@ async def upsert_device(
                 updates.append("device_class = ?")
                 params.append(device_class)
 
+            # An IRK match always wins over whatever identity_id (if any)
+            # the device already had -- it's a proof, not a guess.
+            existing_identity_id = existing["identity_id"] if "identity_id" in existing.keys() else None
+            if irk_identity_id is not None and irk_identity_id != existing_identity_id:
+                updates.append("identity_id = ?")
+                params.append(irk_identity_id)
+
             params.append(mac)
             await db.execute(
                 f"UPDATE devices SET {', '.join(updates)} WHERE mac = ?",
@@ -854,14 +877,20 @@ async def upsert_device(
                 (mac, insert_vendor, friendly_name, now.isoformat(), now.isoformat(), uuids_json, bt_type, device_class)
             )
 
-            # Auto-attach to an existing identity: a brand-new randomized-MAC
-            # device that advertises a name already clustered under an
-            # identity is, in all likelihood, that same physical device
-            # having rotated its address again. Non-randomized MACs are
-            # deliberately excluded -- a shared name on a fixed/vendor MAC is
-            # just as likely to be a genuinely different unit of the same
-            # product, not a rotation of one physical device.
-            if friendly_name and _is_randomized_mac(mac):
+            if irk_identity_id is not None:
+                # Cryptographic IRK match -- definitive, skip the guess below.
+                await db.execute(
+                    "UPDATE devices SET identity_id = ? WHERE mac = ?",
+                    (irk_identity_id, mac),
+                )
+            elif friendly_name and _is_randomized_mac(mac):
+                # Auto-attach to an existing identity: a brand-new randomized-MAC
+                # device that advertises a name already clustered under an
+                # identity is, in all likelihood, that same physical device
+                # having rotated its address again. Non-randomized MACs are
+                # deliberately excluded -- a shared name on a fixed/vendor MAC is
+                # just as likely to be a genuinely different unit of the same
+                # product, not a rotation of one physical device.
                 async with db.execute(
                     "SELECT id FROM identities WHERE name = ? COLLATE NOCASE",
                     (friendly_name,),
@@ -1572,6 +1601,78 @@ async def get_identity_members(identity_id: int) -> list[Device]:
         ) as cursor:
             rows = await cursor.fetchall()
             return [_parse_device_row(row) for row in rows]
+
+
+async def get_irk_keys() -> list[dict]:
+    """All configured Identity Resolving Keys, most recently added first."""
+    async with _connect() as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT id, label, irk_hex, created_at FROM irk_keys ORDER BY id DESC"
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [dict(row) for row in rows]
+
+
+async def add_irk_key(label: str, irk_hex: str) -> int:
+    """Store a new IRK (already validated/normalized hex, 32 chars) under a
+    human-readable label. Returns the new row's id."""
+    async with _connect() as db:
+        cursor = await db.execute(
+            "INSERT INTO irk_keys (label, irk_hex) VALUES (?, ?)",
+            (label, irk_hex),
+        )
+        await db.commit()
+        return cursor.lastrowid
+
+
+async def delete_irk_key(irk_id: int) -> None:
+    async with _connect() as db:
+        await db.execute("DELETE FROM irk_keys WHERE id = ?", (irk_id,))
+        await db.commit()
+
+
+async def resolve_irk_identity(mac: str) -> Optional[int]:
+    """Try to resolve a randomized MAC against every configured IRK. On a
+    match, returns the id of the identity named "IRK: <label>" (creating it
+    if this is the first MAC that key has ever resolved) -- a cryptographic
+    match is strictly stronger evidence than the advertised-name heuristic
+    in upsert_device's auto-attach path, so callers should prefer this over
+    (and let it override) a name-based identity_id when both are available.
+
+    Returns None immediately, with no DB work, if no IRKs are configured or
+    this MAC isn't a Resolvable Private Address in the first place."""
+    if not _is_randomized_mac(mac):
+        return None
+
+    keys = await get_irk_keys()
+    if not keys:
+        return None
+
+    irk_pairs = []
+    for k in keys:
+        try:
+            irk_pairs.append((k["label"], rpa.parse_irk_hex(k["irk_hex"])))
+        except ValueError:
+            continue
+
+    label = rpa.resolve_against_keys(mac, irk_pairs)
+    if label is None:
+        return None
+
+    identity_name = f"IRK: {label}"
+    async with _connect() as db:
+        async with db.execute(
+            "SELECT id FROM identities WHERE name = ? COLLATE NOCASE", (identity_name,)
+        ) as cursor:
+            row = await cursor.fetchone()
+        if row:
+            return row[0]
+        cursor = await db.execute(
+            "INSERT INTO identities (name) VALUES (?)", (identity_name,)
+        )
+        await db.commit()
+        return cursor.lastrowid
 
 
 async def get_watched_devices() -> list[Device]:

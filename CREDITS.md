@@ -17,3 +17,11 @@ worth naming plainly.
 
 The original MIT license text (Danny McClelland, 2026) is preserved in
 `LICENSE` as required by its terms.
+
+## Third-party code
+
+`bluehood/rpa.py` (BLE Resolvable Private Address resolution against a
+supplied Identity Resolving Key) is adapted from
+[btrpa-scan](https://github.com/HackingDave/btrpa-scan) by David Kennedy /
+TrustedSec, Apache License 2.0. The Apache-2.0 license text is preserved in
+`THIRD_PARTY_LICENSE_btrpa-scan_Apache-2.0.txt` as required by its terms.

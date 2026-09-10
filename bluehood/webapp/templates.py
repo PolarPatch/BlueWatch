@@ -2864,6 +2864,19 @@ SETTINGS_TEMPLATE = """
                     </div>
                 </div>
             </div>
+
+            <div class="panel">
+                <div class="panel-header">Identity Resolving Keys (IRK)</div>
+                <div class="panel-body">
+                    <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 1rem;">Add an IRK from one of your own devices to cryptographically resolve its privacy-randomized address across rotations -- proof, not a name-matching guess. Only works for devices you hold the key for; there's no way to resolve a stranger's randomized address.</p>
+                    <div id="irk-keys-list" style="margin-bottom: 1rem;"></div>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <input type="text" class="form-input" id="new-irk-label" placeholder="Label (e.g. My Phone)" style="flex: 1;">
+                        <input type="text" class="form-input" id="new-irk-hex" placeholder="IRK (32 hex chars)" style="flex: 2;">
+                        <button type="button" class="btn btn-primary" onclick="createIrkKey()">Add</button>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Export Tab -->
@@ -3092,6 +3105,74 @@ SETTINGS_TEMPLATE = """
             } catch (error) { showStatus('Error creating group', 'error'); }
         }
 
+        async function loadIrkKeys() {
+            try {
+                const response = await fetch('/api/irk-keys');
+                const data = await response.json();
+                const container = document.getElementById('irk-keys-list');
+                if (!container) return;
+                if (!data.irk_keys || data.irk_keys.length === 0) {
+                    container.textContent = '';
+                    var empty = document.createElement('div');
+                    empty.style.cssText = 'color: var(--text-muted); font-size: 0.75rem; text-align: center; padding: 1rem;';
+                    empty.textContent = 'No IRKs configured yet';
+                    container.appendChild(empty);
+                    return;
+                }
+                container.textContent = '';
+                data.irk_keys.forEach(function(k) {
+                    var row = document.createElement('div');
+                    row.style.cssText = 'display: flex; align-items: center; gap: 0.75rem; padding: 0.6rem; background: var(--bg-tertiary); border-radius: 3px; margin-bottom: 0.5rem;';
+                    var name = document.createElement('span');
+                    name.style.cssText = 'flex: 1; font-size: 0.85rem;';
+                    name.textContent = k.label + '  ';
+                    var maskedSpan = document.createElement('span');
+                    maskedSpan.style.cssText = 'color: var(--text-muted); font-size: 0.75rem;';
+                    maskedSpan.textContent = k.irk_masked;
+                    name.appendChild(maskedSpan);
+                    var btn = document.createElement('button');
+                    btn.className = 'btn';
+                    btn.style.cssText = 'padding: 0.25rem 0.5rem; font-size: 0.7rem;';
+                    btn.textContent = 'Delete';
+                    btn.addEventListener('click', function() { deleteIrkKey(k.id); });
+                    row.appendChild(name);
+                    row.appendChild(btn);
+                    container.appendChild(row);
+                });
+            } catch (error) { console.error('Error loading IRK keys'); }
+        }
+
+        async function createIrkKey() {
+            const label = document.getElementById('new-irk-label').value.trim();
+            const irk = document.getElementById('new-irk-hex').value.trim();
+            if (!label || !irk) { showStatus('Label and IRK are both required', 'error'); return; }
+            try {
+                const response = await fetch('/api/irk-keys', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ label: label, irk: irk })
+                });
+                if (response.ok) {
+                    document.getElementById('new-irk-label').value = '';
+                    document.getElementById('new-irk-hex').value = '';
+                    loadIrkKeys();
+                    showStatus('IRK added', 'success');
+                } else {
+                    const err = await response.json().catch(() => ({}));
+                    showStatus(err.error || 'Error adding IRK', 'error');
+                }
+            } catch (error) { showStatus('Error adding IRK', 'error'); }
+        }
+
+        async function deleteIrkKey(id) {
+            if (!confirm('Delete this IRK?')) return;
+            try {
+                const response = await fetch('/api/irk-keys/' + id, { method: 'DELETE' });
+                if (response.ok) { loadIrkKeys(); showStatus('IRK deleted', 'success'); }
+                else { showStatus('Error deleting IRK', 'error'); }
+            } catch (error) { showStatus('Error deleting IRK', 'error'); }
+        }
+
         async function renameGroup(g) {
             const newName = prompt('Rename group', g.name);
             if (newName === null) return;
@@ -3166,6 +3247,7 @@ SETTINGS_TEMPLATE = """
         loadSettings();
         loadAuthStatus();
         loadGroups();
+        loadIrkKeys();
     </script>
 </body>
 </html>

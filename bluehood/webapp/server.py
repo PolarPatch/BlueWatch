@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 
 from aiohttp import web
 
-from .. import db
+from .. import db, rpa
 from ..classifier import classify_device, get_type_icon, get_type_label, get_all_types, is_randomized_mac, is_macos_uuid, get_uuid_names
 from ..patterns import generate_hourly_heatmap, generate_daily_heatmap
 from .templates import ABOUT_TEMPLATE, HTML_TEMPLATE, LOGIN_TEMPLATE, SETTINGS_TEMPLATE
@@ -99,6 +99,10 @@ class WebServer:
         self.app.router.add_put("/api/groups/{group_id}", self.api_update_group)
         self.app.router.add_post("/api/groups/{group_id}/reparent", self.api_reparent_group)
         self.app.router.add_delete("/api/groups/{group_id}", self.api_delete_group)
+
+        self.app.router.add_get("/api/irk-keys", self.api_get_irk_keys)
+        self.app.router.add_post("/api/irk-keys", self.api_add_irk_key)
+        self.app.router.add_delete("/api/irk-keys/{irk_id}", self.api_delete_irk_key)
         # Authentication
         self.app.router.add_post("/api/auth/login", self.api_login)
         self.app.router.add_post("/api/auth/logout", self.api_logout)
@@ -1035,6 +1039,50 @@ class WebServer:
         try:
             group_id = int(request.match_info["group_id"])
             await db.delete_group(group_id)
+            return web.json_response({"status": "ok"})
+        except Exception as e:
+            return web.json_response({"error": str(e)}, status=400)
+
+    async def api_get_irk_keys(self, request: web.Request) -> web.Response:
+        """List configured Identity Resolving Keys. The raw key is masked
+        (first/last 4 hex chars only) -- it never needs to round-trip back
+        to the browser once saved."""
+        keys = await db.get_irk_keys()
+        return web.json_response({
+            "irk_keys": [
+                {
+                    "id": k["id"],
+                    "label": k["label"],
+                    "irk_masked": k["irk_hex"][:4] + "..." + k["irk_hex"][-4:],
+                    "created_at": k["created_at"],
+                }
+                for k in keys
+            ]
+        })
+
+    async def api_add_irk_key(self, request: web.Request) -> web.Response:
+        """Add a new Identity Resolving Key under a human-readable label."""
+        try:
+            data = await request.json()
+            label = (data.get("label") or "").strip()
+            irk_raw = (data.get("irk") or "").strip()
+            if not label:
+                return web.json_response({"error": "Label is required"}, status=400)
+            if not irk_raw:
+                return web.json_response({"error": "IRK is required"}, status=400)
+            try:
+                irk_bytes = rpa.parse_irk_hex(irk_raw)
+            except ValueError as e:
+                return web.json_response({"error": str(e)}, status=400)
+            irk_id = await db.add_irk_key(label, irk_bytes.hex())
+            return web.json_response({"id": irk_id, "label": label})
+        except Exception as e:
+            return web.json_response({"error": str(e)}, status=400)
+
+    async def api_delete_irk_key(self, request: web.Request) -> web.Response:
+        try:
+            irk_id = int(request.match_info["irk_id"])
+            await db.delete_irk_key(irk_id)
             return web.json_response({"status": "ok"})
         except Exception as e:
             return web.json_response({"error": str(e)}, status=400)
