@@ -1367,6 +1367,11 @@ HTML_TEMPLATE = """
         function selectCategory(groupId) {
             currentGroupId = (currentGroupId === groupId) ? null : groupId;
             currentFilter = 'all';
+            // Picking a specific category and hiding all categorized devices
+            // are contradictory -- the category selection wins, and the
+            // checkbox unchecking itself makes that visible instead of the
+            // click silently doing nothing.
+            setHideCategorized(false);
             const allBtn = document.getElementById('all-devices-btn');
             if (allBtn) allBtn.classList.remove('active');
             renderCategoryTree();
@@ -1379,6 +1384,7 @@ HTML_TEMPLATE = """
         function showAllDevices() {
             currentGroupId = '__all__';
             currentFilter = 'all';
+            setHideCategorized(false);
             renderCategoryTree();
             selectedMacs.clear();
             lastSelectedIndex = null;
@@ -1386,10 +1392,16 @@ HTML_TEMPLATE = """
             refreshDevices();
         }
 
+        function setHideCategorized(value) {
+            hideCategorized = value;
+            localStorage.setItem('bluehood_hide_categorized', hideCategorized);
+            const checkbox = document.getElementById('hide-categorized-toggle');
+            if (checkbox) checkbox.checked = value;
+        }
+
         function toggleHideCategorized() {
             const checkbox = document.getElementById('hide-categorized-toggle');
-            hideCategorized = checkbox ? checkbox.checked : false;
-            localStorage.setItem('bluehood_hide_categorized', hideCategorized);
+            setHideCategorized(checkbox ? checkbox.checked : false);
             selectedMacs.clear();
             lastSelectedIndex = null;
             pagination.page = 1;
@@ -4892,6 +4904,11 @@ LIVE_TEMPLATE = """
         function selectCategory(groupId) {
             currentGroupId = (currentGroupId === groupId) ? null : groupId;
             currentFilter = 'all';
+            // Picking a specific category and hiding all categorized devices
+            // are contradictory -- the category selection wins, and the
+            // checkbox unchecking itself makes that visible instead of the
+            // click silently doing nothing.
+            setHideCategorized(false);
             const allBtn = document.getElementById('all-devices-btn');
             if (allBtn) allBtn.classList.remove('active');
             renderCategoryTree();
@@ -4904,6 +4921,7 @@ LIVE_TEMPLATE = """
         function showAllDevices() {
             currentGroupId = '__all__';
             currentFilter = 'all';
+            setHideCategorized(false);
             renderCategoryTree();
             selectedMacs.clear();
             lastSelectedIndex = null;
@@ -4911,10 +4929,16 @@ LIVE_TEMPLATE = """
             refreshDevices();
         }
 
+        function setHideCategorized(value) {
+            hideCategorized = value;
+            localStorage.setItem('bluehood_hide_categorized', hideCategorized);
+            const checkbox = document.getElementById('hide-categorized-toggle');
+            if (checkbox) checkbox.checked = value;
+        }
+
         function toggleHideCategorized() {
             const checkbox = document.getElementById('hide-categorized-toggle');
-            hideCategorized = checkbox ? checkbox.checked : false;
-            localStorage.setItem('bluehood_hide_categorized', hideCategorized);
+            setHideCategorized(checkbox ? checkbox.checked : false);
             selectedMacs.clear();
             lastSelectedIndex = null;
             pagination.page = 1;
