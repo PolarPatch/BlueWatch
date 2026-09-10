@@ -3052,6 +3052,11 @@ SETTINGS_TEMPLATE = """
                     var name = document.createElement('span');
                     name.style.cssText = 'flex: 1; font-size: 0.85rem;';
                     name.textContent = g.name;
+                    var renameBtn = document.createElement('button');
+                    renameBtn.className = 'btn';
+                    renameBtn.style.cssText = 'padding: 0.25rem 0.5rem; font-size: 0.7rem;';
+                    renameBtn.textContent = 'Rename';
+                    renameBtn.addEventListener('click', function() { renameGroup(g); });
                     var btn = document.createElement('button');
                     btn.className = 'btn';
                     btn.style.cssText = 'padding: 0.25rem 0.5rem; font-size: 0.7rem;';
@@ -3059,6 +3064,7 @@ SETTINGS_TEMPLATE = """
                     btn.addEventListener('click', function() { deleteGroup(g.id); });
                     row.appendChild(swatch);
                     row.appendChild(name);
+                    row.appendChild(renameBtn);
                     row.appendChild(btn);
                     container.appendChild(row);
                 });
@@ -3084,6 +3090,22 @@ SETTINGS_TEMPLATE = """
                     showStatus('Error creating group', 'error');
                 }
             } catch (error) { showStatus('Error creating group', 'error'); }
+        }
+
+        async function renameGroup(g) {
+            const newName = prompt('Rename group', g.name);
+            if (newName === null) return;
+            const trimmed = newName.trim();
+            if (!trimmed || trimmed === g.name) return;
+            try {
+                const response = await fetch('/api/groups/' + g.id, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: trimmed, color: g.color, icon: g.icon, parent_id: g.parent_id })
+                });
+                if (response.ok) { loadGroups(); showStatus('Group renamed', 'success'); }
+                else { showStatus('Error renaming group', 'error'); }
+            } catch (error) { showStatus('Error renaming group', 'error'); }
         }
 
         async function deleteGroup(id) {
