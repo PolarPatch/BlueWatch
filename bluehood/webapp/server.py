@@ -65,11 +65,11 @@ class WebServer:
         self._setup_routes()
 
     def _setup_routes(self):
-        self.app.router.add_get("/", self.index)
+        self.app.router.add_get("/", self.live_page)
         self.app.router.add_get("/login", self.login_page)
         self.app.router.add_get("/settings", self.settings_page)
         self.app.router.add_get("/about", self.about_page)
-        self.app.router.add_get("/live", self.live_page)
+        self.app.router.add_get("/all", self.index)
         self.app.router.add_get("/api/devices", self.api_devices)
         self.app.router.add_get("/api/devices/export", self.api_export_devices)
         self.app.router.add_post("/api/devices/export", self.api_export_devices)

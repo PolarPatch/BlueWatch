@@ -905,7 +905,8 @@ HTML_TEMPLATE = """
                 <span class="brand-text">Blue<span>Watch</span></span>
             </a>
             <nav class="nav">
-                <a href="/" class="nav-link active">Dashboard</a>
+                <a href="/" class="nav-link">Live</a>
+                <a href="/all" class="nav-link active">All devices</a>
                 <a href="/settings" class="nav-link">Config</a>
             </nav>
         </div>
@@ -918,7 +919,7 @@ HTML_TEMPLATE = """
         <aside class="sidebar">
             <div class="panel" id="categories-panel">
                 <div class="panel-header">Categories</div>
-                <a href="/live" class="filter-btn" style="width: 100%; justify-content: flex-start; gap: 0.4rem; margin-bottom: 0.5rem; text-decoration: none;"><span style="width: 6px; height: 6px; border-radius: 50%; background: var(--accent-green); display: inline-block;"></span> Nearby now</a>
+                <a href="/" class="filter-btn" style="width: 100%; justify-content: flex-start; gap: 0.4rem; margin-bottom: 0.5rem; text-decoration: none;"><span style="width: 6px; height: 6px; border-radius: 50%; background: var(--accent-green); display: inline-block;"></span> Nearby now</a>
                 <button class="filter-btn" id="all-devices-btn" onclick="showAllDevices()" style="width: 100%; justify-content: flex-start; gap: 0.4rem; margin-bottom: 0.5rem;">All devices <span id="count-all" class="filter-count" style="color: inherit; font-size: inherit;">--</span></button>
                 <label style="display: flex; align-items: center; gap: 0.4rem; padding: 0 0.75rem 0.5rem; font-size: 0.75rem; color: var(--text-secondary); cursor: pointer;">
                     <input type="checkbox" id="hide-categorized-toggle" onchange="toggleHideCategorized()">
@@ -2666,7 +2667,8 @@ SETTINGS_TEMPLATE = """
         <div class="topbar-left">
             <a href="/" class="brand"><svg class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 7 10 10-5 5V2l5 5L7 17"/></svg><span class="brand-text">Blue<span>Watch</span></span></a>
             <nav class="nav">
-                <a href="/" class="nav-link">Dashboard</a>
+                <a href="/" class="nav-link">Live</a>
+                <a href="/all" class="nav-link">All devices</a>
                 <a href="/settings" class="nav-link active">Config</a>
             </nav>
         </div>
@@ -3409,7 +3411,8 @@ ABOUT_TEMPLATE = """
         <div class="topbar-left">
             <a href="/" class="brand"><svg class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 7 10 10-5 5V2l5 5L7 17"/></svg><span class="brand-text">Blue<span>Watch</span></span></a>
             <nav class="nav">
-                <a href="/" class="nav-link">Dashboard</a>
+                <a href="/" class="nav-link">Live</a>
+                <a href="/all" class="nav-link">All devices</a>
                 <a href="/settings" class="nav-link">Config</a>
             </nav>
         </div>
@@ -3593,7 +3596,8 @@ LIVE_TEMPLATE = """
         <div class="topbar-left">
             <a href="/" class="brand"><svg class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 7 10 10-5 5V2l5 5L7 17"/></svg><span class="brand-text">Blue<span>Watch</span></span></a>
             <nav class="nav">
-                <a href="/" class="nav-link">Dashboard</a>
+                <a href="/" class="nav-link active">Live</a>
+                <a href="/all" class="nav-link">All devices</a>
                 <a href="/settings" class="nav-link">Config</a>
             </nav>
         </div>
@@ -3604,7 +3608,7 @@ LIVE_TEMPLATE = """
         <div class="live-header">
             <span class="live-dot"></span>
             <span class="live-title">Nearby now</span>
-            <span class="live-subtitle">-- devices seen in the last minute. Everything else lives on the main Dashboard.</span>
+            <span class="live-subtitle">-- devices seen in the last minute. Everything else lives on <a href="/all" style="color: var(--accent-blue);">All devices</a>.</span>
         </div>
 
         <div class="stats-row">
