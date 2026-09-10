@@ -147,6 +147,12 @@ CREATE TABLE IF NOT EXISTS irk_keys (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS wigle_lookup_cache (
+    mac TEXT PRIMARY KEY,
+    vendor TEXT,
+    checked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE INDEX IF NOT EXISTS idx_sightings_mac_time ON sightings(mac, timestamp);
 CREATE INDEX IF NOT EXISTS idx_sightings_timestamp ON sightings(timestamp);
 CREATE INDEX IF NOT EXISTS idx_identities_name ON identities(name COLLATE NOCASE);
@@ -1673,6 +1679,69 @@ async def resolve_irk_identity(mac: str) -> Optional[int]:
         )
         await db.commit()
         return cursor.lastrowid
+
+
+async def get_wigle_credentials() -> Optional[tuple[str, str]]:
+    """Returns (api_name, api_token) if WiGLE lookup is configured, else None.
+
+    Stored via the generic settings key/value table rather than the
+    Settings dataclass so the credential never has to round-trip through
+    the general /api/settings GET response -- a dedicated masked endpoint
+    handles display instead (see api_get_wigle_settings)."""
+    async with _connect() as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT key, value FROM settings WHERE key IN ('wigle_api_name', 'wigle_api_token')"
+        ) as cursor:
+            rows = await cursor.fetchall()
+    values = {row["key"]: row["value"] for row in rows}
+    api_name = values.get("wigle_api_name")
+    api_token = values.get("wigle_api_token")
+    if not api_name or not api_token:
+        return None
+    return (api_name, api_token)
+
+
+async def set_wigle_credentials(api_name: str, api_token: str) -> None:
+    async with _connect() as db:
+        await db.execute(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES ('wigle_api_name', ?)",
+            (api_name,),
+        )
+        await db.execute(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES ('wigle_api_token', ?)",
+            (api_token,),
+        )
+        await db.commit()
+
+
+async def clear_wigle_credentials() -> None:
+    async with _connect() as db:
+        await db.execute("DELETE FROM settings WHERE key IN ('wigle_api_name', 'wigle_api_token')")
+        await db.commit()
+
+
+async def get_wigle_cache_entry(mac: str) -> Optional[dict]:
+    """None means this MAC has never been checked against WiGLE. A dict
+    (possibly with vendor=None) means it has -- callers should not query
+    WiGLE again for it, to conserve the free-tier daily quota."""
+    async with _connect() as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT vendor FROM wigle_lookup_cache WHERE mac = ?", (mac,)
+        ) as cursor:
+            row = await cursor.fetchone()
+    return {"vendor": row["vendor"]} if row else None
+
+
+async def set_wigle_cache_entry(mac: str, vendor: Optional[str]) -> None:
+    async with _connect() as db:
+        await db.execute(
+            "INSERT OR REPLACE INTO wigle_lookup_cache (mac, vendor, checked_at) "
+            "VALUES (?, ?, CURRENT_TIMESTAMP)",
+            (mac, vendor),
+        )
+        await db.commit()
 
 
 async def get_watched_devices() -> list[Device]:

@@ -103,6 +103,10 @@ class WebServer:
         self.app.router.add_get("/api/irk-keys", self.api_get_irk_keys)
         self.app.router.add_post("/api/irk-keys", self.api_add_irk_key)
         self.app.router.add_delete("/api/irk-keys/{irk_id}", self.api_delete_irk_key)
+
+        self.app.router.add_get("/api/wigle-settings", self.api_get_wigle_settings)
+        self.app.router.add_post("/api/wigle-settings", self.api_set_wigle_settings)
+        self.app.router.add_delete("/api/wigle-settings", self.api_delete_wigle_settings)
         # Authentication
         self.app.router.add_post("/api/auth/login", self.api_login)
         self.app.router.add_post("/api/auth/logout", self.api_logout)
@@ -1086,6 +1090,36 @@ class WebServer:
             return web.json_response({"status": "ok"})
         except Exception as e:
             return web.json_response({"error": str(e)}, status=400)
+
+    async def api_get_wigle_settings(self, request: web.Request) -> web.Response:
+        """Whether WiGLE vendor lookup is configured. The token is never
+        sent back to the browser once saved -- only a masked preview."""
+        credentials = await db.get_wigle_credentials()
+        if not credentials:
+            return web.json_response({"configured": False})
+        api_name, api_token = credentials
+        mask = lambda s: s[:4] + "..." + s[-4:] if len(s) > 8 else "***"
+        return web.json_response({
+            "configured": True,
+            "api_name_masked": mask(api_name),
+            "api_token_masked": mask(api_token),
+        })
+
+    async def api_set_wigle_settings(self, request: web.Request) -> web.Response:
+        try:
+            data = await request.json()
+            api_name = (data.get("api_name") or "").strip()
+            api_token = (data.get("api_token") or "").strip()
+            if not api_name or not api_token:
+                return web.json_response({"error": "API Name and API Token are both required"}, status=400)
+            await db.set_wigle_credentials(api_name, api_token)
+            return web.json_response({"status": "ok"})
+        except Exception as e:
+            return web.json_response({"error": str(e)}, status=400)
+
+    async def api_delete_wigle_settings(self, request: web.Request) -> web.Response:
+        await db.clear_wigle_credentials()
+        return web.json_response({"status": "ok"})
 
     # ========================================================================
     # Authentication API

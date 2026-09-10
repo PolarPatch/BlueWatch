@@ -2677,6 +2677,7 @@ SETTINGS_TEMPLATE = """
         <a href="#operations" data-tab="operations" onclick="switchTab('operations')">Operations</a>
         <a href="#groups" data-tab="groups" onclick="switchTab('groups')">Groups</a>
         <a href="#security" data-tab="security" onclick="switchTab('security')">Security</a>
+        <a href="#wigle" data-tab="wigle" onclick="switchTab('wigle')">WiGLE</a>
         <a href="#export" data-tab="export" onclick="switchTab('export')">Export</a>
     </nav>
 
@@ -2874,6 +2875,29 @@ SETTINGS_TEMPLATE = """
                         <input type="text" class="form-input" id="new-irk-label" placeholder="Label (e.g. My Phone)" style="flex: 1;">
                         <input type="text" class="form-input" id="new-irk-hex" placeholder="IRK (32 hex chars)" style="flex: 2;">
                         <button type="button" class="btn btn-primary" onclick="createIrkKey()">Add</button>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- WiGLE Tab -->
+        <div class="config-tab" id="tab-wigle">
+            <div class="page-header">
+                <div class="page-title">System Configuration</div>
+                <h1 class="page-heading">WiGLE Vendor Lookup</h1>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">WiGLE Vendor Lookup</div>
+                <div class="panel-body">
+                    <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 1rem;">Fills in a vendor/name for devices our own OUI lookups can't identify, using WiGLE.net's crowdsourced Bluetooth database. Only ever reads a device's recorded name -- never its location history. Free-tier quota is small, so at most 1 new lookup is spent per scan cycle. This key lives only in this instance's database, not in the source code, so it's never carried along into a fork or shared copy of this project.</p>
+                    <div id="wigle-status" style="font-size: 0.8rem; margin-bottom: 1rem; color: var(--text-muted);">Loading...</div>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <input type="text" class="form-input" id="wigle-api-name" placeholder="API Name" style="flex: 1;">
+                        <input type="password" class="form-input" id="wigle-api-token" placeholder="API Token" style="flex: 1;">
+                        <button type="button" class="btn btn-primary" onclick="saveWigleSettings()">Save</button>
+                        <button type="button" class="btn" id="wigle-clear-btn" onclick="clearWigleSettings()" style="display: none;">Clear</button>
                     </div>
                 </div>
             </div>
@@ -3173,6 +3197,58 @@ SETTINGS_TEMPLATE = """
             } catch (error) { showStatus('Error deleting IRK', 'error'); }
         }
 
+        async function loadWigleSettings() {
+            const statusEl = document.getElementById('wigle-status');
+            const clearBtn = document.getElementById('wigle-clear-btn');
+            if (!statusEl) return;
+            try {
+                const response = await fetch('/api/wigle-settings');
+                const data = await response.json();
+                if (data.configured) {
+                    statusEl.textContent = 'Configured -- ' + data.api_name_masked + ' / ' + data.api_token_masked;
+                    statusEl.style.color = 'var(--accent-green)';
+                    if (clearBtn) clearBtn.style.display = '';
+                } else {
+                    statusEl.textContent = 'Not configured';
+                    statusEl.style.color = 'var(--text-muted)';
+                    if (clearBtn) clearBtn.style.display = 'none';
+                }
+            } catch (error) {
+                statusEl.textContent = 'Error loading status';
+            }
+        }
+
+        async function saveWigleSettings() {
+            const apiName = document.getElementById('wigle-api-name').value.trim();
+            const apiToken = document.getElementById('wigle-api-token').value.trim();
+            if (!apiName || !apiToken) { showStatus('API Name and API Token are both required', 'error'); return; }
+            try {
+                const response = await fetch('/api/wigle-settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ api_name: apiName, api_token: apiToken })
+                });
+                if (response.ok) {
+                    document.getElementById('wigle-api-name').value = '';
+                    document.getElementById('wigle-api-token').value = '';
+                    loadWigleSettings();
+                    showStatus('WiGLE credentials saved', 'success');
+                } else {
+                    const err = await response.json().catch(() => ({}));
+                    showStatus(err.error || 'Error saving WiGLE credentials', 'error');
+                }
+            } catch (error) { showStatus('Error saving WiGLE credentials', 'error'); }
+        }
+
+        async function clearWigleSettings() {
+            if (!confirm('Remove the saved WiGLE credentials?')) return;
+            try {
+                const response = await fetch('/api/wigle-settings', { method: 'DELETE' });
+                if (response.ok) { loadWigleSettings(); showStatus('WiGLE credentials cleared', 'success'); }
+                else { showStatus('Error clearing WiGLE credentials', 'error'); }
+            } catch (error) { showStatus('Error clearing WiGLE credentials', 'error'); }
+        }
+
         async function renameGroup(g) {
             const newName = prompt('Rename group', g.name);
             if (newName === null) return;
@@ -3242,12 +3318,13 @@ SETTINGS_TEMPLATE = """
 
         // Tab routing: read hash on load, default to alerts
         var hash = window.location.hash.replace('#', '') || 'alerts';
-        switchTab(['alerts', 'operations', 'groups', 'security', 'export'].indexOf(hash) !== -1 ? hash : 'alerts');
+        switchTab(['alerts', 'operations', 'groups', 'security', 'wigle', 'export'].indexOf(hash) !== -1 ? hash : 'alerts');
 
         loadSettings();
         loadAuthStatus();
         loadGroups();
         loadIrkKeys();
+        loadWigleSettings();
     </script>
 </body>
 </html>

@@ -15,7 +15,8 @@ from typing import Optional
 
 import aiohttp
 
-from . import db, __version__
+from . import db, wigle, __version__
+from .classifier import is_randomized_mac
 from .config import SCAN_INTERVAL, SOCKET_PATH, METRICS_PORT
 from .scanner import BluetoothScanner, ScannedDevice, list_adapters
 from .web import WebServer
@@ -418,6 +419,7 @@ class BluehoodDaemon:
                 duration = time.monotonic() - start_ts
 
                 new_count = 0
+                wigle_candidates = []
                 for device in devices:
                     db_device, is_new = await db.upsert_device(
                         mac=device.mac,
@@ -433,6 +435,14 @@ class BluehoodDaemon:
 
                     # Trigger notification checks
                     await self._notifications.on_device_seen(db_device, is_new)
+
+                    # A randomized MAC has no fixed vendor to find and a
+                    # WiGLE record for it would belong to a past rotation,
+                    # not this device -- only exact/fixed addresses qualify.
+                    if not db_device.vendor and not is_randomized_mac(db_device.mac):
+                        wigle_candidates.append(db_device.mac)
+
+                await self._try_wigle_lookups(wigle_candidates)
 
                 if self._metrics:
                     ble_count = sum(1 for d in devices if d.bt_type == "ble")
@@ -451,6 +461,34 @@ class BluehoodDaemon:
                     self._metrics.on_scan_error("scan")
 
             await asyncio.sleep(SCAN_INTERVAL)
+
+    # WiGLE's free tier has a very small daily query quota, so at most this
+    # many *new* lookups are spent per scan cycle regardless of how many
+    # vendor-less devices showed up in it -- the rest wait for a later cycle.
+    _WIGLE_LOOKUPS_PER_CYCLE = 1
+
+    async def _try_wigle_lookups(self, candidate_macs: list[str]) -> None:
+        """Spend a small, fixed budget of WiGLE lookups on devices we still
+        have no vendor for, skipping anything already checked before."""
+        if not candidate_macs:
+            return
+        credentials = await db.get_wigle_credentials()
+        if not credentials:
+            return
+        api_name, api_token = credentials
+
+        spent = 0
+        for mac in candidate_macs:
+            if spent >= self._WIGLE_LOOKUPS_PER_CYCLE:
+                break
+            if await db.get_wigle_cache_entry(mac) is not None:
+                continue  # already checked (found or not) -- never re-spend quota on it
+            spent += 1
+            vendor = await wigle.lookup_vendor(mac, api_name, api_token)
+            await db.set_wigle_cache_entry(mac, vendor)
+            if vendor:
+                await db.set_device_vendor(mac, vendor)
+                logger.info(f"WiGLE resolved vendor for {mac}: {vendor}")
 
     async def _metrics_update_loop(self) -> None:
         """Periodically update database-derived metrics."""
