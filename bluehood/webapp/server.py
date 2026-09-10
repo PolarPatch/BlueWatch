@@ -14,7 +14,7 @@ from aiohttp import web
 from .. import db, rpa
 from ..classifier import classify_device, get_type_icon, get_type_label, get_all_types, is_randomized_mac, is_macos_uuid, get_uuid_names
 from ..patterns import generate_hourly_heatmap, generate_daily_heatmap
-from .templates import ABOUT_TEMPLATE, HTML_TEMPLATE, LOGIN_TEMPLATE, SETTINGS_TEMPLATE
+from .templates import ABOUT_TEMPLATE, HTML_TEMPLATE, LIVE_TEMPLATE, LOGIN_TEMPLATE, SETTINGS_TEMPLATE
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +69,7 @@ class WebServer:
         self.app.router.add_get("/login", self.login_page)
         self.app.router.add_get("/settings", self.settings_page)
         self.app.router.add_get("/about", self.about_page)
+        self.app.router.add_get("/live", self.live_page)
         self.app.router.add_get("/api/devices", self.api_devices)
         self.app.router.add_get("/api/devices/export", self.api_export_devices)
         self.app.router.add_post("/api/devices/export", self.api_export_devices)
@@ -90,6 +91,7 @@ class WebServer:
         self.app.router.add_get("/api/name-groups", self.api_name_groups)
         self.app.router.add_get("/api/search", self.api_search)
         self.app.router.add_get("/api/stats", self.api_stats)
+        self.app.router.add_get("/api/live-stats", self.api_live_stats)
         # Settings
         self.app.router.add_get("/api/settings", self.api_get_settings)
         self.app.router.add_post("/api/settings", self.api_update_settings)
@@ -165,6 +167,11 @@ class WebServer:
         """Serve the settings page."""
         return web.Response(text=SETTINGS_TEMPLATE, content_type="text/html")
 
+    async def live_page(self, request: web.Request) -> web.Response:
+        """Serve the "nearby now" live view (devices seen within the last
+        minute), separate from the main triage dashboard."""
+        return web.Response(text=LIVE_TEMPLATE, content_type="text/html")
+
     async def about_page(self, request: web.Request) -> web.Response:
         """Serve the about page."""
         return web.Response(text=ABOUT_TEMPLATE, content_type="text/html")
@@ -206,6 +213,20 @@ class WebServer:
 
         only_uncategorized = request.query.get("only_uncategorized") == "1"
 
+        active_within_seconds = None
+        raw_active_within = request.query.get("active_within")
+        if raw_active_within:
+            try:
+                active_within_seconds = max(1, int(raw_active_within))
+            except ValueError:
+                pass
+
+        # The live/"nearby now" view (active_within set) is a real-time
+        # presence radar -- most of what's actually broadcasting around you
+        # at any moment uses a randomized address, so unlike the main
+        # dashboard's curated persistent-identity list, it's included here.
+        exclude_randomized = not active_within_seconds
+
         devices, total = await db.get_devices_page(
             page=page,
             page_size=page_size,
@@ -215,9 +236,10 @@ class WebServer:
             search=search,
             sort_column=sort_column,
             sort_direction=sort_direction,
-            exclude_randomized=True,
+            exclude_randomized=exclude_randomized,
             group_ids=group_ids,
             only_uncategorized=only_uncategorized,
+            active_within_seconds=active_within_seconds,
         )
         stats = await db.get_dashboard_stats(include_ignored=True)
 
@@ -235,7 +257,8 @@ class WebServer:
                 group_ids=group_ids,
                 show_all=show_all,
                 only_uncategorized=only_uncategorized,
-                exclude_randomized=True,
+                active_within_seconds=active_within_seconds,
+                exclude_randomized=exclude_randomized,
             )
 
         device_list = []
@@ -257,7 +280,7 @@ class WebServer:
                 "type_label": get_type_label(device_type),
                 "ignored": d.ignored,
                 "watched": d.watched,
-                "randomized_mac": False,
+                "randomized_mac": is_randomized_mac(d.mac),
                 "first_seen": (d.first_seen.isoformat() + "Z") if d.first_seen else None,
                 "last_seen": (d.last_seen.isoformat() + "Z") if d.last_seen else None,
                 "total_sightings": d.total_sightings,
@@ -892,6 +915,18 @@ class WebServer:
             "active_today": global_stats["active_today"],
             "total_sightings": global_stats["total_sightings"],
         })
+
+    async def api_live_stats(self, request: web.Request) -> web.Response:
+        """Stats for the "nearby now" live view."""
+        window = 60
+        raw_window = request.query.get("window")
+        if raw_window:
+            try:
+                window = max(1, int(raw_window))
+            except ValueError:
+                pass
+        stats = await db.get_live_stats(window)
+        return web.json_response(stats)
 
     # ========================================================================
     # Settings API

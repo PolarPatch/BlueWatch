@@ -918,6 +918,7 @@ HTML_TEMPLATE = """
         <aside class="sidebar">
             <div class="panel" id="categories-panel">
                 <div class="panel-header">Categories</div>
+                <a href="/live" class="filter-btn" style="width: 100%; justify-content: flex-start; gap: 0.4rem; margin-bottom: 0.5rem; text-decoration: none;"><span style="width: 6px; height: 6px; border-radius: 50%; background: var(--accent-green); display: inline-block;"></span> Nearby now</a>
                 <button class="filter-btn" id="all-devices-btn" onclick="showAllDevices()" style="width: 100%; justify-content: flex-start; gap: 0.4rem; margin-bottom: 0.5rem;">All devices <span id="count-all" class="filter-count" style="color: inherit; font-size: inherit;">--</span></button>
                 <label style="display: flex; align-items: center; gap: 0.4rem; padding: 0 0.75rem 0.5rem; font-size: 0.75rem; color: var(--text-secondary); cursor: pointer;">
                     <input type="checkbox" id="hide-categorized-toggle" onchange="toggleHideCategorized()">
@@ -3496,6 +3497,275 @@ ABOUT_TEMPLATE = """
             applyTheme(next);
         }
         applyTheme(localStorage.getItem('bluehood_theme') || 'dark');
+    </script>
+</body>
+</html>
+"""
+
+LIVE_TEMPLATE = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BlueWatch - Live</title>
+    <style>
+        :root {
+            --bg-primary: #0d0d0d;
+            --bg-secondary: #141414;
+            --bg-tertiary: #1a1a1a;
+            --bg-hover: #242424;
+            --bg-panel: #111111;
+            --text-primary: #e0e0e0;
+            --text-secondary: #888888;
+            --text-muted: #555555;
+            --accent-red: #2563eb;
+            --accent-green: #16a34a;
+            --accent-blue: #2563eb;
+            --border-color: #2a2a2a;
+            --border-active: #404040;
+            --font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', 'Cascadia Code', Consolas, monospace;
+        }
+        [data-theme="light"] {
+            --bg-primary: #f5f5f5;
+            --bg-secondary: #e8e8e8;
+            --bg-tertiary: #ffffff;
+            --bg-hover: #d8d8d8;
+            --bg-panel: #efefef;
+            --text-primary: #1a1a1a;
+            --text-secondary: #555555;
+            --text-muted: #888888;
+            --border-color: #cccccc;
+            --border-active: #999999;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: var(--font-mono); background: var(--bg-primary); color: var(--text-primary); min-height: 100vh; font-size: 13px; line-height: 1.5; }
+
+        .topbar { background: var(--bg-secondary); border-bottom: 1px solid var(--border-color); padding: 0.5rem 1rem; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; }
+        .topbar-left { display: flex; align-items: center; gap: 1.5rem; }
+        .brand { display: flex; align-items: center; gap: 0.5rem; text-decoration: none; color: inherit; }
+        .brand-icon { color: var(--accent-blue); width: 1.1rem; height: 1.1rem; }
+        .brand-text { font-weight: 700; font-size: 0.9rem; letter-spacing: 0.05em; color: var(--accent-blue); }
+        .brand-text span { color: #ffffff; }
+        .nav { display: flex; gap: 0.25rem; }
+        .nav-link { color: var(--text-secondary); text-decoration: none; font-size: 0.75rem; padding: 0.4rem 0.75rem; border-radius: 3px; letter-spacing: 0.05em; transition: all 0.1s; }
+        .nav-link:hover, .nav-link.active { color: var(--text-primary); background: var(--bg-tertiary); }
+        .theme-toggle { background: transparent; border: 1px solid var(--border-color); color: var(--text-secondary); font-family: var(--font-mono); font-size: 0.75rem; padding: 0.3rem 0.5rem; cursor: pointer; border-radius: 3px; }
+        .theme-toggle:hover { color: var(--text-primary); border-color: var(--border-active); }
+
+        .main { max-width: 1400px; margin: 0 auto; padding: 1.25rem; }
+
+        .live-header { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 1rem; }
+        .live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent-green); animation: pulse 1.5s ease-in-out infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+        .live-title { font-size: 0.9rem; font-weight: 600; letter-spacing: 0.05em; }
+        .live-subtitle { font-size: 0.75rem; color: var(--text-muted); }
+
+        .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.75rem; margin-bottom: 1.25rem; }
+        .stat-card { background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 4px; padding: 0.85rem 1rem; }
+        .stat-label { font-size: 0.65rem; color: var(--text-muted); letter-spacing: 0.1em; margin-bottom: 0.35rem; }
+        .stat-value { font-size: 1.3rem; font-weight: 700; color: var(--accent-blue); }
+        .stat-sub { font-size: 0.7rem; color: var(--text-secondary); margin-top: 0.2rem; }
+
+        .table-container { background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 4px; overflow: hidden; }
+        .device-table { width: 100%; border-collapse: collapse; }
+        .device-table th { text-align: left; padding: 0.6rem 0.75rem; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 0.65rem; font-weight: 600; letter-spacing: 0.1em; color: var(--text-muted); background: var(--bg-secondary); border-bottom: 1px solid var(--border-color); cursor: pointer; user-select: none; }
+        .device-table th:hover { color: var(--text-primary); background: var(--bg-tertiary); }
+        .device-table th.active { color: var(--text-primary); background: var(--bg-tertiary); }
+        .device-table td { padding: 0.6rem 0.75rem; font-size: 0.8rem; border-bottom: 1px solid var(--border-color); vertical-align: middle; }
+        .device-table tr:last-child td { border-bottom: none; }
+        .device-table tr:hover { background: var(--bg-hover); }
+        .mac-addr { font-size: 0.75rem; color: var(--text-secondary); }
+        .type-badge { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.2rem 0.5rem; border-radius: 2px; font-size: 0.7rem; font-weight: 500; letter-spacing: 0.05em; }
+        .type-phone { background: #1e3a5f; color: #60a5fa; }
+        .type-laptop { background: #1a3a3a; color: #5eead4; }
+        .type-audio { background: #3a1e3a; color: #c084fc; }
+        .type-watch { background: #1e3a2e; color: #4ade80; }
+        .type-smart { background: #3a2e1e; color: #fbbf24; }
+        .type-tv { background: #3a1e2e; color: #f472b6; }
+        .type-vehicle { background: #3a3a1e; color: #facc15; }
+        .type-unknown { background: #2a2a2a; color: #888; }
+        .empty-state { text-align: center; padding: 2.5rem; color: var(--text-muted); font-size: 0.8rem; }
+    </style>
+</head>
+<body>
+    <header class="topbar">
+        <div class="topbar-left">
+            <a href="/" class="brand"><svg class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 7 10 10-5 5V2l5 5L7 17"/></svg><span class="brand-text">Blue<span>Watch</span></span></a>
+            <nav class="nav">
+                <a href="/" class="nav-link">Dashboard</a>
+                <a href="/settings" class="nav-link">Config</a>
+            </nav>
+        </div>
+        <div><button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Toggle light/dark mode">☀</button></div>
+    </header>
+
+    <main class="main">
+        <div class="live-header">
+            <span class="live-dot"></span>
+            <span class="live-title">Nearby now</span>
+            <span class="live-subtitle">-- devices seen in the last minute. Everything else lives on the main Dashboard.</span>
+        </div>
+
+        <div class="stats-row">
+            <div class="stat-card">
+                <div class="stat-label">ACTIVE NOW</div>
+                <div class="stat-value" id="stat-active-now">--</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">ALL KNOWN DEVICES</div>
+                <div class="stat-value" id="stat-total-devices">--</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">MOST SEEN (ACTIVE)</div>
+                <div class="stat-value" id="stat-most-seen" style="font-size: 0.9rem;">--</div>
+                <div class="stat-sub" id="stat-most-seen-sub"></div>
+            </div>
+        </div>
+
+        <div class="table-container">
+            <table class="device-table">
+                <thead>
+                    <tr>
+                        <th data-sort="mac">Address</th>
+                        <th data-sort="identifier">Identifier</th>
+                        <th data-sort="vendor">Vendor</th>
+                        <th data-sort="rssi">RSSI</th>
+                        <th data-sort="sightings">Sightings</th>
+                        <th data-sort="last_seen">Last seen</th>
+                        <th data-sort="class">Class</th>
+                        <th data-sort="group">Group</th>
+                    </tr>
+                </thead>
+                <tbody id="live-device-list">
+                    <tr><td colspan="8" class="empty-state">Loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </main>
+
+    <script>
+        function applyTheme(theme) {
+            document.documentElement.setAttribute('data-theme', theme);
+            const btn = document.getElementById('theme-toggle');
+            if (btn) btn.textContent = theme === 'light' ? '☽' : '☀';
+        }
+        function toggleTheme() {
+            const current = document.documentElement.getAttribute('data-theme') || 'dark';
+            const next = current === 'dark' ? 'light' : 'dark';
+            localStorage.setItem('bluehood_theme', next);
+            applyTheme(next);
+        }
+        applyTheme(localStorage.getItem('bluehood_theme') || 'dark');
+
+        const ACTIVE_WINDOW_SECONDS = 60;
+        const REFRESH_MS = 3000;
+        let sortColumn = 'last_seen';
+        let sortDirection = 'desc';
+
+        function escapeHtml(s) {
+            const d = document.createElement('div');
+            d.textContent = s == null ? '' : String(s);
+            return d.innerHTML;
+        }
+
+        function getTypeClass(type) {
+            const known = ['phone', 'laptop', 'computer', 'audio', 'speaker', 'watch', 'smart', 'tv', 'vehicle'];
+            if (type === 'computer') return 'type-laptop';
+            if (type === 'speaker') return 'type-audio';
+            return known.includes(type) ? 'type-' + type : 'type-unknown';
+        }
+
+        function formatLastSeen(iso) {
+            if (!iso) return '--';
+            const seconds = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+            if (seconds < 5) return 'NOW';
+            if (seconds < 60) return Math.floor(seconds) + 's ago';
+            return Math.floor(seconds / 60) + 'm ago';
+        }
+
+        async function loadLiveStats() {
+            try {
+                const response = await fetch('/api/live-stats?window=' + ACTIVE_WINDOW_SECONDS);
+                const data = await response.json();
+                document.getElementById('stat-active-now').textContent = data.active_now ?? '--';
+                document.getElementById('stat-total-devices').textContent = data.total_devices ?? '--';
+                const mostSeenEl = document.getElementById('stat-most-seen');
+                const mostSeenSubEl = document.getElementById('stat-most-seen-sub');
+                if (data.most_seen) {
+                    mostSeenEl.textContent = data.most_seen.friendly_name || data.most_seen.vendor || data.most_seen.mac;
+                    mostSeenSubEl.textContent = data.most_seen.total_sightings + ' sightings total';
+                } else {
+                    mostSeenEl.textContent = '--';
+                    mostSeenSubEl.textContent = '';
+                }
+            } catch (error) { console.error('Error loading live stats:', error); }
+        }
+
+        async function loadLiveDevices() {
+            const tbody = document.getElementById('live-device-list');
+            try {
+                const params = new URLSearchParams({
+                    active_within: ACTIVE_WINDOW_SECONDS,
+                    sort: sortColumn,
+                    direction: sortDirection,
+                    page_size: 200,
+                });
+                const response = await fetch('/api/devices?' + params.toString());
+                const data = await response.json();
+                const devices = data.devices || [];
+
+                document.querySelectorAll('.device-table th').forEach(th => {
+                    th.classList.toggle('active', th.dataset.sort === sortColumn);
+                });
+
+                if (devices.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="8" class="empty-state">Nothing in range right now</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = devices.map(d => {
+                    let groupHtml = '—';
+                    if (d.group_name && d.group_color) {
+                        groupHtml = '<span style="background: ' + d.group_color + '; color: white; padding: 0.15rem 0.5rem; border-radius: 3px; font-size: 0.7rem; font-weight: 500;">' + escapeHtml(d.group_name) + '</span>';
+                    }
+                    return '<tr>' +
+                        '<td class="mac-addr">' + escapeHtml(d.mac) + '</td>' +
+                        '<td>' + (d.friendly_name ? escapeHtml(d.friendly_name) : '—') + '</td>' +
+                        '<td>' + (d.vendor ? escapeHtml(d.vendor) : '—') + '</td>' +
+                        '<td>' + (d.last_rssi != null ? d.last_rssi + ' dBm' : '—') + '</td>' +
+                        '<td>' + d.total_sightings + '</td>' +
+                        '<td>' + formatLastSeen(d.last_seen) + '</td>' +
+                        '<td><span class="type-badge ' + getTypeClass(d.device_type) + '">' + escapeHtml(d.type_icon || '') + ' ' + escapeHtml(d.type_label || '') + '</span></td>' +
+                        '<td>' + groupHtml + '</td>' +
+                        '</tr>';
+                }).join('');
+            } catch (error) {
+                console.error('Error loading live devices:', error);
+                tbody.innerHTML = '<tr><td colspan="8" class="empty-state">Error loading devices</td></tr>';
+            }
+        }
+
+        document.querySelectorAll('.device-table th').forEach(th => {
+            th.addEventListener('click', () => {
+                const col = th.dataset.sort;
+                if (sortColumn === col) {
+                    sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+                } else {
+                    sortColumn = col;
+                    sortDirection = col === 'last_seen' || col === 'sightings' || col === 'rssi' ? 'desc' : 'asc';
+                }
+                loadLiveDevices();
+            });
+        });
+
+        function refreshAll() {
+            loadLiveStats();
+            loadLiveDevices();
+        }
+
+        refreshAll();
+        setInterval(refreshAll, REFRESH_MS);
     </script>
 </body>
 </html>

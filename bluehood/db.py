@@ -449,8 +449,13 @@ def _build_device_query_filters(
     group_ids: Optional[list] = None,
     show_all: bool = False,
     only_uncategorized: bool = False,
+    active_within_seconds: Optional[int] = None,
 ) -> tuple[str, list]:
     """Build WHERE clause and parameters for device list queries.
+
+    active_within_seconds, when given, restricts to devices last seen in
+    that window (the "live/nearby now" view) and implies show_all -- a
+    device currently in range is worth seeing regardless of category.
 
     group_ids, when given, restricts to devices whose group_id is in that
     set -- callers filtering by a category should pass that category's id
@@ -492,13 +497,18 @@ def _build_device_query_filters(
         placeholders = ", ".join("?" for _ in group_ids)
         conditions.append(f"d.group_id IN ({placeholders})")
         params.extend(group_ids)
-    elif not show_all and not search_value:
+    elif not show_all and not search_value and not active_within_seconds:
         # No explicit category selected and no search text -- the main
         # list is the triage queue, so once a device has been sorted into
         # any category it drops out of here and only shows up under that
         # category. A text search should always search everything so
         # nothing is hidden from the results.
         conditions.append("d.group_id IS NULL")
+
+    if active_within_seconds:
+        cutoff = (datetime.now() - timedelta(seconds=active_within_seconds)).isoformat()
+        conditions.append("d.last_seen >= ?")
+        params.append(cutoff)
 
     # Collapse identity-clustered MAC-rotation siblings to a single
     # representative row (the most recently seen MAC in the group) --
@@ -527,6 +537,7 @@ _DEVICE_SORT_MAP = {
     "identifier": "COALESCE(d.friendly_name, '')",
     "sightings": "d.total_sightings",
     "last_seen": "COALESCE(d.last_seen, '')",
+    "rssi": "(SELECT s.rssi FROM sightings s WHERE s.mac = d.mac ORDER BY s.timestamp DESC LIMIT 1)",
     "group": "COALESCE(g.name, '')",
 }
 
@@ -543,6 +554,7 @@ async def get_devices_page(
     group_ids: Optional[list] = None,
     show_all: bool = False,
     only_uncategorized: bool = False,
+    active_within_seconds: Optional[int] = None,
 ) -> tuple[list[Device], int]:
     """Get a single page of devices and total count for the current query."""
     safe_page = max(1, page)
@@ -559,6 +571,7 @@ async def get_devices_page(
         exclude_randomized=exclude_randomized,
         group_ids=group_ids,
         show_all=show_all,
+        active_within_seconds=active_within_seconds,
         only_uncategorized=only_uncategorized,
     )
 
@@ -755,6 +768,52 @@ async def get_global_stats(include_ignored: bool = True) -> dict:
         "total_devices": int(row["total_devices"] or 0),
         "active_today": int(row["active_today"] or 0),
         "total_sightings": int(row["total_sightings"] or 0),
+    }
+
+
+async def get_live_stats(active_within_seconds: int) -> dict:
+    """Stats for the "nearby now" live view: how many devices are currently
+    in range (last seen within the window), and which currently-active
+    device has the most sightings overall -- the one that's always around,
+    not just the one with the strongest signal this instant."""
+    cutoff = (datetime.now() - timedelta(seconds=active_within_seconds)).isoformat()
+
+    async with _connect() as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("SELECT COUNT(*) AS total_devices FROM devices") as cursor:
+            total_row = await cursor.fetchone()
+
+        async with db.execute(
+            "SELECT COUNT(*) AS active_now FROM devices WHERE last_seen >= ?",
+            (cutoff,),
+        ) as cursor:
+            active_row = await cursor.fetchone()
+
+        async with db.execute(
+            """
+            SELECT mac, vendor, friendly_name, total_sightings
+            FROM devices
+            WHERE last_seen >= ?
+            ORDER BY total_sightings DESC, last_seen DESC
+            LIMIT 1
+            """,
+            (cutoff,),
+        ) as cursor:
+            top_row = await cursor.fetchone()
+
+    most_seen = None
+    if top_row and top_row["total_sightings"]:
+        most_seen = {
+            "mac": top_row["mac"],
+            "vendor": top_row["vendor"],
+            "friendly_name": top_row["friendly_name"],
+            "total_sightings": top_row["total_sightings"],
+        }
+
+    return {
+        "total_devices": int(total_row["total_devices"] or 0) if total_row else 0,
+        "active_now": int(active_row["active_now"] or 0) if active_row else 0,
+        "most_seen": most_seen,
     }
 
 
