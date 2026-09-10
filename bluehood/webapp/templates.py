@@ -3906,6 +3906,9 @@ LIVE_TEMPLATE = """
         .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.75rem; margin-bottom: 1rem; }
         .stat-card { background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 4px; padding: 0.85rem 1rem; }
         .stat-sub { font-size: 0.7rem; color: var(--text-secondary); margin-top: 0.2rem; }
+        /* No bulk-select/merge toolbar on the live dashboard -- the checkbox
+           column it drove has nothing left to trigger. */
+        .select-col { display: none; }
 
         /* Device Table */
         .table-container {
@@ -4471,27 +4474,6 @@ LIVE_TEMPLATE = """
                 </div>
             </div>
             <div class="table-container" id="devices-container">
-                <div class="table-header">
-                    <span class="table-title">Identified Targets <span id="selected-count" class="selected-summary" style="display: none;">· 0 selected</span></span>
-                    <div class="table-actions">
-                        <span style="font-size: 0.7rem; color: var(--text-muted);">
-                            <span id="visible-count">--</span> targets
-                        </span>
-                        <select class="form-input bulk-select" id="bulk-group-select">
-                            <option value="">Assign group...</option>
-                        </select>
-                        <button class="btn" id="bulk-group-apply" onclick="applyBulkGroup()">Assign Group</button>
-                        <select class="form-input bulk-select" id="bulk-watch-select">
-                            <option value="">Watch...</option>
-                            <option value="on">Watch ON</option>
-                            <option value="off">Watch OFF</option>
-                        </select>
-                        <button class="btn" id="bulk-watch-apply" onclick="applyBulkWatch()">Apply Watch</button>
-                        <button class="btn" id="bulk-merge-apply" onclick="applyBulkMerge()" title="Cluster the selected MAC-rotation siblings into one device">Merge as One Device</button>
-                        <button class="btn" id="clear-selection-btn" onclick="clearSelection()">Clear Selection</button>
-                        <button class="btn" onclick="resetSort()">Reset Sort</button>
-                    </div>
-                </div>
                 <table class="device-table">
                     <thead>
                         <tr>
@@ -5426,9 +5408,6 @@ LIVE_TEMPLATE = """
                     return true;
                 });
                 visibleDevices = applySort(visibleDevices);
-                document.getElementById('visible-count').textContent = visibleDevices.length;
-            } else {
-                document.getElementById('visible-count').textContent = pagination.totalMatching || visibleDevices.length;
             }
 
             currentVisibleDevices = visibleDevices;
