@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/logo.png" alt="BlueWatch logo" width="200">
+  <img src="assets/logo.png" alt="BlueWatch logo" width="320">
 </p>
 
 # BlueWatch
