@@ -4480,13 +4480,16 @@ LIVE_TEMPLATE = """
         </aside>
 
         <main class="content">
-            <div class="stat-card" style="display: flex; gap: 2rem; margin-bottom: 0.5rem;">
-                <div><div class="stat-label">ACTIVE NOW</div><div class="stat-value" id="stat-active-now">--</div></div>
-                <div><div class="stat-label">ALL KNOWN DEVICES</div><div class="stat-value" id="stat-total-devices">--</div></div>
-            </div>
-            <div class="stat-card" style="margin-bottom: 0.75rem;">
-                <div class="stat-label" style="margin-bottom: 0.35rem;">MOST SEEN (ACTIVE)</div>
-                <div id="most-seen-list" style="display: flex; gap: 1.5rem; flex-wrap: wrap;">--</div>
+            <div class="stat-card" style="display: flex; align-items: center; justify-content: space-between; gap: 2rem; margin-bottom: 0.75rem;">
+                <div style="display: flex; gap: 2rem;">
+                    <div><div class="stat-label">ACTIVE NOW</div><div class="stat-value" id="stat-active-now">--</div></div>
+                    <div><div class="stat-label">ALL KNOWN DEVICES</div><div class="stat-value" id="stat-total-devices">--</div></div>
+                    <div><div class="stat-label">NEW TODAY</div><div class="stat-value" id="stat-new-today">--</div></div>
+                </div>
+                <div style="border-left: 1px solid var(--border-color); padding-left: 2rem;">
+                    <div class="stat-label" style="margin-bottom: 0.35rem;">MOST SEEN (ACTIVE)</div>
+                    <div id="most-seen-list" style="display: flex; gap: 1.5rem; flex-wrap: wrap;">--</div>
+                </div>
             </div>
             <div class="table-container" id="devices-container">
                 <table class="device-table">
@@ -4670,6 +4673,7 @@ LIVE_TEMPLATE = """
                 const data = await response.json();
                 document.getElementById('stat-active-now').textContent = data.active_now ?? '--';
                 document.getElementById('stat-total-devices').textContent = data.total_devices ?? '--';
+                document.getElementById('stat-new-today').textContent = data.new_today ?? '--';
                 const listEl = document.getElementById('most-seen-list');
                 const items = data.most_seen || [];
                 if (items.length === 0) {

@@ -790,6 +790,13 @@ async def get_live_stats(active_within_seconds: int, most_seen_limit: int = 5) -
         ) as cursor:
             active_row = await cursor.fetchone()
 
+        today_start = datetime.combine(datetime.now().date(), datetime.min.time()).isoformat()
+        async with db.execute(
+            "SELECT COUNT(*) AS new_today FROM devices WHERE first_seen >= ?",
+            (today_start,),
+        ) as cursor:
+            new_today_row = await cursor.fetchone()
+
         async with db.execute(
             """
             SELECT mac, vendor, friendly_name, total_sightings
@@ -816,6 +823,7 @@ async def get_live_stats(active_within_seconds: int, most_seen_limit: int = 5) -
     return {
         "total_devices": int(total_row["total_devices"] or 0) if total_row else 0,
         "active_now": int(active_row["active_now"] or 0) if active_row else 0,
+        "new_today": int(new_today_row["new_today"] or 0) if new_today_row else 0,
         "most_seen": most_seen,
     }
 
