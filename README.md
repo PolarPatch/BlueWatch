@@ -7,19 +7,18 @@
 Get alerts when new Bluetooth devices appear in your local neighbourhood.
 
 The real strength shows up once you actually start using it: categorize
-the devices you already know — your own phones, your TV, the smart
+the devices you already know, your own phones, your TV, the smart
 plugs, the neighbour's robot lawnmower, whatever's expected around
-you — and BlueWatch filters all of that familiar traffic out of the
+you, and BlueWatch filters all of that familiar traffic out of the
 way. What's left standing out is the interesting part: the moment an
 unrecognized device enters the radio range of whatever's running
 BlueWatch, it surfaces immediately instead of being buried under dozens
 of devices you've already triaged. The dashboard stops being a wall of
 MAC addresses and turns into an actual presence radar for your
-surroundings — you notice the one device that doesn't belong, not the
+surroundings. You notice the one device that doesn't belong, not the
 fifty that do.
 
-Started from [bluehood](https://github.com/dannymcc/bluehood) (MIT licensed
-— see `CREDITS.md`) but has since diverged into its own project: known/
+Started from [bluehood](https://github.com/dannymcc/bluehood) (MIT licensed, see `CREDITS.md`) but has since diverged into its own project: known/
 unknown device triage, user-defined nested categories with drag-and-drop
 assignment, per-device arrive/depart notification overrides, an
 independent watchlist, a live "nearby now" dashboard, IRK-based address
@@ -38,17 +37,17 @@ not in the original. See `SPEC.md` for the original design notes and
 ## Screenshots
 
 ![Dashboard](screenshots/dashboard.png)
-*Live dashboard — devices seen in the last minute, with category filtering, search, and at-a-glance stats*
+*Live dashboard, devices seen in the last minute, with category filtering, search, and at-a-glance stats*
 
 ![Settings](screenshots/settings.png)
-*Tabbed configuration page — Alerts, Operations, Groups, Security, WiGLE, and Export*
+*Tabbed configuration page, Alerts, Operations, Groups, Security, WiGLE, and Export*
 
 ![Device Details](screenshots/device-detail.png)
-*Per-device detail view — activity heatmaps, presence timeline, signal history, notes, and category assignment*
+*Per-device detail view, activity heatmaps, presence timeline, signal history, notes, and category assignment*
 
 ## Why?
 
-Thousands of Bluetooth devices surround us at all times: phones, cars, TVs, headphones, hearing aids, delivery vehicles, and more. BlueWatch demonstrates how simple it is to passively detect these devices and observe patterns in their presence — no pairing, no active interaction, nothing the device owner would ever notice.
+Thousands of Bluetooth devices surround us at all times: phones, cars, TVs, headphones, hearing aids, delivery vehicles, and more. BlueWatch demonstrates how simple it is to passively detect these devices and observe patterns in their presence, no pairing, no active interaction, nothing the device owner would ever notice.
 
 With enough data, you could potentially:
 - Understand what time someone typically walks their dog
@@ -57,7 +56,7 @@ With enough data, you could potentially:
 
 This metadata can reveal surprisingly personal information without any active interaction with the devices.
 
-I came across [bluehood](https://github.com/dannymcc/bluehood) and tried it out on a Raspberry Pi — liked the idea immediately, but ran into some gaps and features I wanted that weren't there yet. That turned into using Claude Code to grow it into its own project and take it in a somewhat different direction. Huge thanks to Danny McClelland for the work he put into the original Bluehood — none of this would exist without it.
+I came across [bluehood](https://github.com/dannymcc/bluehood) and tried it out on a Raspberry Pi, liked the idea immediately, but ran into some gaps and features I wanted that weren't there yet. That turned into using Claude Code to grow it into its own project and take it in a somewhat different direction. Huge thanks to Danny McClelland for the work he put into the original Bluehood. None of this would exist without it.
 
 **BlueWatch is an educational tool to raise awareness about Bluetooth privacy.** It started as a weekend project, but the implications are worth thinking about.
 
@@ -97,7 +96,7 @@ BlueWatch is a Bluetooth scanner that:
 - **Pattern analysis** ("Weekdays, evenings 5PM-9PM")
 - **Dwell time analysis** showing total time devices spend in range
 - **Device correlation** detection to find devices that appear together (co-presence plus synchronized arrival/departure)
-- **MAC-rotation linkage** ("Likely same device") — heuristically links randomized identifiers that hand off in time, share a similar signal strength, and ping at a similar cadence
+- **MAC-rotation linkage** ("Likely same device"), heuristically links randomized identifiers that hand off in time, share a similar signal strength, and ping at a similar cadence
 - **Proximity zones** (immediate, near, far, remote) based on signal strength
 - Search by MAC, vendor, or name
 - Date range search for historical queries
@@ -110,15 +109,15 @@ BlueWatch is a Bluetooth scanner that:
 - Configurable thresholds for arrival/departure
 
 ### Operations
-- **Heartbeat check-in** — periodically POST status to an uptime monitoring service (e.g., Uptime Kuma, Healthchecks.io)
-- **Storage rotation** — automatically prune sightings older than a configurable number of days; optionally restrict pruning to whole stale devices seen fewer than a minimum number of times (watched devices are never pruned)
+- **Heartbeat check-in**, periodically POST status to an uptime monitoring service (e.g., Uptime Kuma, Healthchecks.io)
+- **Storage rotation**, automatically prune sightings older than a configurable number of days; optionally restrict pruning to whole stale devices seen fewer than a minimum number of times (watched devices are never pruned)
 - Both configurable from the web UI or via environment variables
 
 ### Web Interface
 - **Compact/Detailed view toggle** for different display preferences
 - **Screenshot mode** to obfuscate MACs and names for safe sharing
 - **Keyboard shortcuts** for power users (press `?` to view)
-- **CSV export** of detailed device data (MAC, vendor, identifier, type, BT type, device class, watched/ignored flags, first/last seen, sightings, group, service UUIDs, and notes) — exports the whole filtered set, not just the current page
+- **CSV export** of detailed device data (MAC, vendor, identifier, type, BT type, device class, watched/ignored flags, first/last seen, sightings, group, service UUIDs, and notes), exports the whole filtered set, not just the current page
 - **Device groups** for organizing related devices
 - **Optional authentication** to secure access
 
@@ -126,9 +125,9 @@ BlueWatch is a Bluetooth scanner that:
 
 ### Quick Start with Docker (Recommended)
 
-> **Prerequisites — Linux hosts only**
+> **Prerequisites, Linux hosts only**
 >
-> BlueWatch communicates with your Bluetooth adapter via BlueZ, the Linux Bluetooth stack. **BlueZ must be installed and running on the host before starting the container** — the Docker image itself does not include it.
+> BlueWatch communicates with your Bluetooth adapter via BlueZ, the Linux Bluetooth stack. **BlueZ must be installed and running on the host before starting the container**. The Docker image itself does not include it.
 >
 > ```bash
 > # Debian / Ubuntu (including Ubuntu Server)
@@ -153,7 +152,7 @@ docker compose up -d --build
 docker compose logs -f
 ```
 
-There's no published BlueWatch image on a container registry yet — `docker-compose.yml` builds from the `Dockerfile` in this repo.
+There's no published BlueWatch image on a container registry yet. `docker-compose.yml` builds from the `Dockerfile` in this repo.
 
 The web dashboard will be available at **http://localhost:8080**
 
@@ -171,8 +170,8 @@ The web dashboard will be available at **http://localhost:8080**
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `PUID` | `1000` | UID for the container user — set to match your host user (`id -u`) when using bind mounts |
-| `PGID` | `1000` | GID for the container user — set to match your host group (`id -g`) when using bind mounts |
+| `PUID` | `1000` | UID for the container user, set to match your host user (`id -u`) when using bind mounts |
+| `PGID` | `1000` | GID for the container user, set to match your host group (`id -g`) when using bind mounts |
 | `TZ` | UTC | Container timezone (e.g., `Europe/London`) |
 | `BLUEWATCH_ADAPTER` | auto | Bluetooth adapter for BLE scanning (e.g., `hci0`) |
 | `BLUEWATCH_CLASSIC_ADAPTER` | same as `BLUEWATCH_ADAPTER` | Separate adapter for classic Bluetooth scanning (e.g., `hci1`). When set to a different adapter, BLE and classic scans run concurrently. |
@@ -288,7 +287,7 @@ The dashboard provides:
 - **Device filters** by type (phones, audio, IoT, etc.) and watched status
 - **Search** by MAC, vendor, or name
 - **Date range search** to find devices seen in a specific time window
-- **Tabbed settings** page — Alerts, Operations, Groups, Security, WiGLE, and Export (direct-link via hash, e.g. `/settings#operations`)
+- **Tabbed settings** page, Alerts, Operations, Groups, Security, WiGLE, and Export (direct-link via hash, e.g. `/settings#operations`)
 - **Device details** modal with:
   - BLE service fingerprints
   - Hourly/daily activity heatmaps
@@ -316,10 +315,10 @@ The dashboard provides:
 Two levels of redaction for sharing screenshots safely, toggled via the
 browser console (`localStorage.setItem('bluewatch_screenshot_mode', 'true')`
 / `'bluewatch_demo_mode'`) or, for demo mode, a `?demo=1` URL param:
-- **Screenshot mode**: partial masking — MAC addresses show only the
+- **Screenshot mode**: partial masking, MAC addresses show only the
   first 2 octets (e.g., `AA:BB:XX:XX:XX:XX`), names show only the first
   2 characters (e.g., `Da********`)
-- **Demo mode**: full redaction — every MAC becomes `00:00:00:00:00:00`,
+- **Demo mode**: full redaction, every MAC becomes `00:00:00:00:00:00`,
   and names/vendors/categories are replaced with generic placeholders
   (used for this README's own screenshots)
 - CSV exports also respect screenshot mode
@@ -437,7 +436,7 @@ curl -X POST "http://localhost:3000/api/dashboards/db" \
 ## Troubleshooting
 
 ### No devices found
-- Ensure your adapter supports BLE (Bluetooth 4.0+) with the Central role — older adapters won't work
+- Ensure your adapter supports BLE (Bluetooth 4.0+) with the Central role, older adapters won't work
 - Ensure Bluetooth adapter is enabled: `bluetoothctl power on`
 - Check adapter is detected: `bluewatch --list-adapters`
 - Run with sudo if permission denied
