@@ -843,10 +843,9 @@ HTML_TEMPLATE = """
         /* Action Buttons in Modal */
         .action-row {
             display: flex;
+            justify-content: flex-end;
             gap: 0.5rem;
-            margin-bottom: 1rem;
-            padding-bottom: 1rem;
-            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 0.75rem;
         }
 
         .btn-watch {
@@ -1027,7 +1026,7 @@ HTML_TEMPLATE = """
     <div class="modal-overlay" id="device-modal">
         <div class="modal">
             <div class="modal-header">
-                <span class="modal-title">Target Intelligence</span>
+                <span class="modal-title">Device Details</span>
                 <button class="modal-close" onclick="closeModal()">&times;</button>
             </div>
             <div class="modal-body" id="modal-content">
@@ -2027,7 +2026,7 @@ HTML_TEMPLATE = """
             const proximityZone = data.proximity_zone || 'unknown';
             const proximityColor = proximityColors[proximityZone] || '#555';
 
-            const watchBtnText = d.watched ? '★ WATCHING' : '☆ WATCH TARGET';
+            const watchBtnText = d.watched ? '★ Watching' : '☆ Watch';
             const watchBtnClass = d.watched ? 'btn btn-watch active' : 'btn btn-watch';
 
             content.innerHTML = '<div class="action-row">' +
@@ -2035,20 +2034,20 @@ HTML_TEMPLATE = """
                 '</div>' +
                 '<div class="detail-grid">' +
                 '<div class="detail-item"><div class="detail-label">Address</div><div class="detail-value mono" style="font-size:' + (isMacOSUUID(d.mac) ? '0.65rem' : '0.85rem') + '; word-break: break-all;">' + obfuscateMAC(d.mac) + '</div></div>' +
-                '<div class="detail-item"><div class="detail-label">Classification</div><div class="detail-value">' + data.type_label + '</div></div>' +
+                '<div class="detail-item"><div class="detail-label">Type</div><div class="detail-value">' + data.type_label + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">Vendor OUI</div><input class="form-input" id="device-vendor" value="' + escapeHtml(d.vendor || '') + '" placeholder="Unknown -- set manually" style="font-size: 0.85rem;" onchange="setDeviceVendor(\\'' + d.mac + '\\', this.value)"></div>' +
-                '<div class="detail-item"><div class="detail-label">Proximity Zone</div><div class="detail-value" style="color: ' + proximityColor + '; ">' + proximityZone + '</div></div>' +
-                '<div class="detail-item"><div class="detail-label">First Contact</div><div class="detail-value mono">' + (d.first_seen ? new Date(d.first_seen).toLocaleString() : '—') + '</div></div>' +
+                '<div class="detail-item"><div class="detail-label">Proximity</div><div class="detail-value" style="color: ' + proximityColor + '; ">' + proximityZone + '</div></div>' +
+                '<div class="detail-item"><div class="detail-label">First seen</div><div class="detail-value mono">' + (d.first_seen ? new Date(d.first_seen).toLocaleString() : '—') + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">Last seen</div><div class="detail-value mono">' + (d.last_seen ? new Date(d.last_seen).toLocaleString() : '—') + '</div></div>' +
-                '<div class="detail-item"><div class="detail-label">Total Sightings</div><div class="detail-value highlight">' + d.total_sightings + '</div></div>' +
+                '<div class="detail-item"><div class="detail-label">Sightings</div><div class="detail-value highlight">' + d.total_sightings + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">Signal Strength</div><div class="detail-value">' + rssiDisplay + '</div></div>' +
-                '<div class="detail-item full"><div class="detail-label">Behavioral Pattern</div><div class="detail-value">' + (data.pattern || 'Insufficient data') + '</div></div>' +
-                '<div class="detail-item full"><div class="detail-label">BLE Service Fingerprint</div><div class="detail-value mono" style="font-size:0.75rem;">' + (data.uuid_names && data.uuid_names.length > 0 ? data.uuid_names.join(', ') : '—') + '</div></div>' +
-                '<div class="detail-item full"><div class="detail-label">Operator Notes</div><textarea class="form-input" id="device-notes" rows="2" style="font-size: 0.8rem; resize: vertical;" placeholder="Add notes...">' + (d.notes || '') + '</textarea><button class="btn" style="margin-top: 0.5rem;" onclick="saveNotes(\\'' + d.mac + '\\')">Save Notes</button></div>' +
+                '<div class="detail-item full"><div class="detail-label">Activity Pattern</div><div class="detail-value">' + (data.pattern || 'Insufficient data') + '</div></div>' +
+                '<div class="detail-item full"><div class="detail-label">BLE Services</div><div class="detail-value mono" style="font-size:0.75rem;">' + (data.uuid_names && data.uuid_names.length > 0 ? data.uuid_names.join(', ') : '—') + '</div></div>' +
+                '<div class="detail-item full"><div class="detail-label">Notes</div><textarea class="form-input" id="device-notes" rows="2" style="font-size: 0.8rem; resize: vertical;" placeholder="Add notes...">' + (d.notes || '') + '</textarea><button class="btn" style="margin-top: 0.5rem;" onclick="saveNotes(\\'' + d.mac + '\\')">Save Notes</button></div>' +
                 '<div class="detail-item full"><div class="detail-label">Assign to Group</div><select class="form-input" id="device-group" onchange="setDeviceGroup(\\'' + d.mac + '\\', this.value)" style="font-size: 0.8rem;"><option value="">No group</option></select></div>' +
                 '</div>' +
                 '<div class="heatmap-section">' +
-                '<div class="heatmap-title">Dwell Time Analysis (30d)</div>' +
+                '<div class="heatmap-title">Time Nearby (30d)</div>' +
                 '<div id="dwell-stats" class="heatmap" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; text-align: center;"><div style="color: var(--text-muted);">Loading...</div></div>' +
                 '</div>' +
                 '<div class="heatmap-section">' +
@@ -2060,7 +2059,7 @@ HTML_TEMPLATE = """
                 '<div class="heatmap">' + renderDailyHeatmap(data.daily_data) + '</div>' +
                 '</div>' +
                 '<div class="heatmap-section">' +
-                '<div class="heatmap-title">Presence Timeline (30d)</div>' +
+                '<div class="heatmap-title">Timeline (30d)</div>' +
                 renderTimeline(data.timeline) +
                 '</div>' +
                 '<div class="heatmap-section" id="rssi-section">' +
@@ -2069,7 +2068,7 @@ HTML_TEMPLATE = """
                 '</div>' +
                 (d.identity_id ? (
                     '<div class="heatmap-section">' +
-                    '<div class="heatmap-title">Known MAC Addresses (' + (d.identity_mac_count || 1) + ', tracking for rotation-vs-separate-devices pattern)</div>' +
+                    '<div class="heatmap-title">Linked Addresses (' + (d.identity_mac_count || 1) + ')</div>' +
                     '<div id="identity-macs" class="heatmap">Loading...</div>' +
                     '</div>'
                 ) : '') +
@@ -2481,7 +2480,7 @@ HTML_TEMPLATE = """
                     btn.textContent = '★ WATCHING';
                     btn.className = 'btn btn-watch active';
                 } else {
-                    btn.textContent = '☆ WATCH TARGET';
+                    btn.textContent = '☆ Watch';
                     btn.className = 'btn btn-watch';
                 }
                 refreshDevices();
@@ -4367,10 +4366,9 @@ LIVE_TEMPLATE = """
         /* Action Buttons in Modal */
         .action-row {
             display: flex;
+            justify-content: flex-end;
             gap: 0.5rem;
-            margin-bottom: 1rem;
-            padding-bottom: 1rem;
-            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 0.75rem;
         }
 
         .btn-watch {
@@ -4545,7 +4543,7 @@ LIVE_TEMPLATE = """
     <div class="modal-overlay" id="device-modal">
         <div class="modal">
             <div class="modal-header">
-                <span class="modal-title">Target Intelligence</span>
+                <span class="modal-title">Device Details</span>
                 <button class="modal-close" onclick="closeModal()">&times;</button>
             </div>
             <div class="modal-body" id="modal-content">
@@ -5561,7 +5559,7 @@ LIVE_TEMPLATE = """
             const proximityZone = data.proximity_zone || 'unknown';
             const proximityColor = proximityColors[proximityZone] || '#555';
 
-            const watchBtnText = d.watched ? '★ WATCHING' : '☆ WATCH TARGET';
+            const watchBtnText = d.watched ? '★ Watching' : '☆ Watch';
             const watchBtnClass = d.watched ? 'btn btn-watch active' : 'btn btn-watch';
 
             content.innerHTML = '<div class="action-row">' +
@@ -5569,20 +5567,20 @@ LIVE_TEMPLATE = """
                 '</div>' +
                 '<div class="detail-grid">' +
                 '<div class="detail-item"><div class="detail-label">Address</div><div class="detail-value mono" style="font-size:' + (isMacOSUUID(d.mac) ? '0.65rem' : '0.85rem') + '; word-break: break-all;">' + obfuscateMAC(d.mac) + '</div></div>' +
-                '<div class="detail-item"><div class="detail-label">Classification</div><div class="detail-value">' + data.type_label + '</div></div>' +
+                '<div class="detail-item"><div class="detail-label">Type</div><div class="detail-value">' + data.type_label + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">Vendor OUI</div><input class="form-input" id="device-vendor" value="' + escapeHtml(d.vendor || '') + '" placeholder="Unknown -- set manually" style="font-size: 0.85rem;" onchange="setDeviceVendor(\\'' + d.mac + '\\', this.value)"></div>' +
-                '<div class="detail-item"><div class="detail-label">Proximity Zone</div><div class="detail-value" style="color: ' + proximityColor + '; ">' + proximityZone + '</div></div>' +
-                '<div class="detail-item"><div class="detail-label">First Contact</div><div class="detail-value mono">' + (d.first_seen ? new Date(d.first_seen).toLocaleString() : '—') + '</div></div>' +
+                '<div class="detail-item"><div class="detail-label">Proximity</div><div class="detail-value" style="color: ' + proximityColor + '; ">' + proximityZone + '</div></div>' +
+                '<div class="detail-item"><div class="detail-label">First seen</div><div class="detail-value mono">' + (d.first_seen ? new Date(d.first_seen).toLocaleString() : '—') + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">Last seen</div><div class="detail-value mono">' + (d.last_seen ? new Date(d.last_seen).toLocaleString() : '—') + '</div></div>' +
-                '<div class="detail-item"><div class="detail-label">Total Sightings</div><div class="detail-value highlight">' + d.total_sightings + '</div></div>' +
+                '<div class="detail-item"><div class="detail-label">Sightings</div><div class="detail-value highlight">' + d.total_sightings + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">Signal Strength</div><div class="detail-value">' + rssiDisplay + '</div></div>' +
-                '<div class="detail-item full"><div class="detail-label">Behavioral Pattern</div><div class="detail-value">' + (data.pattern || 'Insufficient data') + '</div></div>' +
-                '<div class="detail-item full"><div class="detail-label">BLE Service Fingerprint</div><div class="detail-value mono" style="font-size:0.75rem;">' + (data.uuid_names && data.uuid_names.length > 0 ? data.uuid_names.join(', ') : '—') + '</div></div>' +
-                '<div class="detail-item full"><div class="detail-label">Operator Notes</div><textarea class="form-input" id="device-notes" rows="2" style="font-size: 0.8rem; resize: vertical;" placeholder="Add notes...">' + (d.notes || '') + '</textarea><button class="btn" style="margin-top: 0.5rem;" onclick="saveNotes(\\'' + d.mac + '\\')">Save Notes</button></div>' +
+                '<div class="detail-item full"><div class="detail-label">Activity Pattern</div><div class="detail-value">' + (data.pattern || 'Insufficient data') + '</div></div>' +
+                '<div class="detail-item full"><div class="detail-label">BLE Services</div><div class="detail-value mono" style="font-size:0.75rem;">' + (data.uuid_names && data.uuid_names.length > 0 ? data.uuid_names.join(', ') : '—') + '</div></div>' +
+                '<div class="detail-item full"><div class="detail-label">Notes</div><textarea class="form-input" id="device-notes" rows="2" style="font-size: 0.8rem; resize: vertical;" placeholder="Add notes...">' + (d.notes || '') + '</textarea><button class="btn" style="margin-top: 0.5rem;" onclick="saveNotes(\\'' + d.mac + '\\')">Save Notes</button></div>' +
                 '<div class="detail-item full"><div class="detail-label">Assign to Group</div><select class="form-input" id="device-group" onchange="setDeviceGroup(\\'' + d.mac + '\\', this.value)" style="font-size: 0.8rem;"><option value="">No group</option></select></div>' +
                 '</div>' +
                 '<div class="heatmap-section">' +
-                '<div class="heatmap-title">Dwell Time Analysis (30d)</div>' +
+                '<div class="heatmap-title">Time Nearby (30d)</div>' +
                 '<div id="dwell-stats" class="heatmap" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; text-align: center;"><div style="color: var(--text-muted);">Loading...</div></div>' +
                 '</div>' +
                 '<div class="heatmap-section">' +
@@ -5594,7 +5592,7 @@ LIVE_TEMPLATE = """
                 '<div class="heatmap">' + renderDailyHeatmap(data.daily_data) + '</div>' +
                 '</div>' +
                 '<div class="heatmap-section">' +
-                '<div class="heatmap-title">Presence Timeline (30d)</div>' +
+                '<div class="heatmap-title">Timeline (30d)</div>' +
                 renderTimeline(data.timeline) +
                 '</div>' +
                 '<div class="heatmap-section" id="rssi-section">' +
@@ -5603,7 +5601,7 @@ LIVE_TEMPLATE = """
                 '</div>' +
                 (d.identity_id ? (
                     '<div class="heatmap-section">' +
-                    '<div class="heatmap-title">Known MAC Addresses (' + (d.identity_mac_count || 1) + ', tracking for rotation-vs-separate-devices pattern)</div>' +
+                    '<div class="heatmap-title">Linked Addresses (' + (d.identity_mac_count || 1) + ')</div>' +
                     '<div id="identity-macs" class="heatmap">Loading...</div>' +
                     '</div>'
                 ) : '') +
@@ -6015,7 +6013,7 @@ LIVE_TEMPLATE = """
                     btn.textContent = '★ WATCHING';
                     btn.className = 'btn btn-watch active';
                 } else {
-                    btn.textContent = '☆ WATCH TARGET';
+                    btn.textContent = '☆ Watch';
                     btn.className = 'btn btn-watch';
                 }
                 refreshDevices();
