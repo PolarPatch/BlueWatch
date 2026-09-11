@@ -4628,7 +4628,13 @@ LIVE_TEMPLATE = """
             params.set('page', pagination.page);
             params.set('page_size', pagination.pageSize);
             params.set('filter', currentFilter);
-            params.set('active_within', '60');
+            // A specific category is a deliberate historical browse (same as
+            // /all), not a "what's nearby right now" query -- only the
+            // default/All-devices/hide-categorized views stay live-windowed.
+            const viewingSpecificCategory = !hideCategorized && currentGroupId !== null && currentGroupId !== '__all__';
+            if (!viewingSpecificCategory) {
+                params.set('active_within', '60');
+            }
             if (hideCategorized) {
                 params.set('only_uncategorized', '1');
             } else if (currentGroupId !== null) {
