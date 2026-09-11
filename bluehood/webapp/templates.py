@@ -696,15 +696,13 @@ HTML_TEMPLATE = """
         .detail-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
-            gap: 0.75rem;
-            margin-bottom: 1.5rem;
+            gap: 0.15rem 1rem;
+            margin-bottom: 1rem;
         }
 
         .detail-item {
-            background: var(--bg-tertiary);
-            border: 1px solid var(--border-color);
-            border-radius: 3px;
-            padding: 0.75rem;
+            padding: 0.35rem 0;
+            border-bottom: 1px solid var(--border-color);
         }
 
         .detail-item.full { grid-column: 1 / -1; }
@@ -714,7 +712,7 @@ HTML_TEMPLATE = """
             
             letter-spacing: 0.1em;
             color: var(--text-muted);
-            margin-bottom: 0.35rem;
+            margin-bottom: 0.15rem;
         }
 
         .detail-value {
@@ -728,7 +726,7 @@ HTML_TEMPLATE = """
 
         /* Heatmaps */
         .heatmap-section {
-            margin-top: 1.5rem;
+            margin-top: 1rem;
         }
 
         .heatmap-title {
@@ -743,7 +741,7 @@ HTML_TEMPLATE = """
             background: var(--bg-tertiary);
             border: 1px solid var(--border-color);
             border-radius: 3px;
-            padding: 0.75rem;
+            padding: 0.5rem 0.6rem;
             font-size: 0.8rem;
         }
 
@@ -4219,15 +4217,13 @@ LIVE_TEMPLATE = """
         .detail-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
-            gap: 0.75rem;
-            margin-bottom: 1.5rem;
+            gap: 0.15rem 1rem;
+            margin-bottom: 1rem;
         }
 
         .detail-item {
-            background: var(--bg-tertiary);
-            border: 1px solid var(--border-color);
-            border-radius: 3px;
-            padding: 0.75rem;
+            padding: 0.35rem 0;
+            border-bottom: 1px solid var(--border-color);
         }
 
         .detail-item.full { grid-column: 1 / -1; }
@@ -4237,7 +4233,7 @@ LIVE_TEMPLATE = """
             
             letter-spacing: 0.1em;
             color: var(--text-muted);
-            margin-bottom: 0.35rem;
+            margin-bottom: 0.15rem;
         }
 
         .detail-value {
@@ -4251,7 +4247,7 @@ LIVE_TEMPLATE = """
 
         /* Heatmaps */
         .heatmap-section {
-            margin-top: 1.5rem;
+            margin-top: 1rem;
         }
 
         .heatmap-title {
@@ -4266,7 +4262,7 @@ LIVE_TEMPLATE = """
             background: var(--bg-tertiary);
             border: 1px solid var(--border-color);
             border-radius: 3px;
-            padding: 0.75rem;
+            padding: 0.5rem 0.6rem;
             font-size: 0.8rem;
         }
 
