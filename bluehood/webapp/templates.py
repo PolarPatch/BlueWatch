@@ -1353,7 +1353,7 @@ HTML_TEMPLATE = """
                 'ondragleave="onCategoryDragLeave(event)" ' +
                 'ondrop="onCategoryDrop(event, ' + group.id + ')">' +
                 '<span class="category-label" style="color:' + (group.color || '#3b82f6') + '" onclick="selectCategory(' + group.id + ')" title="Click to show only this category\\'s devices, drag onto another category to nest it as a subcategory">' +
-                (group.icon || '📁') + ' ' + escapeHtml(group.name) +
+                (group.icon || '📁') + ' ' + escapeHtml(obfuscateName(group.name)) +
                 '</span>' +
                 '<button class="category-delete" onclick="deleteCategory(' + group.id + ')" title="Delete category">×</button>' +
                 '</div>' + childrenHtml
@@ -1918,9 +1918,9 @@ HTML_TEMPLATE = """
                 let groupHtml = '—';
                 if (d.group_name && d.group_color) {
                     const textColor = getContrastColor(d.group_color);
-                    groupHtml = '<span onclick="event.stopPropagation(); selectCategory(' + d.group_id + ');" style="cursor: pointer; background: ' + d.group_color + '; color: ' + textColor + '; padding: 0.15rem 0.5rem; border-radius: 3px; font-size: 0.7rem; font-weight: 500;" title="View this category">' + d.group_name + '</span>';
+                    groupHtml = '<span onclick="event.stopPropagation(); selectCategory(' + d.group_id + ');" style="cursor: pointer; background: ' + d.group_color + '; color: ' + textColor + '; padding: 0.15rem 0.5rem; border-radius: 3px; font-size: 0.7rem; font-weight: 500;" title="View this category">' + obfuscateName(d.group_name) + '</span>';
                 } else if (d.group_name) {
-                    groupHtml = '<span onclick="event.stopPropagation(); selectCategory(' + d.group_id + ');" style="cursor: pointer; background: var(--bg-tertiary); color: var(--text-secondary); padding: 0.15rem 0.5rem; border-radius: 3px; font-size: 0.7rem;" title="View this category">' + d.group_name + '</span>';
+                    groupHtml = '<span onclick="event.stopPropagation(); selectCategory(' + d.group_id + ');" style="cursor: pointer; background: var(--bg-tertiary); color: var(--text-secondary); padding: 0.15rem 0.5rem; border-radius: 3px; font-size: 0.7rem;" title="View this category">' + obfuscateName(d.group_name) + '</span>';
                 }
 
                 if (compactView) {
@@ -1945,7 +1945,7 @@ HTML_TEMPLATE = """
                 return '<tr class="' + rowClass + '" draggable="true" ondragstart="onDeviceDragStart(event, \\'' + d.mac + '\\')" onclick="handleRowClick(event, \\'' + d.mac + '\\', ' + index + ')" ondblclick="showDevice(\\'' + d.mac + '\\')">' +
                     '<td class="select-col"><input type="checkbox" class="row-select-checkbox" ' + checkedAttr + ' onclick="toggleRowCheckbox(event, \\'' + d.mac + '\\', ' + index + ')"></td>' +
                     '<td><span class="type-badge ' + typeClass + '">' + watchedStar + d.type_icon + ' ' + d.type_label + '</span></td>' +
-                    '<td class="vendor-name">' + (d.vendor || '—') + '</td>' +
+                    '<td class="vendor-name">' + (d.vendor ? obfuscateName(d.vendor) : '—') + '</td>' +
                     '<td class="mac-addr" title="' + d.mac + '">' + (isMacOSUUID(d.mac) ? obfuscateMAC(d.mac).substring(0, 13) + '...' : obfuscateMAC(d.mac)) + '</td>' +
                     '<td class="device-name">' + (d.friendly_name ? obfuscateName(d.friendly_name) : '—') +
                     (d.identity_mac_count > 1 ? ' <span class="identity-badge" title="' + d.identity_mac_count + ' MAC addresses clustered as one device (rotation)">×' + d.identity_mac_count + '</span>' : '') +
@@ -2032,7 +2032,7 @@ HTML_TEMPLATE = """
 
             content.innerHTML = '<div class="detail-grid">' +
                 '<div class="detail-item"><div class="detail-label">Address</div><div class="detail-value mono" style="font-size:' + (isMacOSUUID(d.mac) ? '0.65rem' : '0.85rem') + '; word-break: break-all;">' + obfuscateMAC(d.mac) + '</div></div>' +
-                '<div class="detail-item"><div class="detail-label">Type</div><div class="detail-value">' + data.type_label + '</div></div>' +
+                '<div class="detail-item"><div class="detail-label">Type</div><select class="form-input" id="device-type" onchange="setDeviceType(\'' + d.mac + '\', this.value)" style="font-size: 0.8rem;"></select></div>' +
                 '<div class="detail-item"><div class="detail-label">Vendor OUI</div><input class="form-input" id="device-vendor" value="' + escapeHtml(d.vendor || '') + '" placeholder="Unknown -- set manually" style="font-size: 0.85rem;" onchange="setDeviceVendor(\\'' + d.mac + '\\', this.value)"></div>' +
                 '<div class="detail-item"><div class="detail-label">Proximity</div><div class="detail-value" style="color: ' + proximityColor + '; ">' + proximityZone + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">First seen</div><div class="detail-value mono">' + (d.first_seen ? new Date(d.first_seen).toLocaleString() : '—') + '</div></div>' +
@@ -2075,6 +2075,7 @@ HTML_TEMPLATE = """
             loadRssiChart(d.mac);
             loadDwellStats(d.mac);
             loadGroupsForDevice(d.group_id);
+            loadDeviceTypes(d.device_type);
             if (d.identity_id) loadIdentityMacs(d.identity_id, d.mac);
         }
 
@@ -2151,6 +2152,36 @@ HTML_TEMPLATE = """
                 });
                 refreshDevices();
             } catch (error) { console.error('Error setting vendor:', error); }
+        }
+
+        let cachedDeviceTypes = [];
+
+        async function loadDeviceTypes(currentType) {
+            const select = document.getElementById('device-type');
+            if (!select) return;
+
+            if (cachedDeviceTypes.length === 0) {
+                try {
+                    const response = await fetch('/api/device-types');
+                    const data = await response.json();
+                    cachedDeviceTypes = data.types || [];
+                } catch (error) { return; }
+            }
+
+            select.innerHTML = cachedDeviceTypes.map(t =>
+                '<option value="' + t.value + '"' + (t.value === currentType ? ' selected' : '') + '>' + t.icon + ' ' + t.label + '</option>'
+            ).join('');
+        }
+
+        async function setDeviceType(mac, deviceType) {
+            try {
+                await fetch('/api/device/' + encodeURIComponent(mac) + '/type', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ device_type: deviceType })
+                });
+                refreshDevices();
+            } catch (error) { console.error('Error setting device type:', error); }
         }
 
         async function setDeviceGroup(mac, groupId) {
@@ -4916,7 +4947,7 @@ LIVE_TEMPLATE = """
                 'ondragleave="onCategoryDragLeave(event)" ' +
                 'ondrop="onCategoryDrop(event, ' + group.id + ')">' +
                 '<span class="category-label" style="color:' + (group.color || '#3b82f6') + '" onclick="selectCategory(' + group.id + ')" title="Click to show only this category\\'s devices, drag onto another category to nest it as a subcategory">' +
-                (group.icon || '📁') + ' ' + escapeHtml(group.name) +
+                (group.icon || '📁') + ' ' + escapeHtml(obfuscateName(group.name)) +
                 '</span>' +
                 '<button class="category-delete" onclick="deleteCategory(' + group.id + ')" title="Delete category">×</button>' +
                 '</div>' + childrenHtml
@@ -5478,9 +5509,9 @@ LIVE_TEMPLATE = """
                 let groupHtml = '—';
                 if (d.group_name && d.group_color) {
                     const textColor = getContrastColor(d.group_color);
-                    groupHtml = '<span onclick="event.stopPropagation(); selectCategory(' + d.group_id + ');" style="cursor: pointer; background: ' + d.group_color + '; color: ' + textColor + '; padding: 0.15rem 0.5rem; border-radius: 3px; font-size: 0.7rem; font-weight: 500;" title="View this category">' + d.group_name + '</span>';
+                    groupHtml = '<span onclick="event.stopPropagation(); selectCategory(' + d.group_id + ');" style="cursor: pointer; background: ' + d.group_color + '; color: ' + textColor + '; padding: 0.15rem 0.5rem; border-radius: 3px; font-size: 0.7rem; font-weight: 500;" title="View this category">' + obfuscateName(d.group_name) + '</span>';
                 } else if (d.group_name) {
-                    groupHtml = '<span onclick="event.stopPropagation(); selectCategory(' + d.group_id + ');" style="cursor: pointer; background: var(--bg-tertiary); color: var(--text-secondary); padding: 0.15rem 0.5rem; border-radius: 3px; font-size: 0.7rem;" title="View this category">' + d.group_name + '</span>';
+                    groupHtml = '<span onclick="event.stopPropagation(); selectCategory(' + d.group_id + ');" style="cursor: pointer; background: var(--bg-tertiary); color: var(--text-secondary); padding: 0.15rem 0.5rem; border-radius: 3px; font-size: 0.7rem;" title="View this category">' + obfuscateName(d.group_name) + '</span>';
                 }
 
                 if (compactView) {
@@ -5505,7 +5536,7 @@ LIVE_TEMPLATE = """
                 return '<tr class="' + rowClass + '" draggable="true" ondragstart="onDeviceDragStart(event, \\'' + d.mac + '\\')" onclick="handleRowClick(event, \\'' + d.mac + '\\', ' + index + ')" ondblclick="showDevice(\\'' + d.mac + '\\')">' +
                     '<td class="select-col"><input type="checkbox" class="row-select-checkbox" ' + checkedAttr + ' onclick="toggleRowCheckbox(event, \\'' + d.mac + '\\', ' + index + ')"></td>' +
                     '<td><span class="type-badge ' + typeClass + '">' + watchedStar + d.type_icon + ' ' + d.type_label + '</span></td>' +
-                    '<td class="vendor-name">' + (d.vendor || '—') + '</td>' +
+                    '<td class="vendor-name">' + (d.vendor ? obfuscateName(d.vendor) : '—') + '</td>' +
                     '<td class="mac-addr" title="' + d.mac + '">' + (isMacOSUUID(d.mac) ? obfuscateMAC(d.mac).substring(0, 13) + '...' : obfuscateMAC(d.mac)) + '</td>' +
                     '<td class="device-name">' + (d.friendly_name ? obfuscateName(d.friendly_name) : '—') +
                     (d.identity_mac_count > 1 ? ' <span class="identity-badge" title="' + d.identity_mac_count + ' MAC addresses clustered as one device (rotation)">×' + d.identity_mac_count + '</span>' : '') +
@@ -5592,7 +5623,7 @@ LIVE_TEMPLATE = """
 
             content.innerHTML = '<div class="detail-grid">' +
                 '<div class="detail-item"><div class="detail-label">Address</div><div class="detail-value mono" style="font-size:' + (isMacOSUUID(d.mac) ? '0.65rem' : '0.85rem') + '; word-break: break-all;">' + obfuscateMAC(d.mac) + '</div></div>' +
-                '<div class="detail-item"><div class="detail-label">Type</div><div class="detail-value">' + data.type_label + '</div></div>' +
+                '<div class="detail-item"><div class="detail-label">Type</div><select class="form-input" id="device-type" onchange="setDeviceType(\'' + d.mac + '\', this.value)" style="font-size: 0.8rem;"></select></div>' +
                 '<div class="detail-item"><div class="detail-label">Vendor OUI</div><input class="form-input" id="device-vendor" value="' + escapeHtml(d.vendor || '') + '" placeholder="Unknown -- set manually" style="font-size: 0.85rem;" onchange="setDeviceVendor(\\'' + d.mac + '\\', this.value)"></div>' +
                 '<div class="detail-item"><div class="detail-label">Proximity</div><div class="detail-value" style="color: ' + proximityColor + '; ">' + proximityZone + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">First seen</div><div class="detail-value mono">' + (d.first_seen ? new Date(d.first_seen).toLocaleString() : '—') + '</div></div>' +
@@ -5635,6 +5666,7 @@ LIVE_TEMPLATE = """
             loadRssiChart(d.mac);
             loadDwellStats(d.mac);
             loadGroupsForDevice(d.group_id);
+            loadDeviceTypes(d.device_type);
             if (d.identity_id) loadIdentityMacs(d.identity_id, d.mac);
         }
 
@@ -5711,6 +5743,36 @@ LIVE_TEMPLATE = """
                 });
                 refreshDevices();
             } catch (error) { console.error('Error setting vendor:', error); }
+        }
+
+        let cachedDeviceTypes = [];
+
+        async function loadDeviceTypes(currentType) {
+            const select = document.getElementById('device-type');
+            if (!select) return;
+
+            if (cachedDeviceTypes.length === 0) {
+                try {
+                    const response = await fetch('/api/device-types');
+                    const data = await response.json();
+                    cachedDeviceTypes = data.types || [];
+                } catch (error) { return; }
+            }
+
+            select.innerHTML = cachedDeviceTypes.map(t =>
+                '<option value="' + t.value + '"' + (t.value === currentType ? ' selected' : '') + '>' + t.icon + ' ' + t.label + '</option>'
+            ).join('');
+        }
+
+        async function setDeviceType(mac, deviceType) {
+            try {
+                await fetch('/api/device/' + encodeURIComponent(mac) + '/type', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ device_type: deviceType })
+                });
+                refreshDevices();
+            } catch (error) { console.error('Error setting device type:', error); }
         }
 
         async function setDeviceGroup(mac, groupId) {

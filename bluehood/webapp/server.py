@@ -88,6 +88,8 @@ class WebServer:
         self.app.router.add_get("/api/device/{mac}/proximity", self.api_device_proximity)
         self.app.router.add_post("/api/device/{mac}/notes", self.api_set_device_notes)
         self.app.router.add_post("/api/device/{mac}/vendor", self.api_set_device_vendor)
+        self.app.router.add_post("/api/device/{mac}/type", self.api_set_device_type)
+        self.app.router.add_get("/api/device-types", self.api_device_types)
         self.app.router.add_get("/api/name-groups", self.api_name_groups)
         self.app.router.add_get("/api/search", self.api_search)
         self.app.router.add_get("/api/stats", self.api_stats)
@@ -800,6 +802,31 @@ class WebServer:
             return web.json_response({"mac": mac, "vendor": vendor})
         except Exception as e:
             return web.json_response({"error": str(e)}, status=400)
+
+    async def api_set_device_type(self, request: web.Request) -> web.Response:
+        """Manually set a device's classification, overriding whatever the
+        automatic vendor/name/service-UUID classifier guessed."""
+        mac = request.match_info["mac"]
+        device = await db.get_device(mac)
+        if not device:
+            return web.json_response({"error": "Device not found"}, status=404)
+
+        valid_types = {t for t, _, _ in get_all_types()}
+        try:
+            data = await request.json()
+            device_type = data.get("device_type", "")
+            if device_type not in valid_types:
+                return web.json_response({"error": "Unknown device type"}, status=400)
+            await db.set_device_type(mac, device_type)
+            return web.json_response({"mac": mac, "device_type": device_type})
+        except Exception as e:
+            return web.json_response({"error": str(e)}, status=400)
+
+    async def api_device_types(self, request: web.Request) -> web.Response:
+        """All selectable device classification types, for the Type dropdown."""
+        return web.json_response({
+            "types": [{"value": t, "icon": icon, "label": label} for t, icon, label in get_all_types()]
+        })
 
     def _analyze_pattern(self, hourly: dict, daily: dict, sighting_count: int) -> str:
         """Simple pattern analysis from hourly/daily data."""
