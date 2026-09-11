@@ -41,6 +41,8 @@ With enough data, you could potentially:
 
 This metadata can reveal surprisingly personal information without any active interaction with the devices.
 
+I came across [bluehood](https://github.com/dannymcc/bluehood) and tried it out on a Raspberry Pi — liked the idea immediately, but ran into some gaps and features I wanted that weren't there yet. That turned into using Claude Code to grow it into its own project and take it in a somewhat different direction. Huge thanks to Danny McClelland for the work he put into the original Bluehood — none of this would exist without it.
+
 **BlueWatch is an educational tool to raise awareness about Bluetooth privacy.** It started as a weekend project, but the implications are worth thinking about.
 
 ## What?
