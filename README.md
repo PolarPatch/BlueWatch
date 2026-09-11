@@ -465,6 +465,9 @@ For credit for the bluehood-era contributors whose work this project's
 scanning/persistence/notification plumbing was originally built on, see
 `CREDITS.md`.
 
+Questions or interest in the project? Reach out at
+[p0larpatch@proton.me](mailto:p0larpatch@proton.me).
+
 ## License
 
 MIT License - See [LICENSE](LICENSE) for details.

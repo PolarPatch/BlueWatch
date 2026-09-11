@@ -3006,6 +3006,9 @@ SETTINGS_TEMPLATE = """
                         Started from <a href="https://github.com/dannymcc/bluehood" target="_blank" rel="noopener" style="color: var(--accent-blue);">bluehood</a> by Danny McClelland (MIT licensed), since grown into its own project.
                     </p>
                     <a href="https://github.com/PolarPatch/BlueWatch" target="_blank" rel="noopener" class="btn btn-primary" style="display: inline-block; text-decoration: none;">View on GitHub</a>
+                    <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 1.25rem;">
+                        Questions or interest? <a href="mailto:p0larpatch@proton.me" style="color: var(--accent-blue);">p0larpatch@proton.me</a>
+                    </p>
                 </div>
             </div>
         </div>
