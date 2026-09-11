@@ -6,6 +6,18 @@
 
 Get alerts when new Bluetooth devices appear in your local neighbourhood.
 
+The real strength shows up once you actually start using it: categorize
+the devices you already know — your own phones, your TV, the smart
+plugs, the neighbour's robot lawnmower, whatever's expected around
+you — and BlueWatch filters all of that familiar traffic out of the
+way. What's left standing out is the interesting part: the moment an
+unrecognized device enters the radio range of whatever's running
+BlueWatch, it surfaces immediately instead of being buried under dozens
+of devices you've already triaged. The dashboard stops being a wall of
+MAC addresses and turns into an actual presence radar for your
+surroundings — you notice the one device that doesn't belong, not the
+fifty that do.
+
 Started from [bluehood](https://github.com/dannymcc/bluehood) (MIT licensed
 — see `CREDITS.md`) but has since diverged into its own project: known/
 unknown device triage, user-defined nested categories with drag-and-drop
