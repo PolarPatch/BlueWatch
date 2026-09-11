@@ -8,6 +8,7 @@ import logging
 import math
 import secrets
 from datetime import datetime, timedelta
+from pathlib import Path
 
 from aiohttp import web
 
@@ -17,6 +18,10 @@ from ..patterns import generate_hourly_heatmap, generate_daily_heatmap
 from .templates import ABOUT_TEMPLATE, HTML_TEMPLATE, LIVE_TEMPLATE, LOGIN_TEMPLATE, SETTINGS_TEMPLATE
 
 logger = logging.getLogger(__name__)
+
+# bluewatch/webapp/server.py -> repo root's assets/ dir (works from an
+# editable install too, since __file__ resolves to the real source path).
+ASSETS_DIR = Path(__file__).resolve().parent.parent.parent / "assets"
 
 # Routes reachable without a valid session when auth is enabled. Everything
 # else is gated by _auth_middleware. /api/auth/setup is allowed through so the
@@ -70,6 +75,7 @@ class WebServer:
         self.app.router.add_get("/settings", self.settings_page)
         self.app.router.add_get("/about", self.about_page)
         self.app.router.add_get("/all", self.index)
+        self.app.router.add_static("/assets/", path=str(ASSETS_DIR), name="assets")
         self.app.router.add_get("/api/devices", self.api_devices)
         self.app.router.add_get("/api/devices/export", self.api_export_devices)
         self.app.router.add_post("/api/devices/export", self.api_export_devices)

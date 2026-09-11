@@ -2731,6 +2731,7 @@ SETTINGS_TEMPLATE = """
         <a href="#security" data-tab="security" onclick="switchTab('security')">Security</a>
         <a href="#wigle" data-tab="wigle" onclick="switchTab('wigle')">WiGLE</a>
         <a href="#export" data-tab="export" onclick="switchTab('export')">Export</a>
+        <a href="#about" data-tab="about" onclick="switchTab('about')">About</a>
     </nav>
 
     <main class="main">
@@ -2984,6 +2985,27 @@ SETTINGS_TEMPLATE = """
                         </select>
                         <button type="button" class="btn btn-primary" id="export-btn" onclick="exportData()">Export</button>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- About Tab -->
+        <div class="config-tab" id="tab-about">
+            <div class="page-header">
+                <div class="page-title">System Configuration</div>
+                <h1 class="page-heading">About</h1>
+            </div>
+
+            <div class="panel">
+                <div class="panel-body" style="text-align: center; padding: 2rem 1.5rem;">
+                    <img src="/assets/logo.png" alt="BlueWatch logo" style="width: 140px; height: 140px; margin-bottom: 1.5rem;">
+                    <p style="font-size: 0.85rem; line-height: 1.6; color: var(--text-secondary); max-width: 560px; margin: 0 auto 1rem;">
+                        BlueWatch passively detects Bluetooth devices (BLE and Classic) in your area and helps you tell them apart from the noise: categorize the devices you already know, and BlueWatch surfaces the moment something new enters range instead of burying it under dozens of familiar devices.
+                    </p>
+                    <p style="font-size: 0.85rem; line-height: 1.6; color: var(--text-secondary); max-width: 560px; margin: 0 auto 1.5rem;">
+                        Started from <a href="https://github.com/dannymcc/bluehood" target="_blank" rel="noopener" style="color: var(--accent-blue);">bluehood</a> by Danny McClelland (MIT licensed), since grown into its own project.
+                    </p>
+                    <a href="https://github.com/PolarPatch/BlueWatch" target="_blank" rel="noopener" class="btn btn-primary" style="display: inline-block; text-decoration: none;">View on GitHub</a>
                 </div>
             </div>
         </div>
@@ -3391,7 +3413,7 @@ SETTINGS_TEMPLATE = """
 
         // Tab routing: read hash on load, default to alerts
         var hash = window.location.hash.replace('#', '') || 'alerts';
-        switchTab(['alerts', 'operations', 'groups', 'security', 'wigle', 'export'].indexOf(hash) !== -1 ? hash : 'alerts');
+        switchTab(['alerts', 'operations', 'groups', 'security', 'wigle', 'export', 'about'].indexOf(hash) !== -1 ? hash : 'alerts');
 
         loadSettings();
         loadAuthStatus();
