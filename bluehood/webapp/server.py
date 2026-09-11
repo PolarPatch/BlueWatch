@@ -948,6 +948,7 @@ class WebServer:
             "heartbeat_interval": settings.heartbeat_interval,
             "prune_days": settings.prune_days,
             "prune_min_sightings": settings.prune_min_sightings,
+            "web_port": settings.web_port or "",
         })
 
     async def api_update_settings(self, request: web.Request) -> web.Response:
@@ -955,6 +956,12 @@ class WebServer:
         try:
             data = await request.json()
             heartbeat_url = data.get("heartbeat_url", "").strip() or None
+            raw_web_port = str(data.get("web_port", "") or "").strip()
+            web_port = None
+            if raw_web_port:
+                web_port = int(raw_web_port)
+                if not (1 <= web_port <= 65535):
+                    return web.json_response({"error": "Web port must be between 1 and 65535"}, status=400)
             settings = db.Settings(
                 ntfy_topic=data.get("ntfy_topic"),
                 ntfy_enabled=data.get("ntfy_enabled", False),
@@ -968,6 +975,7 @@ class WebServer:
                 heartbeat_interval=int(data.get("heartbeat_interval", 300)),
                 prune_days=int(data.get("prune_days", 0)),
                 prune_min_sightings=int(data.get("prune_min_sightings", 0)),
+                web_port=web_port,
             )
             await db.update_settings(settings)
 

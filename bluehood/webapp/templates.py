@@ -2800,6 +2800,17 @@ SETTINGS_TEMPLATE = """
                 </div>
 
                 <div class="panel">
+                    <div class="panel-header">Web Server</div>
+                    <div class="panel-body">
+                        <div class="form-group">
+                            <label class="form-label">Port</label>
+                            <input type="number" class="form-input" id="web_port" placeholder="8080" min="1" max="65535" style="width: 160px;">
+                            <div class="form-hint">Change the dashboard's port if 8080 conflicts with another device on the network. Takes effect on the next restart of the bluehood service (systemctl restart bluehood) -- saving alone doesn't rebind it live. Leave empty for the default (8080).</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel">
                     <div class="panel-header">Storage Rotation</div>
                     <div class="panel-body">
                         <div class="form-group">
@@ -2980,6 +2991,7 @@ SETTINGS_TEMPLATE = """
                 document.getElementById('heartbeat_interval').value = data.heartbeat_interval || 300;
                 document.getElementById('prune_days').value = data.prune_days || 0;
                 document.getElementById('prune_min_sightings').value = data.prune_min_sightings || 0;
+                document.getElementById('web_port').value = data.web_port || '';
             } catch (error) { showStatus('Error loading configuration', 'error'); }
         }
 
@@ -2997,6 +3009,7 @@ SETTINGS_TEMPLATE = """
                 heartbeat_interval: parseInt(document.getElementById('heartbeat_interval').value) || 300,
                 prune_days: parseInt(document.getElementById('prune_days').value) || 0,
                 prune_min_sightings: parseInt(document.getElementById('prune_min_sightings').value) || 0,
+                web_port: document.getElementById('web_port').value,
             };
         }
 
@@ -3004,8 +3017,12 @@ SETTINGS_TEMPLATE = """
             e.preventDefault();
             try {
                 const response = await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(gatherAllSettings()) });
-                if (response.ok) showStatus('Configuration saved', 'success');
-                else showStatus('Error saving configuration', 'error');
+                if (response.ok) {
+                    showStatus('Configuration saved', 'success');
+                } else {
+                    const err = await response.json().catch(() => ({}));
+                    showStatus(err.error || 'Error saving configuration', 'error');
+                }
             } catch (error) { showStatus('Error saving configuration', 'error'); }
         }
 
@@ -3013,8 +3030,12 @@ SETTINGS_TEMPLATE = """
             e.preventDefault();
             try {
                 const response = await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(gatherAllSettings()) });
-                if (response.ok) showStatus('Configuration saved', 'success');
-                else showStatus('Error saving configuration', 'error');
+                if (response.ok) {
+                    showStatus('Configuration saved', 'success');
+                } else {
+                    const err = await response.json().catch(() => ({}));
+                    showStatus(err.error || 'Error saving configuration', 'error');
+                }
             } catch (error) { showStatus('Error saving configuration', 'error'); }
         }
 

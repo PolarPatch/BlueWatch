@@ -126,11 +126,17 @@ class BluehoodDaemon:
         # Start socket server for TUI communication
         await self._start_socket_server()
 
-        # Start web server if port specified
+        # Start web server if port specified. A port saved in Config >
+        # Operations overrides the --port CLI default -- lets the port be
+        # changed from the web UI itself without editing the systemd unit,
+        # though it only takes effect on the next restart (can't rebind the
+        # listening socket the page you're editing is served from).
         if self._web_port:
-            self._web_server = WebServer(port=self._web_port, notifications=self._notifications)
+            settings = await db.get_settings()
+            effective_port = settings.web_port or self._web_port
+            self._web_server = WebServer(port=effective_port, notifications=self._notifications)
             await self._web_server.start()
-            logger.info(f"Web dashboard available at http://0.0.0.0:{self._web_port}")
+            logger.info(f"Web dashboard available at http://0.0.0.0:{effective_port}")
 
         # Start Prometheus metrics exporter (requires `pip install bluehood[metrics]`)
         if self._metrics_port:

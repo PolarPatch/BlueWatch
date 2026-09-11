@@ -91,6 +91,7 @@ class Settings:
     heartbeat_interval: int = 300             # seconds
     prune_days: int = 0                       # 0 = disabled
     prune_min_sightings: int = 0              # 0 = prune by age only (keep device records)
+    web_port: Optional[int] = None            # None = use the --port CLI default (8080); takes effect on next restart
     # Authentication settings
     auth_enabled: bool = False
     auth_username: Optional[str] = None
@@ -1370,6 +1371,7 @@ async def get_settings() -> Settings:
         heartbeat_interval=int(settings_dict.get("heartbeat_interval", str(HEARTBEAT_INTERVAL))),
         prune_days=int(settings_dict.get("prune_days", str(PRUNE_DAYS))),
         prune_min_sightings=int(settings_dict.get("prune_min_sightings", str(PRUNE_MIN_SIGHTINGS))),
+        web_port=(int(settings_dict["web_port"]) if settings_dict.get("web_port") else None),
         auth_enabled=settings_dict.get("auth_enabled", "0") == "1",
         auth_username=settings_dict.get("auth_username"),
         auth_password_hash=settings_dict.get("auth_password_hash"),
@@ -1402,6 +1404,7 @@ async def update_settings(settings: Settings) -> None:
             ("heartbeat_interval", str(settings.heartbeat_interval)),
             ("prune_days", str(settings.prune_days)),
             ("prune_min_sightings", str(settings.prune_min_sightings)),
+            ("web_port", str(settings.web_port) if settings.web_port else ""),
         ]
         for key, value in settings_pairs:
             await db.execute(
