@@ -4516,11 +4516,6 @@ LIVE_TEMPLATE = """
         <aside class="sidebar">
             <div class="panel" id="categories-panel">
                 <div class="panel-header">Categories</div>
-                <button class="filter-btn" id="all-devices-btn" onclick="showAllDevices()" style="width: 100%; justify-content: flex-start; gap: 0.4rem; margin-bottom: 0.5rem;">All devices <span id="count-all" class="filter-count" style="color: inherit; font-size: inherit;">--</span></button>
-                <label style="display: flex; align-items: center; gap: 0.4rem; padding: 0 0.75rem 0.5rem; font-size: 0.75rem; color: var(--text-secondary); cursor: pointer;">
-                    <input type="checkbox" id="hide-categorized-toggle" onchange="toggleHideCategorized()">
-                    Hide categorized devices
-                </label>
                 <div id="categories-tree" style="padding: 0.5rem;"></div>
                 <div style="padding: 0.5rem; display: flex; gap: 0.4rem;">
                     <input type="text" class="search-input" id="new-category-name" placeholder="New category name" style="font-size: 0.75rem; flex: 1;">
@@ -4553,6 +4548,21 @@ LIVE_TEMPLATE = """
                 <div style="border-left: 1px solid var(--border-color); padding-left: 2rem;">
                     <div class="stat-label" style="margin-bottom: 0.35rem;">MOST SEEN (ACTIVE)</div>
                     <div id="most-seen-list" style="display: flex; gap: 1.5rem; flex-wrap: wrap;">--</div>
+                </div>
+            </div>
+            <div class="stat-card" style="display: flex; align-items: center; justify-content: space-between; gap: 2rem; margin-bottom: 0.75rem; flex-wrap: wrap;">
+                <div style="display: flex; align-items: center; gap: 1.25rem;">
+                    <span class="stat-label">FILTERS</span>
+                    <button class="filter-btn" id="all-devices-btn" onclick="showAllDevices()" style="gap: 0.4rem; padding: 0.3rem 0.6rem;">All devices <span id="count-all" class="filter-count" style="color: inherit; font-size: inherit;">--</span></button>
+                    <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.75rem; color: var(--text-secondary); cursor: pointer;">
+                        <input type="checkbox" id="hide-categorized-toggle" onchange="toggleHideCategorized()">
+                        Hide categorized devices
+                    </label>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                    <span class="stat-label">RSSI &ge;</span>
+                    <input type="range" id="rssi-threshold" min="-100" max="-20" value="-100" step="1" oninput="onRssiThresholdChange()" style="width: 160px;">
+                    <span id="rssi-threshold-value" style="font-size: 0.75rem; color: var(--text-primary); min-width: 4.5rem;">-100 dBm</span>
                 </div>
             </div>
             <div class="table-container" id="devices-container">
@@ -4680,6 +4690,7 @@ LIVE_TEMPLATE = """
         let currentFilter = 'all';
         let currentGroupId = null;
         let hideCategorized = localStorage.getItem('bluewatch_hide_categorized') === 'true';
+        let rssiThreshold = -100;
         let dateFilteredDevices = null;
         let compactView = localStorage.getItem('bluewatch_compact_view') === 'true';
         let screenshotMode = localStorage.getItem('bluewatch_screenshot_mode') === 'true';
@@ -5038,6 +5049,13 @@ LIVE_TEMPLATE = """
             lastSelectedIndex = null;
             pagination.page = 1;
             refreshDevices();
+        }
+
+        function onRssiThresholdChange() {
+            const slider = document.getElementById('rssi-threshold');
+            rssiThreshold = parseInt(slider.value, 10);
+            document.getElementById('rssi-threshold-value').textContent = rssiThreshold + ' dBm';
+            renderDevices();
         }
 
         function escapeHtml(s) {
@@ -5508,7 +5526,10 @@ LIVE_TEMPLATE = """
         function renderDevices() {
             const tbody = document.getElementById('device-list');
             const sourceDevices = dateFilteredDevices !== null ? dateFilteredDevices : allDevices;
-            let visibleDevices = sourceDevices;
+            // Devices with no recent RSSI reading are never hidden by the
+            // threshold -- the slider filters by signal strength, not by
+            // whether we happen to have a fresh reading.
+            let visibleDevices = sourceDevices.filter(d => d.last_rssi == null || d.last_rssi >= rssiThreshold);
 
             if (dateFilteredDevices !== null) {
                 const searchTerm = document.getElementById('search').value.toLowerCase();
