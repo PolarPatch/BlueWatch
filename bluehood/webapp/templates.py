@@ -3933,7 +3933,6 @@ LIVE_TEMPLATE = """
         }
 
         /* Live stats */
-        .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.5rem; margin-bottom: 0.75rem; }
         .stat-card { background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 4px; padding: 0.5rem 0.6rem; }
         .stat-sub { font-size: 0.6rem; color: var(--text-secondary); margin-top: 0.15rem; }
         /* No bulk-select/merge toolbar on the live dashboard -- the checkbox
@@ -4481,20 +4480,13 @@ LIVE_TEMPLATE = """
         </aside>
 
         <main class="content">
-            <div class="stats-row">
-                <div class="stat-card">
-                    <div class="stat-label">ACTIVE NOW</div>
-                    <div class="stat-value" id="stat-active-now">--</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">ALL KNOWN DEVICES</div>
-                    <div class="stat-value" id="stat-total-devices">--</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">MOST SEEN (ACTIVE)</div>
-                    <div class="stat-value" id="stat-most-seen" style="font-size: 0.9rem;">--</div>
-                    <div class="stat-sub" id="stat-most-seen-sub"></div>
-                </div>
+            <div class="stat-card" style="display: flex; gap: 2rem; margin-bottom: 0.5rem;">
+                <div><div class="stat-label">ACTIVE NOW</div><div class="stat-value" id="stat-active-now">--</div></div>
+                <div><div class="stat-label">ALL KNOWN DEVICES</div><div class="stat-value" id="stat-total-devices">--</div></div>
+            </div>
+            <div class="stat-card" style="margin-bottom: 0.75rem;">
+                <div class="stat-label" style="margin-bottom: 0.35rem;">MOST SEEN (ACTIVE)</div>
+                <div id="most-seen-list" style="display: flex; gap: 1.5rem; flex-wrap: wrap;">--</div>
             </div>
             <div class="table-container" id="devices-container">
                 <table class="device-table">
@@ -4678,14 +4670,18 @@ LIVE_TEMPLATE = """
                 const data = await response.json();
                 document.getElementById('stat-active-now').textContent = data.active_now ?? '--';
                 document.getElementById('stat-total-devices').textContent = data.total_devices ?? '--';
-                const mostSeenEl = document.getElementById('stat-most-seen');
-                const mostSeenSubEl = document.getElementById('stat-most-seen-sub');
-                if (data.most_seen) {
-                    mostSeenEl.textContent = data.most_seen.friendly_name || data.most_seen.vendor || data.most_seen.mac;
-                    mostSeenSubEl.textContent = data.most_seen.total_sightings + ' sightings total';
+                const listEl = document.getElementById('most-seen-list');
+                const items = data.most_seen || [];
+                if (items.length === 0) {
+                    listEl.innerHTML = '<span style="color: var(--text-muted); font-size: 0.8rem;">No data yet</span>';
                 } else {
-                    mostSeenEl.textContent = '--';
-                    mostSeenSubEl.textContent = '';
+                    listEl.innerHTML = items.map(function(d) {
+                        const name = d.friendly_name || d.vendor || d.mac;
+                        return '<div style="min-width: 80px; max-width: 150px;">' +
+                            '<div style="font-size: 0.8rem; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="' + escapeHtml(name) + '">' + escapeHtml(name) + '</div>' +
+                            '<div style="font-size: 0.6rem; color: var(--text-muted);">' + d.total_sightings + ' sightings</div>' +
+                            '</div>';
+                    }).join('');
                 }
             } catch (error) { console.error('Error loading live stats:', error); }
         }

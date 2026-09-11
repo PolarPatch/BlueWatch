@@ -772,11 +772,11 @@ async def get_global_stats(include_ignored: bool = True) -> dict:
     }
 
 
-async def get_live_stats(active_within_seconds: int) -> dict:
+async def get_live_stats(active_within_seconds: int, most_seen_limit: int = 5) -> dict:
     """Stats for the "nearby now" live view: how many devices are currently
-    in range (last seen within the window), and which currently-active
-    device has the most sightings overall -- the one that's always around,
-    not just the one with the strongest signal this instant."""
+    in range (last seen within the window), and the currently-active
+    devices with the most sightings overall -- the ones that are always
+    around, not just whichever has the strongest signal this instant."""
     cutoff = (datetime.now() - timedelta(seconds=active_within_seconds)).isoformat()
 
     async with _connect() as db:
@@ -796,20 +796,22 @@ async def get_live_stats(active_within_seconds: int) -> dict:
             FROM devices
             WHERE last_seen >= ?
             ORDER BY total_sightings DESC, last_seen DESC
-            LIMIT 1
+            LIMIT ?
             """,
-            (cutoff,),
+            (cutoff, most_seen_limit),
         ) as cursor:
-            top_row = await cursor.fetchone()
+            top_rows = await cursor.fetchall()
 
-    most_seen = None
-    if top_row and top_row["total_sightings"]:
-        most_seen = {
-            "mac": top_row["mac"],
-            "vendor": top_row["vendor"],
-            "friendly_name": top_row["friendly_name"],
-            "total_sightings": top_row["total_sightings"],
+    most_seen = [
+        {
+            "mac": row["mac"],
+            "vendor": row["vendor"],
+            "friendly_name": row["friendly_name"],
+            "total_sightings": row["total_sightings"],
         }
+        for row in top_rows
+        if row["total_sightings"]
+    ]
 
     return {
         "total_devices": int(total_row["total_devices"] or 0) if total_row else 0,
