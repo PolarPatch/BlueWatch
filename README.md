@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/logo.png" alt="BlueWatch logo" width="200">
+</p>
+
 # BlueWatch
 
 Get alerts when new Bluetooth devices appear in your local neighbourhood.
