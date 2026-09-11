@@ -664,7 +664,7 @@ HTML_TEMPLATE = """
         }
 
         .modal-header {
-            padding: 1rem;
+            padding: 0.5rem 0.75rem;
             border-bottom: 1px solid var(--border-color);
             display: flex;
             justify-content: space-between;
@@ -840,13 +840,6 @@ HTML_TEMPLATE = """
         .rssi-label { font-size: 0.55rem; fill: var(--text-muted); }
 
         /* Action Buttons in Modal */
-        .action-row {
-            display: flex;
-            justify-content: flex-end;
-            gap: 0.5rem;
-            margin-bottom: 0.35rem;
-        }
-
         .btn-watch {
             background: transparent;
             border: 1px solid var(--accent-amber);
@@ -1028,7 +1021,10 @@ HTML_TEMPLATE = """
         <div class="modal">
             <div class="modal-header">
                 <span class="modal-title">Device Details</span>
-                <button class="modal-close" onclick="closeModal()">&times;</button>
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <button class="btn btn-watch" id="watch-btn" onclick="toggleWatch(currentDeviceMac)"></button>
+                    <button class="modal-close" onclick="closeModal()">&times;</button>
+                </div>
             </div>
             <div class="modal-body" id="modal-content">
                 <!-- Dynamic content -->
@@ -2027,13 +2023,13 @@ HTML_TEMPLATE = """
             const proximityZone = data.proximity_zone || 'unknown';
             const proximityColor = proximityColors[proximityZone] || '#555';
 
-            const watchBtnText = d.watched ? '★ Watching' : '☆ Watch';
-            const watchBtnClass = d.watched ? 'btn btn-watch active' : 'btn btn-watch';
+            const watchBtn = document.getElementById('watch-btn');
+            if (watchBtn) {
+                watchBtn.textContent = d.watched ? '★ Watching' : '☆ Watch';
+                watchBtn.className = d.watched ? 'btn btn-watch active' : 'btn btn-watch';
+            }
 
-            content.innerHTML = '<div class="action-row">' +
-                '<button class="' + watchBtnClass + '" id="watch-btn" onclick="toggleWatch(\\'' + d.mac + '\\')">' + watchBtnText + '</button>' +
-                '</div>' +
-                '<div class="detail-grid">' +
+            content.innerHTML = '<div class="detail-grid">' +
                 '<div class="detail-item"><div class="detail-label">Address</div><div class="detail-value mono" style="font-size:' + (isMacOSUUID(d.mac) ? '0.65rem' : '0.85rem') + '; word-break: break-all;">' + obfuscateMAC(d.mac) + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">Type</div><div class="detail-value">' + data.type_label + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">Vendor OUI</div><input class="form-input" id="device-vendor" value="' + escapeHtml(d.vendor || '') + '" placeholder="Unknown -- set manually" style="font-size: 0.85rem;" onchange="setDeviceVendor(\\'' + d.mac + '\\', this.value)"></div>' +
@@ -2258,10 +2254,10 @@ HTML_TEMPLATE = """
             try {
                 const response = await fetch('/api/device/' + encodeURIComponent(mac) + '/dwell?days=30');
                 const data = await response.json();
-                container.innerHTML = '<div><div style="font-size: 1.25rem; color: var(--accent-amber);">' + Math.round(data.total_minutes) + '</div><div style="font-size: 0.65rem; color: var(--text-muted);">TOTAL MIN</div></div>' +
-                    '<div><div style="font-size: 1.25rem; color: var(--accent-green);">' + data.session_count + '</div><div style="font-size: 0.65rem; color: var(--text-muted);">SESSIONS</div></div>' +
-                    '<div><div style="font-size: 1.25rem; color: var(--accent-blue);">' + Math.round(data.avg_session_minutes) + '</div><div style="font-size: 0.65rem; color: var(--text-muted);">AVG MIN</div></div>' +
-                    '<div><div style="font-size: 1.25rem; color: var(--accent-red);">' + Math.round(data.longest_session_minutes) + '</div><div style="font-size: 0.65rem; color: var(--text-muted);">LONGEST</div></div>';
+                container.innerHTML = '<div><div style="font-size: 0.95rem; color: var(--accent-amber);">' + Math.round(data.total_minutes) + '</div><div style="font-size: 0.6rem; color: var(--text-muted);">TOTAL MIN</div></div>' +
+                    '<div><div style="font-size: 0.95rem; color: var(--accent-green);">' + data.session_count + '</div><div style="font-size: 0.6rem; color: var(--text-muted);">SESSIONS</div></div>' +
+                    '<div><div style="font-size: 0.95rem; color: var(--accent-blue);">' + Math.round(data.avg_session_minutes) + '</div><div style="font-size: 0.6rem; color: var(--text-muted);">AVG MIN</div></div>' +
+                    '<div><div style="font-size: 0.95rem; color: var(--accent-red);">' + Math.round(data.longest_session_minutes) + '</div><div style="font-size: 0.6rem; color: var(--text-muted);">LONGEST</div></div>';
             } catch (error) {
                 container.innerHTML = '<div style="color: var(--text-muted);">Error loading data</div>';
             }
@@ -2478,7 +2474,7 @@ HTML_TEMPLATE = """
                 const data = await response.json();
                 const btn = document.getElementById('watch-btn');
                 if (data.watched) {
-                    btn.textContent = '★ WATCHING';
+                    btn.textContent = '★ Watching';
                     btn.className = 'btn btn-watch active';
                 } else {
                     btn.textContent = '☆ Watch';
@@ -4188,7 +4184,7 @@ LIVE_TEMPLATE = """
         }
 
         .modal-header {
-            padding: 1rem;
+            padding: 0.5rem 0.75rem;
             border-bottom: 1px solid var(--border-color);
             display: flex;
             justify-content: space-between;
@@ -4364,13 +4360,6 @@ LIVE_TEMPLATE = """
         .rssi-label { font-size: 0.55rem; fill: var(--text-muted); }
 
         /* Action Buttons in Modal */
-        .action-row {
-            display: flex;
-            justify-content: flex-end;
-            gap: 0.5rem;
-            margin-bottom: 0.35rem;
-        }
-
         .btn-watch {
             background: transparent;
             border: 1px solid var(--accent-amber);
@@ -4546,7 +4535,10 @@ LIVE_TEMPLATE = """
         <div class="modal">
             <div class="modal-header">
                 <span class="modal-title">Device Details</span>
-                <button class="modal-close" onclick="closeModal()">&times;</button>
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <button class="btn btn-watch" id="watch-btn" onclick="toggleWatch(currentDeviceMac)"></button>
+                    <button class="modal-close" onclick="closeModal()">&times;</button>
+                </div>
             </div>
             <div class="modal-body" id="modal-content">
                 <!-- Dynamic content -->
@@ -5561,13 +5553,13 @@ LIVE_TEMPLATE = """
             const proximityZone = data.proximity_zone || 'unknown';
             const proximityColor = proximityColors[proximityZone] || '#555';
 
-            const watchBtnText = d.watched ? '★ Watching' : '☆ Watch';
-            const watchBtnClass = d.watched ? 'btn btn-watch active' : 'btn btn-watch';
+            const watchBtn = document.getElementById('watch-btn');
+            if (watchBtn) {
+                watchBtn.textContent = d.watched ? '★ Watching' : '☆ Watch';
+                watchBtn.className = d.watched ? 'btn btn-watch active' : 'btn btn-watch';
+            }
 
-            content.innerHTML = '<div class="action-row">' +
-                '<button class="' + watchBtnClass + '" id="watch-btn" onclick="toggleWatch(\\'' + d.mac + '\\')">' + watchBtnText + '</button>' +
-                '</div>' +
-                '<div class="detail-grid">' +
+            content.innerHTML = '<div class="detail-grid">' +
                 '<div class="detail-item"><div class="detail-label">Address</div><div class="detail-value mono" style="font-size:' + (isMacOSUUID(d.mac) ? '0.65rem' : '0.85rem') + '; word-break: break-all;">' + obfuscateMAC(d.mac) + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">Type</div><div class="detail-value">' + data.type_label + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">Vendor OUI</div><input class="form-input" id="device-vendor" value="' + escapeHtml(d.vendor || '') + '" placeholder="Unknown -- set manually" style="font-size: 0.85rem;" onchange="setDeviceVendor(\\'' + d.mac + '\\', this.value)"></div>' +
@@ -5792,10 +5784,10 @@ LIVE_TEMPLATE = """
             try {
                 const response = await fetch('/api/device/' + encodeURIComponent(mac) + '/dwell?days=30');
                 const data = await response.json();
-                container.innerHTML = '<div><div style="font-size: 1.25rem; color: var(--accent-amber);">' + Math.round(data.total_minutes) + '</div><div style="font-size: 0.65rem; color: var(--text-muted);">TOTAL MIN</div></div>' +
-                    '<div><div style="font-size: 1.25rem; color: var(--accent-green);">' + data.session_count + '</div><div style="font-size: 0.65rem; color: var(--text-muted);">SESSIONS</div></div>' +
-                    '<div><div style="font-size: 1.25rem; color: var(--accent-blue);">' + Math.round(data.avg_session_minutes) + '</div><div style="font-size: 0.65rem; color: var(--text-muted);">AVG MIN</div></div>' +
-                    '<div><div style="font-size: 1.25rem; color: var(--accent-red);">' + Math.round(data.longest_session_minutes) + '</div><div style="font-size: 0.65rem; color: var(--text-muted);">LONGEST</div></div>';
+                container.innerHTML = '<div><div style="font-size: 0.95rem; color: var(--accent-amber);">' + Math.round(data.total_minutes) + '</div><div style="font-size: 0.6rem; color: var(--text-muted);">TOTAL MIN</div></div>' +
+                    '<div><div style="font-size: 0.95rem; color: var(--accent-green);">' + data.session_count + '</div><div style="font-size: 0.6rem; color: var(--text-muted);">SESSIONS</div></div>' +
+                    '<div><div style="font-size: 0.95rem; color: var(--accent-blue);">' + Math.round(data.avg_session_minutes) + '</div><div style="font-size: 0.6rem; color: var(--text-muted);">AVG MIN</div></div>' +
+                    '<div><div style="font-size: 0.95rem; color: var(--accent-red);">' + Math.round(data.longest_session_minutes) + '</div><div style="font-size: 0.6rem; color: var(--text-muted);">LONGEST</div></div>';
             } catch (error) {
                 container.innerHTML = '<div style="color: var(--text-muted);">Error loading data</div>';
             }
@@ -6012,7 +6004,7 @@ LIVE_TEMPLATE = """
                 const data = await response.json();
                 const btn = document.getElementById('watch-btn');
                 if (data.watched) {
-                    btn.textContent = '★ WATCHING';
+                    btn.textContent = '★ Watching';
                     btn.className = 'btn btn-watch active';
                 } else {
                     btn.textContent = '☆ Watch';
