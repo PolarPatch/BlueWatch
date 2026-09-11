@@ -21,13 +21,13 @@ documentation and describes the *current* code, not yet the target design.
 ## Screenshots
 
 ![Dashboard](screenshots/dashboard.png)
-*Main dashboard showing device list with filtering, search, and real-time statistics*
+*Live dashboard — devices seen in the last minute, with category filtering, search, and at-a-glance stats*
 
 ![Settings](screenshots/settings.png)
-*Tabbed configuration page — Alerts, Operations, Groups, and Security*
+*Tabbed configuration page — Alerts, Operations, Groups, Security, WiGLE, and Export*
 
-![About](screenshots/about.png)
-*Intel page with project information and capabilities overview*
+![Device Details](screenshots/device-detail.png)
+*Per-device detail view — activity heatmaps, presence timeline, signal history, notes, and category assignment*
 
 ## Why?
 

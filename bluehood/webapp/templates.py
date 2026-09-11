@@ -1248,7 +1248,16 @@ HTML_TEMPLATE = """
             return /^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$/.test(addr);
         }
 
+        // Demo Mode: full redaction for public screenshots (all MACs zeroed,
+        // names/vendors/categories swapped for generic placeholders) -- a
+        // stronger version of Screenshot Mode's partial masking. Enable via
+        // the browser console: localStorage.setItem('bluehood_demo_mode','true'); location.reload();
+        let demoMode = localStorage.getItem('bluehood_demo_mode') === 'true' || new URLSearchParams(window.location.search).get('demo') === '1';
+        const DEMO_NAMES = ['Guest Phone', 'Kitchen Speaker', 'Smart Plug', 'Wireless Headset', 'Fitness Tracker', 'Smart TV', 'Tablet', 'Car Bluetooth', 'IoT Sensor', 'Robot Vacuum', 'Doorbell Camera', 'Smart Watch', 'Bluetooth Mouse', 'Game Controller', 'E-bike Lock'];
+        let demoNameCounter = 0;
+
         function obfuscateMAC(mac) {
+            if (demoMode) return mac ? '00:00:00:00:00:00' : mac;
             if (!screenshotMode || !mac) return mac;
             // Handle macOS UUID-format addresses
             if (isMacOSUUID(mac)) {
@@ -1263,6 +1272,7 @@ HTML_TEMPLATE = """
         }
 
         function obfuscateName(name) {
+            if (demoMode) return name ? DEMO_NAMES[(demoNameCounter++) % DEMO_NAMES.length] : name;
             if (!screenshotMode || !name) return name;
             // Show first 2 chars, then asterisks
             if (name.length <= 2) return '**';
@@ -2032,7 +2042,7 @@ HTML_TEMPLATE = """
 
             content.innerHTML = '<div class="detail-grid">' +
                 '<div class="detail-item"><div class="detail-label">Address</div><div class="detail-value mono" style="font-size:' + (isMacOSUUID(d.mac) ? '0.65rem' : '0.85rem') + '; word-break: break-all;">' + obfuscateMAC(d.mac) + '</div></div>' +
-                '<div class="detail-item"><div class="detail-label">Type</div><select class="form-input" id="device-type" onchange="setDeviceType(\'' + d.mac + '\', this.value)" style="font-size: 0.8rem;"></select></div>' +
+                '<div class="detail-item"><div class="detail-label">Type</div><select class="form-input" id="device-type" onchange="setDeviceType(\\'' + d.mac + '\\', this.value)" style="font-size: 0.8rem;"></select></div>' +
                 '<div class="detail-item"><div class="detail-label">Vendor OUI</div><input class="form-input" id="device-vendor" value="' + escapeHtml(d.vendor || '') + '" placeholder="Unknown -- set manually" style="font-size: 0.85rem;" onchange="setDeviceVendor(\\'' + d.mac + '\\', this.value)"></div>' +
                 '<div class="detail-item"><div class="detail-label">Proximity</div><div class="detail-value" style="color: ' + proximityColor + '; ">' + proximityZone + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">First seen</div><div class="detail-value mono">' + (d.first_seen ? new Date(d.first_seen).toLocaleString() : '—') + '</div></div>' +
@@ -4713,7 +4723,7 @@ LIVE_TEMPLATE = """
                     listEl.innerHTML = '<span style="color: var(--text-muted); font-size: 0.8rem;">No data yet</span>';
                 } else {
                     listEl.innerHTML = items.map(function(d) {
-                        const name = d.friendly_name || d.vendor || d.mac;
+                        const name = obfuscateName(d.friendly_name || d.vendor || d.mac);
                         return '<div style="min-width: 80px; max-width: 150px;">' +
                             '<div style="font-size: 0.8rem; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="' + escapeHtml(name) + '">' + escapeHtml(name) + '</div>' +
                             '<div style="font-size: 0.6rem; color: var(--text-muted);">' + d.total_sightings + ' sightings</div>' +
@@ -4842,7 +4852,16 @@ LIVE_TEMPLATE = """
             return /^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$/.test(addr);
         }
 
+        // Demo Mode: full redaction for public screenshots (all MACs zeroed,
+        // names/vendors/categories swapped for generic placeholders) -- a
+        // stronger version of Screenshot Mode's partial masking. Enable via
+        // the browser console: localStorage.setItem('bluehood_demo_mode','true'); location.reload();
+        let demoMode = localStorage.getItem('bluehood_demo_mode') === 'true' || new URLSearchParams(window.location.search).get('demo') === '1';
+        const DEMO_NAMES = ['Guest Phone', 'Kitchen Speaker', 'Smart Plug', 'Wireless Headset', 'Fitness Tracker', 'Smart TV', 'Tablet', 'Car Bluetooth', 'IoT Sensor', 'Robot Vacuum', 'Doorbell Camera', 'Smart Watch', 'Bluetooth Mouse', 'Game Controller', 'E-bike Lock'];
+        let demoNameCounter = 0;
+
         function obfuscateMAC(mac) {
+            if (demoMode) return mac ? '00:00:00:00:00:00' : mac;
             if (!screenshotMode || !mac) return mac;
             // Handle macOS UUID-format addresses
             if (isMacOSUUID(mac)) {
@@ -4857,6 +4876,7 @@ LIVE_TEMPLATE = """
         }
 
         function obfuscateName(name) {
+            if (demoMode) return name ? DEMO_NAMES[(demoNameCounter++) % DEMO_NAMES.length] : name;
             if (!screenshotMode || !name) return name;
             // Show first 2 chars, then asterisks
             if (name.length <= 2) return '**';
@@ -5623,7 +5643,7 @@ LIVE_TEMPLATE = """
 
             content.innerHTML = '<div class="detail-grid">' +
                 '<div class="detail-item"><div class="detail-label">Address</div><div class="detail-value mono" style="font-size:' + (isMacOSUUID(d.mac) ? '0.65rem' : '0.85rem') + '; word-break: break-all;">' + obfuscateMAC(d.mac) + '</div></div>' +
-                '<div class="detail-item"><div class="detail-label">Type</div><select class="form-input" id="device-type" onchange="setDeviceType(\'' + d.mac + '\', this.value)" style="font-size: 0.8rem;"></select></div>' +
+                '<div class="detail-item"><div class="detail-label">Type</div><select class="form-input" id="device-type" onchange="setDeviceType(\\'' + d.mac + '\\', this.value)" style="font-size: 0.8rem;"></select></div>' +
                 '<div class="detail-item"><div class="detail-label">Vendor OUI</div><input class="form-input" id="device-vendor" value="' + escapeHtml(d.vendor || '') + '" placeholder="Unknown -- set manually" style="font-size: 0.85rem;" onchange="setDeviceVendor(\\'' + d.mac + '\\', this.value)"></div>' +
                 '<div class="detail-item"><div class="detail-label">Proximity</div><div class="detail-value" style="color: ' + proximityColor + '; ">' + proximityZone + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">First seen</div><div class="detail-value mono">' + (d.first_seen ? new Date(d.first_seen).toLocaleString() : '—') + '</div></div>' +
