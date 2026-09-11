@@ -232,14 +232,14 @@ HTML_TEMPLATE = """
         }
 
         .stat-label {
-            font-size: 0.7rem;
+            font-size: 0.6rem;
             color: var(--text-secondary);
-            
+
             letter-spacing: 0.05em;
         }
 
         .stat-value {
-            font-size: 1.25rem;
+            font-size: 0.95rem;
             font-weight: 700;
         }
 
@@ -3766,14 +3766,14 @@ LIVE_TEMPLATE = """
         }
 
         .stat-label {
-            font-size: 0.7rem;
+            font-size: 0.6rem;
             color: var(--text-secondary);
-            
+
             letter-spacing: 0.05em;
         }
 
         .stat-value {
-            font-size: 1.25rem;
+            font-size: 0.95rem;
             font-weight: 700;
         }
 
@@ -3933,9 +3933,9 @@ LIVE_TEMPLATE = """
         }
 
         /* Live stats */
-        .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.75rem; margin-bottom: 1rem; }
-        .stat-card { background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 4px; padding: 0.85rem 1rem; }
-        .stat-sub { font-size: 0.7rem; color: var(--text-secondary); margin-top: 0.2rem; }
+        .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.5rem; margin-bottom: 0.75rem; }
+        .stat-card { background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 4px; padding: 0.5rem 0.6rem; }
+        .stat-sub { font-size: 0.6rem; color: var(--text-secondary); margin-top: 0.15rem; }
         /* No bulk-select/merge toolbar on the live dashboard -- the checkbox
            column it drove has nothing left to trigger. */
         .select-col { display: none; }
