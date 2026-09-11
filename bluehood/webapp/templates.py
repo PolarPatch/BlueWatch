@@ -4484,7 +4484,8 @@ LIVE_TEMPLATE = """
                 <div style="display: flex; gap: 2rem;">
                     <div><div class="stat-label">ACTIVE NOW</div><div class="stat-value" id="stat-active-now">--</div></div>
                     <div><div class="stat-label">ALL KNOWN DEVICES</div><div class="stat-value" id="stat-total-devices">--</div></div>
-                    <div><div class="stat-label">NEW TODAY</div><div class="stat-value" id="stat-new-today">--</div></div>
+                    <div><div class="stat-label">NEW TODAY (INC. MAC-CHANGE)</div><div class="stat-value" id="stat-new-today">--</div></div>
+                    <div><div class="stat-label">NEW TODAY (FIXED)</div><div class="stat-value" id="stat-new-today-fixed">--</div></div>
                 </div>
                 <div style="border-left: 1px solid var(--border-color); padding-left: 2rem;">
                     <div class="stat-label" style="margin-bottom: 0.35rem;">MOST SEEN (ACTIVE)</div>
@@ -4674,6 +4675,7 @@ LIVE_TEMPLATE = """
                 document.getElementById('stat-active-now').textContent = data.active_now ?? '--';
                 document.getElementById('stat-total-devices').textContent = data.total_devices ?? '--';
                 document.getElementById('stat-new-today').textContent = data.new_today ?? '--';
+                document.getElementById('stat-new-today-fixed').textContent = data.new_today_fixed ?? '--';
                 const listEl = document.getElementById('most-seen-list');
                 const items = data.most_seen || [];
                 if (items.length === 0) {
