@@ -1213,7 +1213,9 @@ async def prune_stale_devices(days: int, min_sightings: int) -> int:
 
     A device is pruned only when it has not been seen for more than `days`
     days AND has accumulated fewer than `min_sightings` total sightings.
-    Watched devices (Devices of Interest) are never pruned. The foreign key
+    Watched devices (Devices of Interest) and devices assigned to any
+    category are never pruned -- both are a deliberate "keep this" signal
+    from the user, same as watching. The foreign key
     on sightings is not enforced by SQLite, so the sighting rows are removed
     explicitly. Returns the number of devices deleted.
 
@@ -1232,6 +1234,7 @@ async def prune_stale_devices(days: int, min_sightings: int) -> int:
             """
             SELECT mac FROM devices
             WHERE COALESCE(watched, 0) = 0
+              AND group_id IS NULL
               AND last_seen < datetime('now', ?)
               AND total_sightings < ?
             """,

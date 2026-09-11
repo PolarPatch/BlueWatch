@@ -2810,7 +2810,7 @@ SETTINGS_TEMPLATE = """
                         <div class="form-group">
                             <label class="form-label">Only Prune Devices With Fewer Than (sightings)</label>
                             <input type="number" class="form-input" id="prune_min_sightings" value="0" min="0" max="1000000" style="width: 160px;">
-                            <div class="form-hint">When set above 0, pruning removes whole stale devices (and their sightings) that are both older than the age limit and have fewer than this many total sightings. Watched devices are never pruned. 0 = prune old sightings by age only, keeping device records.</div>
+                            <div class="form-hint">When set above 0, pruning removes whole stale devices (and their sightings) that are both older than the age limit and have fewer than this many total sightings. Watched devices and devices assigned to any category are never pruned. 0 = prune old sightings by age only, keeping device records.</div>
                         </div>
                     </div>
                 </div>
