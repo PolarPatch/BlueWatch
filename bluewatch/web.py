@@ -1,4 +1,4 @@
-"""Compatibility module for the Bluehood web server."""
+"""Compatibility module for the BlueWatch web server."""
 
 from .webapp.server import WebServer
 

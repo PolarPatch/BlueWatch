@@ -1,7 +1,7 @@
 services:
-  bluehood:
-    image: ghcr.io/dannymcc/bluehood:latest
-    container_name: bluehood
+  bluewatch:
+    build: .
+    container_name: bluewatch
     restart: unless-stopped
 
     # Required for Bluetooth access
@@ -11,18 +11,18 @@ services:
     # Mount D-Bus socket for BlueZ communication
     volumes:
       - /var/run/dbus:/var/run/dbus:ro
-      - bluehood-data:/data
+      - bluewatch-data:/data
 
     # Optional: match container user to your host user for bind-mount permissions
     # environment:
     #   - PUID=1000            # Match your host user: id -u
     #   - PGID=1000            # Match your host group: id -g
     #   - TZ=Europe/London     # Set container timezone
-    #   - BLUEHOOD_ADAPTER=hci0
-    #   - BLUEHOOD_CLASSIC_ADAPTER=hci1
-    #   - BLUEHOOD_HEARTBEAT_URL=https://hc-ping.com/your-uuid  # Heartbeat check-in URL
-    #   - BLUEHOOD_HEARTBEAT_INTERVAL=300                        # Heartbeat interval in seconds
-    #   - BLUEHOOD_PRUNE_DAYS=90                                 # Auto-delete sightings older than N days
+    #   - BLUEWATCH_ADAPTER=hci0
+    #   - BLUEWATCH_CLASSIC_ADAPTER=hci1
+    #   - BLUEWATCH_HEARTBEAT_URL=https://hc-ping.com/your-uuid  # Heartbeat check-in URL
+    #   - BLUEWATCH_HEARTBEAT_INTERVAL=300                        # Heartbeat interval in seconds
+    #   - BLUEWATCH_PRUNE_DAYS=90                                 # Auto-delete sightings older than N days
 
     # Web dashboard available at http://localhost:8080
 
@@ -40,4 +40,4 @@ services:
       start_period: 10s
 
 volumes:
-  bluehood-data:
+  bluewatch-data:

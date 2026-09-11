@@ -1,4 +1,4 @@
-"""Traffic pattern analysis for bluehood."""
+"""Traffic pattern analysis for bluewatch."""
 
 from dataclasses import dataclass
 from typing import Optional

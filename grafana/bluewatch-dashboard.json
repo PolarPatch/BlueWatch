@@ -34,7 +34,7 @@
       },
       "targets": [
         {
-          "expr": "bluehood_scans_total{job=\"bluehood\"}",
+          "expr": "bluewatch_scans_total{job=\"bluewatch\"}",
           "legendFormat": "Total scans",
           "refId": "A"
         }
@@ -76,7 +76,7 @@
       },
       "targets": [
         {
-          "expr": "sum(bluehood_devices_total{job=\"bluehood\"})",
+          "expr": "sum(bluewatch_devices_total{job=\"bluewatch\"})",
           "legendFormat": "All devices",
           "refId": "A"
         }
@@ -126,7 +126,7 @@
       },
       "targets": [
         {
-          "expr": "bluehood_devices_active{job=\"bluehood\"}",
+          "expr": "bluewatch_devices_active{job=\"bluewatch\"}",
           "legendFormat": "Active",
           "refId": "A"
         }
@@ -168,7 +168,7 @@
       },
       "targets": [
         {
-          "expr": "bluehood_new_devices_total{job=\"bluehood\"}",
+          "expr": "bluewatch_new_devices_total{job=\"bluewatch\"}",
           "legendFormat": "New devices",
           "refId": "A"
         }
@@ -214,7 +214,7 @@
       },
       "targets": [
         {
-          "expr": "sum(bluehood_scan_errors_total{job=\"bluehood\"}) or vector(0)",
+          "expr": "sum(bluewatch_scan_errors_total{job=\"bluewatch\"}) or vector(0)",
           "legendFormat": "Errors",
           "refId": "A"
         }
@@ -261,12 +261,12 @@
       },
       "targets": [
         {
-          "expr": "bluehood_info{job=\"bluehood\"}",
+          "expr": "bluewatch_info{job=\"bluewatch\"}",
           "legendFormat": "v{{version}}",
           "refId": "A"
         }
       ],
-      "title": "Bluehood Version",
+      "title": "BlueWatch Version",
       "type": "stat"
     },
     {
@@ -325,17 +325,17 @@
       },
       "targets": [
         {
-          "expr": "bluehood_last_scan_devices{job=\"bluehood\", scan_type=\"ble\"}",
+          "expr": "bluewatch_last_scan_devices{job=\"bluewatch\", scan_type=\"ble\"}",
           "legendFormat": "BLE",
           "refId": "A"
         },
         {
-          "expr": "bluehood_last_scan_devices{job=\"bluehood\", scan_type=\"classic\"}",
+          "expr": "bluewatch_last_scan_devices{job=\"bluewatch\", scan_type=\"classic\"}",
           "legendFormat": "Classic",
           "refId": "B"
         },
         {
-          "expr": "bluehood_last_scan_devices{job=\"bluehood\", scan_type=\"total\"}",
+          "expr": "bluewatch_last_scan_devices{job=\"bluewatch\", scan_type=\"total\"}",
           "legendFormat": "Total",
           "refId": "C"
         }
@@ -369,7 +369,7 @@
       },
       "targets": [
         {
-          "expr": "bluehood_devices_total{job=\"bluehood\"}",
+          "expr": "bluewatch_devices_total{job=\"bluewatch\"}",
           "legendFormat": "{{bt_type}}",
           "refId": "A"
         }
@@ -410,7 +410,7 @@
       },
       "targets": [
         {
-          "expr": "rate(bluehood_scan_duration_seconds_sum{job=\"bluehood\"}[5m]) / rate(bluehood_scan_duration_seconds_count{job=\"bluehood\"}[5m])",
+          "expr": "rate(bluewatch_scan_duration_seconds_sum{job=\"bluewatch\"}[5m]) / rate(bluewatch_scan_duration_seconds_count{job=\"bluewatch\"}[5m])",
           "legendFormat": "Avg duration",
           "refId": "A"
         }
@@ -451,12 +451,12 @@
       },
       "targets": [
         {
-          "expr": "rate(bluehood_sightings_total{job=\"bluehood\"}[5m]) * 60",
+          "expr": "rate(bluewatch_sightings_total{job=\"bluewatch\"}[5m]) * 60",
           "legendFormat": "Sightings/min",
           "refId": "A"
         },
         {
-          "expr": "rate(bluehood_new_devices_total{job=\"bluehood\"}[5m]) * 60",
+          "expr": "rate(bluewatch_new_devices_total{job=\"bluewatch\"}[5m]) * 60",
           "legendFormat": "New devices/min",
           "refId": "B"
         }
@@ -498,7 +498,7 @@
       },
       "targets": [
         {
-          "expr": "increase(bluehood_device_rssi_dbm_bucket{job=\"bluehood\"}[5m])",
+          "expr": "increase(bluewatch_device_rssi_dbm_bucket{job=\"bluewatch\"}[5m])",
           "format": "heatmap",
           "legendFormat": "\u2264 {{le}} dBm",
           "refId": "A"
@@ -541,12 +541,12 @@
       },
       "targets": [
         {
-          "expr": "bluehood_devices_active{job=\"bluehood\"}",
+          "expr": "bluewatch_devices_active{job=\"bluewatch\"}",
           "legendFormat": "Active (5m window)",
           "refId": "A"
         },
         {
-          "expr": "sum(bluehood_devices_total{job=\"bluehood\"})",
+          "expr": "sum(bluewatch_devices_total{job=\"bluewatch\"})",
           "legendFormat": "Total tracked",
           "refId": "B"
         }
@@ -583,12 +583,12 @@
       },
       "targets": [
         {
-          "expr": "bluehood_devices_watched{job=\"bluehood\"}",
+          "expr": "bluewatch_devices_watched{job=\"bluewatch\"}",
           "legendFormat": "Watched",
           "refId": "A"
         },
         {
-          "expr": "bluehood_devices_ignored{job=\"bluehood\"}",
+          "expr": "bluewatch_devices_ignored{job=\"bluewatch\"}",
           "legendFormat": "Ignored",
           "refId": "B"
         }
@@ -629,7 +629,7 @@
       },
       "targets": [
         {
-          "expr": "rate(bluehood_scans_total{job=\"bluehood\"}[5m]) * 60",
+          "expr": "rate(bluewatch_scans_total{job=\"bluewatch\"}[5m]) * 60",
           "legendFormat": "Scans/min",
           "refId": "A"
         }
@@ -671,7 +671,7 @@
       },
       "targets": [
         {
-          "expr": "(rate(bluehood_scan_errors_total{job=\"bluehood\"}[5m]) * 60) or vector(0)",
+          "expr": "(rate(bluewatch_scan_errors_total{job=\"bluewatch\"}[5m]) * 60) or vector(0)",
           "legendFormat": "errors/min",
           "refId": "A"
         }
@@ -683,7 +683,7 @@
   "refresh": "1m",
   "schemaVersion": 39,
   "tags": [
-    "bluehood",
+    "bluewatch",
     "bluetooth",
     "terrazapi"
   ],
@@ -692,7 +692,7 @@
     "to": "now"
   },
   "timezone": "browser",
-  "title": "Bluehood - Bluetooth Scanner",
-  "uid": "bluehood-metrics",
+  "title": "BlueWatch - Bluetooth Scanner",
+  "uid": "bluewatch-metrics",
   "version": 0
 }

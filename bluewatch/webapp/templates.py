@@ -1,4 +1,4 @@
-"""HTML templates for the Bluehood web dashboard."""
+"""HTML templates for the BlueWatch web dashboard."""
 
 HTML_TEMPLATE = """
 <!DOCTYPE html>
@@ -1065,14 +1065,14 @@ HTML_TEMPLATE = """
         function toggleTheme() {
             const current = document.documentElement.getAttribute('data-theme') || 'dark';
             const next = current === 'dark' ? 'light' : 'dark';
-            localStorage.setItem('bluehood_theme', next);
+            localStorage.setItem('bluewatch_theme', next);
             applyTheme(next);
         }
 
-        applyTheme(localStorage.getItem('bluehood_theme') || 'dark');
+        applyTheme(localStorage.getItem('bluewatch_theme') || 'dark');
 
         const PAGE_SIZE_OPTIONS = [25, 50, 100, 150, 250];
-        const PAGE_SIZE_STORAGE_KEY = 'bluehood_page_size_v2';
+        const PAGE_SIZE_STORAGE_KEY = 'bluewatch_page_size_v2';
 
         function normalizePageSize(value) {
             const parsed = Number.parseInt(value, 10);
@@ -1084,11 +1084,11 @@ HTML_TEMPLATE = """
         let allDevices = [];
         let currentFilter = 'all';
         let currentGroupId = null;
-        let hideCategorized = localStorage.getItem('bluehood_hide_categorized') === 'true';
+        let hideCategorized = localStorage.getItem('bluewatch_hide_categorized') === 'true';
         let dateFilteredDevices = null;
-        let compactView = localStorage.getItem('bluehood_compact_view') === 'true';
-        let screenshotMode = localStorage.getItem('bluehood_screenshot_mode') === 'true';
-        let clickToOpen = localStorage.getItem('bluehood_click_to_open') === 'true';
+        let compactView = localStorage.getItem('bluewatch_compact_view') === 'true';
+        let screenshotMode = localStorage.getItem('bluewatch_screenshot_mode') === 'true';
+        let clickToOpen = localStorage.getItem('bluewatch_click_to_open') === 'true';
         const defaultSortState = { column: 'last_seen', direction: 'desc' };
         let sortState = { ...defaultSortState };
         let selectedMacs = new Set();
@@ -1140,7 +1140,7 @@ HTML_TEMPLATE = """
 
         function toggleViewMode() {
             compactView = !compactView;
-            localStorage.setItem('bluehood_compact_view', compactView);
+            localStorage.setItem('bluewatch_compact_view', compactView);
             updateViewToggle();
             renderDevices();
         }
@@ -1154,7 +1154,7 @@ HTML_TEMPLATE = """
 
         function toggleScreenshotMode() {
             screenshotMode = !screenshotMode;
-            localStorage.setItem('bluehood_screenshot_mode', screenshotMode);
+            localStorage.setItem('bluewatch_screenshot_mode', screenshotMode);
             updateScreenshotToggle();
             renderDevices();
         }
@@ -1170,7 +1170,7 @@ HTML_TEMPLATE = """
 
         function toggleClickToOpen() {
             clickToOpen = !clickToOpen;
-            localStorage.setItem('bluehood_click_to_open', clickToOpen);
+            localStorage.setItem('bluewatch_click_to_open', clickToOpen);
             updateClickToOpenToggle();
         }
 
@@ -1251,8 +1251,8 @@ HTML_TEMPLATE = """
         // Demo Mode: full redaction for public screenshots (all MACs zeroed,
         // names/vendors/categories swapped for generic placeholders) -- a
         // stronger version of Screenshot Mode's partial masking. Enable via
-        // the browser console: localStorage.setItem('bluehood_demo_mode','true'); location.reload();
-        let demoMode = localStorage.getItem('bluehood_demo_mode') === 'true' || new URLSearchParams(window.location.search).get('demo') === '1';
+        // the browser console: localStorage.setItem('bluewatch_demo_mode','true'); location.reload();
+        let demoMode = localStorage.getItem('bluewatch_demo_mode') === 'true' || new URLSearchParams(window.location.search).get('demo') === '1';
         const DEMO_NAMES = ['Guest Phone', 'Kitchen Speaker', 'Smart Plug', 'Wireless Headset', 'Fitness Tracker', 'Smart TV', 'Tablet', 'Car Bluetooth', 'IoT Sensor', 'Robot Vacuum', 'Doorbell Camera', 'Smart Watch', 'Bluetooth Mouse', 'Game Controller', 'E-bike Lock'];
         let demoNameCounter = 0;
 
@@ -1400,7 +1400,7 @@ HTML_TEMPLATE = """
 
         function setHideCategorized(value) {
             hideCategorized = value;
-            localStorage.setItem('bluehood_hide_categorized', hideCategorized);
+            localStorage.setItem('bluewatch_hide_categorized', hideCategorized);
             const checkbox = document.getElementById('hide-categorized-toggle');
             if (checkbox) checkbox.checked = value;
         }
@@ -2749,7 +2749,7 @@ SETTINGS_TEMPLATE = """
                     <div class="panel-body">
                         <div class="form-group">
                             <label class="form-label">Topic Identifier</label>
-                            <input type="text" class="form-input" id="ntfy_topic" placeholder="e.g., bluehood-ops-alerts">
+                            <input type="text" class="form-input" id="ntfy_topic" placeholder="e.g., bluewatch-ops-alerts">
                         </div>
                         <label class="form-check">
                             <input type="checkbox" id="ntfy_enabled">
@@ -2846,7 +2846,7 @@ SETTINGS_TEMPLATE = """
                         <div class="form-group">
                             <label class="form-label">Port</label>
                             <input type="number" class="form-input" id="web_port" placeholder="8080" min="1" max="65535" style="width: 160px;">
-                            <div class="form-hint">Change the dashboard's port if 8080 conflicts with another device on the network. Takes effect on the next restart of the bluehood service (systemctl restart bluehood) -- saving alone doesn't rebind it live. Leave empty for the default (8080).</div>
+                            <div class="form-hint">Change the dashboard's port if 8080 conflicts with another device on the network. Takes effect on the next restart of the bluewatch service (systemctl restart bluewatch) -- saving alone doesn't rebind it live. Leave empty for the default (8080).</div>
                         </div>
                     </div>
                 </div>
@@ -3000,10 +3000,10 @@ SETTINGS_TEMPLATE = """
         function toggleTheme() {
             const current = document.documentElement.getAttribute('data-theme') || 'dark';
             const next = current === 'dark' ? 'light' : 'dark';
-            localStorage.setItem('bluehood_theme', next);
+            localStorage.setItem('bluewatch_theme', next);
             applyTheme(next);
         }
-        applyTheme(localStorage.getItem('bluehood_theme') || 'dark');
+        applyTheme(localStorage.getItem('bluewatch_theme') || 'dark');
 
         function switchTab(tab) {
             document.querySelectorAll('.config-tab').forEach(function(t) { t.style.display = 'none'; });
@@ -3499,7 +3499,7 @@ ABOUT_TEMPLATE = """
         <div class="panel">
             <div class="panel-header">Mission Brief</div>
             <div class="panel-body">
-                <p>Bluehood is a passive Bluetooth reconnaissance tool designed for authorized security assessments and research. It enables operators to identify, classify, and track Bluetooth-enabled devices within radio range.</p>
+                <p>BlueWatch is a passive Bluetooth reconnaissance tool designed for authorized security assessments and research. It enables operators to identify, classify, and track Bluetooth-enabled devices within radio range.</p>
                 <p>Developed in response to the <a href="https://whisperpair.eu/">WhisperPair vulnerability</a> (CVE-2025-36911), this framework demonstrates the surveillance potential of Bluetooth metadata collection.</p>
             </div>
         </div>
@@ -3566,10 +3566,10 @@ ABOUT_TEMPLATE = """
         function toggleTheme() {
             const current = document.documentElement.getAttribute('data-theme') || 'dark';
             const next = current === 'dark' ? 'light' : 'dark';
-            localStorage.setItem('bluehood_theme', next);
+            localStorage.setItem('bluewatch_theme', next);
             applyTheme(next);
         }
-        applyTheme(localStorage.getItem('bluehood_theme') || 'dark');
+        applyTheme(localStorage.getItem('bluewatch_theme') || 'dark');
     </script>
 </body>
 </html>
@@ -4638,14 +4638,14 @@ LIVE_TEMPLATE = """
         function toggleTheme() {
             const current = document.documentElement.getAttribute('data-theme') || 'dark';
             const next = current === 'dark' ? 'light' : 'dark';
-            localStorage.setItem('bluehood_theme', next);
+            localStorage.setItem('bluewatch_theme', next);
             applyTheme(next);
         }
 
-        applyTheme(localStorage.getItem('bluehood_theme') || 'dark');
+        applyTheme(localStorage.getItem('bluewatch_theme') || 'dark');
 
         const PAGE_SIZE_OPTIONS = [25, 50, 100, 150, 250];
-        const PAGE_SIZE_STORAGE_KEY = 'bluehood_page_size_v2';
+        const PAGE_SIZE_STORAGE_KEY = 'bluewatch_page_size_v2';
 
         function normalizePageSize(value) {
             const parsed = Number.parseInt(value, 10);
@@ -4657,11 +4657,11 @@ LIVE_TEMPLATE = """
         let allDevices = [];
         let currentFilter = 'all';
         let currentGroupId = null;
-        let hideCategorized = localStorage.getItem('bluehood_hide_categorized') === 'true';
+        let hideCategorized = localStorage.getItem('bluewatch_hide_categorized') === 'true';
         let dateFilteredDevices = null;
-        let compactView = localStorage.getItem('bluehood_compact_view') === 'true';
-        let screenshotMode = localStorage.getItem('bluehood_screenshot_mode') === 'true';
-        let clickToOpen = localStorage.getItem('bluehood_click_to_open') === 'true';
+        let compactView = localStorage.getItem('bluewatch_compact_view') === 'true';
+        let screenshotMode = localStorage.getItem('bluewatch_screenshot_mode') === 'true';
+        let clickToOpen = localStorage.getItem('bluewatch_click_to_open') === 'true';
         const defaultSortState = { column: 'last_seen', direction: 'desc' };
         let sortState = { ...defaultSortState };
         let selectedMacs = new Set();
@@ -4744,7 +4744,7 @@ LIVE_TEMPLATE = """
 
         function toggleViewMode() {
             compactView = !compactView;
-            localStorage.setItem('bluehood_compact_view', compactView);
+            localStorage.setItem('bluewatch_compact_view', compactView);
             updateViewToggle();
             renderDevices();
         }
@@ -4758,7 +4758,7 @@ LIVE_TEMPLATE = """
 
         function toggleScreenshotMode() {
             screenshotMode = !screenshotMode;
-            localStorage.setItem('bluehood_screenshot_mode', screenshotMode);
+            localStorage.setItem('bluewatch_screenshot_mode', screenshotMode);
             updateScreenshotToggle();
             renderDevices();
         }
@@ -4774,7 +4774,7 @@ LIVE_TEMPLATE = """
 
         function toggleClickToOpen() {
             clickToOpen = !clickToOpen;
-            localStorage.setItem('bluehood_click_to_open', clickToOpen);
+            localStorage.setItem('bluewatch_click_to_open', clickToOpen);
             updateClickToOpenToggle();
         }
 
@@ -4855,8 +4855,8 @@ LIVE_TEMPLATE = """
         // Demo Mode: full redaction for public screenshots (all MACs zeroed,
         // names/vendors/categories swapped for generic placeholders) -- a
         // stronger version of Screenshot Mode's partial masking. Enable via
-        // the browser console: localStorage.setItem('bluehood_demo_mode','true'); location.reload();
-        let demoMode = localStorage.getItem('bluehood_demo_mode') === 'true' || new URLSearchParams(window.location.search).get('demo') === '1';
+        // the browser console: localStorage.setItem('bluewatch_demo_mode','true'); location.reload();
+        let demoMode = localStorage.getItem('bluewatch_demo_mode') === 'true' || new URLSearchParams(window.location.search).get('demo') === '1';
         const DEMO_NAMES = ['Guest Phone', 'Kitchen Speaker', 'Smart Plug', 'Wireless Headset', 'Fitness Tracker', 'Smart TV', 'Tablet', 'Car Bluetooth', 'IoT Sensor', 'Robot Vacuum', 'Doorbell Camera', 'Smart Watch', 'Bluetooth Mouse', 'Game Controller', 'E-bike Lock'];
         let demoNameCounter = 0;
 
@@ -5004,7 +5004,7 @@ LIVE_TEMPLATE = """
 
         function setHideCategorized(value) {
             hideCategorized = value;
-            localStorage.setItem('bluehood_hide_categorized', hideCategorized);
+            localStorage.setItem('bluewatch_hide_categorized', hideCategorized);
             const checkbox = document.getElementById('hide-categorized-toggle');
             if (checkbox) checkbox.checked = value;
         }
@@ -6313,10 +6313,10 @@ LOGIN_TEMPLATE = """
         function toggleTheme() {
             const current = document.documentElement.getAttribute('data-theme') || 'dark';
             const next = current === 'dark' ? 'light' : 'dark';
-            localStorage.setItem('bluehood_theme', next);
+            localStorage.setItem('bluewatch_theme', next);
             applyTheme(next);
         }
-        applyTheme(localStorage.getItem('bluehood_theme') || 'dark');
+        applyTheme(localStorage.getItem('bluewatch_theme') || 'dark');
 
         document.getElementById('login-form').addEventListener('submit', async (e) => {
             e.preventDefault();

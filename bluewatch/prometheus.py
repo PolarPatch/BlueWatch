@@ -1,4 +1,4 @@
-"""Prometheus metrics exporter for Bluehood."""
+"""Prometheus metrics exporter for BlueWatch."""
 
 import logging
 from threading import Thread
@@ -28,60 +28,60 @@ class MetricsExporter:
         self.port = port
 
         # -- Info --
-        self.build_info = Info("bluehood", "Bluehood build information")
+        self.build_info = Info("bluewatch", "BlueWatch build information")
         self.build_info.info({"version": version})
 
         # -- Counters --
         self.scans_total = Counter(
-            "bluehood_scans_total",
+            "bluewatch_scans_total",
             "Total Bluetooth scan cycles completed",
         )
         self.scan_errors_total = Counter(
-            "bluehood_scan_errors_total",
+            "bluewatch_scan_errors_total",
             "Total scan errors",
             ["scan_type"],
         )
         self.sightings_total = Counter(
-            "bluehood_sightings_total",
+            "bluewatch_sightings_total",
             "Total device sightings recorded",
         )
         self.new_devices_total = Counter(
-            "bluehood_new_devices_total",
+            "bluewatch_new_devices_total",
             "Total new unique devices discovered",
         )
 
         # -- Gauges --
         self.last_scan_devices = Gauge(
-            "bluehood_last_scan_devices",
+            "bluewatch_last_scan_devices",
             "Number of devices found in the last scan cycle",
             ["scan_type"],
         )
         self.devices_total = Gauge(
-            "bluehood_devices_total",
+            "bluewatch_devices_total",
             "Total unique devices tracked in the database",
             ["bt_type"],
         )
         self.devices_active = Gauge(
-            "bluehood_devices_active",
+            "bluewatch_devices_active",
             "Devices seen in the last 5 minutes",
         )
         self.devices_watched = Gauge(
-            "bluehood_devices_watched",
+            "bluewatch_devices_watched",
             "Number of watched (devices of interest) devices",
         )
         self.devices_ignored = Gauge(
-            "bluehood_devices_ignored",
+            "bluewatch_devices_ignored",
             "Number of ignored devices",
         )
 
         # -- Histograms --
         self.scan_duration = Histogram(
-            "bluehood_scan_duration_seconds",
+            "bluewatch_scan_duration_seconds",
             "Wall-clock duration of a scan cycle",
             buckets=(1, 2, 5, 10, 15, 20, 30, 45, 60),
         )
         self.device_rssi = Histogram(
-            "bluehood_device_rssi_dbm",
+            "bluewatch_device_rssi_dbm",
             "RSSI distribution of scanned BLE devices",
             buckets=RSSI_BUCKETS,
         )

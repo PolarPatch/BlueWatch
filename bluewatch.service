@@ -1,14 +1,14 @@
 [Unit]
-Description=Bluehood Bluetooth Monitor
+Description=BlueWatch Bluetooth Monitor
 After=bluetooth.target network.target
 Wants=bluetooth.target
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/python3 -m bluehood.daemon
+ExecStart=/usr/bin/python3 -m bluewatch.daemon
 Restart=on-failure
 RestartSec=10
-Environment=BLUEHOOD_DATA_DIR=/var/lib/bluehood
+Environment=BLUEWATCH_DATA_DIR=/var/lib/bluewatch
 
 [Install]
 WantedBy=multi-user.target

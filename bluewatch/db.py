@@ -1,4 +1,4 @@
-"""Database operations for bluehood."""
+"""Database operations for bluewatch."""
 
 import bisect
 import json

@@ -156,14 +156,14 @@ The web dashboard will be available at **http://localhost:8080**
 | `PUID` | `1000` | UID for the container user — set to match your host user (`id -u`) when using bind mounts |
 | `PGID` | `1000` | GID for the container user — set to match your host group (`id -g`) when using bind mounts |
 | `TZ` | UTC | Container timezone (e.g., `Europe/London`) |
-| `BLUEHOOD_ADAPTER` | auto | Bluetooth adapter for BLE scanning (e.g., `hci0`) |
-| `BLUEHOOD_CLASSIC_ADAPTER` | same as `BLUEHOOD_ADAPTER` | Separate adapter for classic Bluetooth scanning (e.g., `hci1`). When set to a different adapter, BLE and classic scans run concurrently. |
-| `BLUEHOOD_DATA_DIR` | `/data` | Database storage directory |
-| `BLUEHOOD_METRICS_PORT` | disabled | Prometheus metrics port (e.g., `9199`) |
-| `BLUEHOOD_HEARTBEAT_URL` | disabled | URL to POST heartbeat check-ins (e.g., a healthchecks.io or uptime-kuma push URL) |
-| `BLUEHOOD_HEARTBEAT_INTERVAL` | `300` | Seconds between heartbeat check-ins |
-| `BLUEHOOD_PRUNE_DAYS` | `0` (disabled) | Auto-delete sightings older than N days to free storage |
-| `BLUEHOOD_PRUNE_MIN_SIGHTINGS` | `0` (disabled) | When >0, prune whole stale devices (older than `BLUEHOOD_PRUNE_DAYS` and with fewer than N total sightings) instead of only trimming old sighting rows; watched devices are never pruned |
+| `BLUEWATCH_ADAPTER` | auto | Bluetooth adapter for BLE scanning (e.g., `hci0`) |
+| `BLUEWATCH_CLASSIC_ADAPTER` | same as `BLUEWATCH_ADAPTER` | Separate adapter for classic Bluetooth scanning (e.g., `hci1`). When set to a different adapter, BLE and classic scans run concurrently. |
+| `BLUEWATCH_DATA_DIR` | `/data` | Database storage directory |
+| `BLUEWATCH_METRICS_PORT` | disabled | Prometheus metrics port (e.g., `9199`) |
+| `BLUEWATCH_HEARTBEAT_URL` | disabled | URL to POST heartbeat check-ins (e.g., a healthchecks.io or uptime-kuma push URL) |
+| `BLUEWATCH_HEARTBEAT_INTERVAL` | `300` | Seconds between heartbeat check-ins |
+| `BLUEWATCH_PRUNE_DAYS` | `0` (disabled) | Auto-delete sightings older than N days to free storage |
+| `BLUEWATCH_PRUNE_MIN_SIGHTINGS` | `0` (disabled) | When >0, prune whole stale devices (older than `BLUEWATCH_PRUNE_DAYS` and with fewer than N total sightings) instead of only trimming old sighting rows; watched devices are never pruned |
 
 ### Bluetooth Adapter Requirements
 
@@ -197,20 +197,20 @@ Bluetooth scanning requires elevated privileges. Choose one:
 
 1. **Run as root** (simplest):
    ```bash
-   sudo bluehood
+   sudo bluewatch
    ```
 
 2. **Grant capabilities to Python**:
    ```bash
    sudo setcap 'cap_net_admin,cap_net_raw+eip' $(readlink -f $(which python))
-   bluehood
+   bluewatch
    ```
 
 3. **Use systemd service** (recommended for always-on):
    ```bash
-   sudo cp bluehood.service /etc/systemd/system/
+   sudo cp bluewatch.service /etc/systemd/system/
    sudo systemctl daemon-reload
-   sudo systemctl enable --now bluehood
+   sudo systemctl enable --now bluewatch
    ```
 
 ### macOS
@@ -230,7 +230,7 @@ source .venv/bin/activate
 pip install -e .
 
 # Run
-python -m bluehood.daemon
+python -m bluewatch.daemon
 ```
 
 The web dashboard will be available at **http://localhost:8080**
@@ -241,25 +241,25 @@ The web dashboard will be available at **http://localhost:8080**
 
 ```bash
 # Start with web dashboard (default port 8080)
-bluehood
+bluewatch
 
 # Specify a different port
-bluehood --port 9000
+bluewatch --port 9000
 
 # Use a specific Bluetooth adapter
-bluehood --adapter hci1
+bluewatch --adapter hci1
 
 # Use separate adapters for BLE and classic scanning (concurrent)
-bluehood --adapter hci0 --classic-adapter hci1
+bluewatch --adapter hci0 --classic-adapter hci1
 
 # List available adapters
-bluehood --list-adapters
+bluewatch --list-adapters
 
 # Disable web dashboard (scanning only)
-bluehood --no-web
+bluewatch --no-web
 
 # Enable Prometheus metrics exporter on port 9199
-bluehood --metrics-port 9199
+bluewatch --metrics-port 9199
 ```
 
 ## Web Dashboard
@@ -296,8 +296,8 @@ The dashboard provides:
 ### Screenshot Mode / Demo Mode
 
 Two levels of redaction for sharing screenshots safely, toggled via the
-browser console (`localStorage.setItem('bluehood_screenshot_mode', 'true')`
-/ `'bluehood_demo_mode'`) or, for demo mode, a `?demo=1` URL param:
+browser console (`localStorage.setItem('bluewatch_screenshot_mode', 'true')`
+/ `'bluewatch_demo_mode'`) or, for demo mode, a `?demo=1` URL param:
 - **Screenshot mode**: partial masking — MAC addresses show only the
   first 2 octets (e.g., `AA:BB:XX:XX:XX:XX`), names show only the first
   2 characters (e.g., `Da********`)
@@ -320,11 +320,11 @@ BlueWatch can send push notifications via [ntfy.sh](https://ntfy.sh), a free, op
 
 ## Data Storage
 
-Data is stored in `~/.local/share/bluehood/bluehood.db` (SQLite).
+Data is stored in `~/.local/share/bluewatch/bluewatch.db` (SQLite).
 
 Override location with environment variables:
-- `BLUEHOOD_DATA_DIR` - Directory for data files
-- `BLUEHOOD_DB_PATH` - Direct path to database file
+- `BLUEWATCH_DATA_DIR` - Directory for data files
+- `BLUEWATCH_DB_PATH` - Direct path to database file
 
 > **Note**: Heartbeat and pruning settings can be configured from the web UI (Settings > Operations) or via environment variables. GUI values take priority over env vars.
 
@@ -376,14 +376,14 @@ Tracks how long devices spend in range by analyzing gaps between sightings. A co
 
 ## Prometheus Metrics
 
-BlueWatch can expose metrics for Prometheus scraping. Enable by setting the `BLUEHOOD_METRICS_PORT` environment variable or the `--metrics-port` CLI flag.
+BlueWatch can expose metrics for Prometheus scraping. Enable by setting the `BLUEWATCH_METRICS_PORT` environment variable or the `--metrics-port` CLI flag.
 
 ```bash
 # Via environment variable
-export BLUEHOOD_METRICS_PORT=9199
+export BLUEWATCH_METRICS_PORT=9199
 
 # Via CLI
-bluehood --metrics-port 9199
+bluewatch --metrics-port 9199
 ```
 
 Metrics are served at `http://host:9199/metrics`.
@@ -392,28 +392,28 @@ Metrics are served at `http://host:9199/metrics`.
 
 | Metric | Type | Description |
 |--------|------|-------------|
-| `bluehood_scans_total` | Counter | Total scan cycles completed |
-| `bluehood_scan_errors_total` | Counter | Scan errors (label: `scan_type`) |
-| `bluehood_sightings_total` | Counter | Total device sightings recorded |
-| `bluehood_new_devices_total` | Counter | New unique devices discovered |
-| `bluehood_last_scan_devices` | Gauge | Devices in last scan (label: `scan_type`) |
-| `bluehood_devices_total` | Gauge | Unique devices in DB (label: `bt_type`) |
-| `bluehood_devices_active` | Gauge | Devices seen in last 5 minutes |
-| `bluehood_devices_watched` | Gauge | Watched device count |
-| `bluehood_devices_ignored` | Gauge | Ignored device count |
-| `bluehood_scan_duration_seconds` | Histogram | Scan cycle duration |
-| `bluehood_device_rssi_dbm` | Histogram | RSSI distribution of BLE devices |
-| `bluehood_build_info` | Info | Version information |
+| `bluewatch_scans_total` | Counter | Total scan cycles completed |
+| `bluewatch_scan_errors_total` | Counter | Scan errors (label: `scan_type`) |
+| `bluewatch_sightings_total` | Counter | Total device sightings recorded |
+| `bluewatch_new_devices_total` | Counter | New unique devices discovered |
+| `bluewatch_last_scan_devices` | Gauge | Devices in last scan (label: `scan_type`) |
+| `bluewatch_devices_total` | Gauge | Unique devices in DB (label: `bt_type`) |
+| `bluewatch_devices_active` | Gauge | Devices seen in last 5 minutes |
+| `bluewatch_devices_watched` | Gauge | Watched device count |
+| `bluewatch_devices_ignored` | Gauge | Ignored device count |
+| `bluewatch_scan_duration_seconds` | Histogram | Scan cycle duration |
+| `bluewatch_device_rssi_dbm` | Histogram | RSSI distribution of BLE devices |
+| `bluewatch_build_info` | Info | Version information |
 
 ### Grafana Dashboard
 
-A ready-to-import Grafana dashboard is included at [`grafana/bluehood-dashboard.json`](grafana/bluehood-dashboard.json). Import it via the Grafana UI (Dashboards > Import) or the API:
+A ready-to-import Grafana dashboard is included at [`grafana/bluewatch-dashboard.json`](grafana/bluewatch-dashboard.json). Import it via the Grafana UI (Dashboards > Import) or the API:
 
 ```bash
 curl -X POST "http://localhost:3000/api/dashboards/db" \
   -H "Authorization: Bearer <your-api-key>" \
   -H "Content-Type: application/json" \
-  -d "{\"dashboard\": $(cat grafana/bluehood-dashboard.json), \"overwrite\": true}"
+  -d "{\"dashboard\": $(cat grafana/bluewatch-dashboard.json), \"overwrite\": true}"
 ```
 
 ## Troubleshooting
@@ -421,7 +421,7 @@ curl -X POST "http://localhost:3000/api/dashboards/db" \
 ### No devices found
 - Ensure your adapter supports BLE (Bluetooth 4.0+) with the Central role — older adapters won't work
 - Ensure Bluetooth adapter is enabled: `bluetoothctl power on`
-- Check adapter is detected: `bluehood --list-adapters`
+- Check adapter is detected: `bluewatch --list-adapters`
 - Run with sudo if permission denied
 
 ### Docker issues

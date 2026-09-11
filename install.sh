@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # ──────────────────────────────────────────────────────────────
-# Bluehood – macOS Install / Uninstall / Reset
+# BlueWatch – macOS Install / Uninstall / Reset
 # Installs dependencies into a virtual environment and registers
-# a launchd agent so bluehood starts automatically on login.
+# a launchd agent so bluewatch starts automatically on login.
 #
 # Usage:
 #   ./install.sh [install]            Install (or upgrade) and auto-start.
@@ -21,7 +21,7 @@ step()  { printf "\n${CYAN}── %s${NC}\n" "$*"; }
 
 usage() {
     cat <<'USAGE'
-Bluehood – macOS Install / Uninstall / Reset
+BlueWatch – macOS Install / Uninstall / Reset
 
 Usage:
   ./install.sh [install]            Install (or upgrade) and auto-start.
@@ -33,11 +33,11 @@ USAGE
 }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DATA_DIR="${HOME}/.local/share/bluehood"
+DATA_DIR="${HOME}/.local/share/bluewatch"
 VENV_DIR="${DATA_DIR}/venv"     # Must NOT be under ~/Documents, ~/Desktop, etc.
                                  # macOS TCC blocks launchd access to those folders.
-LOG_DIR="${HOME}/Library/Logs/bluehood"
-PLIST_LABEL="com.bluehood.daemon"
+LOG_DIR="${HOME}/Library/Logs/bluewatch"
+PLIST_LABEL="com.bluewatch.daemon"
 PLIST_PATH="${HOME}/Library/LaunchAgents/${PLIST_LABEL}.plist"
 
 # ── Verify macOS ─────────────────────────────────────────────
@@ -77,7 +77,7 @@ remove_agent() {
 do_uninstall() {
     local purge="${1:-false}"
 
-    step "Uninstalling bluehood"
+    step "Uninstalling bluewatch"
     remove_agent
 
     if [[ -d "${VENV_DIR}" ]]; then
@@ -92,7 +92,7 @@ do_uninstall() {
         info "Kept data (${DATA_DIR}) and logs (${LOG_DIR}). Use --purge to remove them."
     fi
 
-    printf "\n${GREEN}✔ Bluehood has been uninstalled.${NC}\n"
+    printf "\n${GREEN}✔ BlueWatch has been uninstalled.${NC}\n"
 }
 
 # ── Install ──────────────────────────────────────────────────
@@ -129,8 +129,8 @@ do_install() {
     fi
     "${VENV_DIR}/bin/pip" install --upgrade pip --quiet
 
-    # ── Step 4: Install bluehood ────────────────────────────
-    step "4/5  Installing bluehood package"
+    # ── Step 4: Install bluewatch ────────────────────────────
+    step "4/5  Installing bluewatch package"
 
     "${VENV_DIR}/bin/pip" install "${SCRIPT_DIR}" --quiet
 
@@ -157,7 +157,7 @@ do_install() {
     <array>
         <string>${VENV_DIR}/bin/python</string>
         <string>-m</string>
-        <string>bluehood.daemon</string>
+        <string>bluewatch.daemon</string>
     </array>
 
     <!-- WorkingDirectory deliberately set to DATA_DIR (not the
@@ -168,7 +168,7 @@ do_install() {
 
     <key>EnvironmentVariables</key>
     <dict>
-        <key>BLUEHOOD_DATA_DIR</key>
+        <key>BLUEWATCH_DATA_DIR</key>
         <string>${DATA_DIR}</string>
         <key>PATH</key>
         <string>${VENV_DIR}/bin:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin</string>
@@ -190,10 +190,10 @@ do_install() {
     <integer>30</integer>
 
     <key>StandardOutPath</key>
-    <string>${LOG_DIR}/bluehood.stdout.log</string>
+    <string>${LOG_DIR}/bluewatch.stdout.log</string>
 
     <key>StandardErrorPath</key>
-    <string>${LOG_DIR}/bluehood.stderr.log</string>
+    <string>${LOG_DIR}/bluewatch.stderr.log</string>
 
     <key>ProcessType</key>
     <string>Background</string>
@@ -213,28 +213,28 @@ PLIST
         local pid
         pid=$(launchctl list "${PLIST_LABEL}" 2>/dev/null | awk 'NR==1{print $1}')
         if [[ "${pid}" != "-" && -n "${pid}" ]]; then
-            printf "\n${GREEN}✔ Bluehood is running (PID ${pid})!${NC}\n"
+            printf "\n${GREEN}✔ BlueWatch is running (PID ${pid})!${NC}\n"
             info "Dashboard: http://localhost:8080"
         else
-            printf "\n${GREEN}✔ Bluehood agent is registered.${NC}\n"
+            printf "\n${GREEN}✔ BlueWatch agent is registered.${NC}\n"
             info "The launcher is waiting for Bluetooth – check logs for status."
         fi
     else
         warn "Service may not have started – check logs:"
-        warn "  tail -f ${LOG_DIR}/bluehood.stderr.log"
+        warn "  tail -f ${LOG_DIR}/bluewatch.stderr.log"
     fi
 
     cat <<EOF
 
 ────────────────────────────────────────────
-  Bluehood is installed and will auto-start
+  BlueWatch is installed and will auto-start
   every time you log in.
 
   Commands:
     launchctl stop  ${PLIST_LABEL}
     launchctl start ${PLIST_LABEL}
     launchctl list  ${PLIST_LABEL}
-    tail -f ${LOG_DIR}/bluehood.stderr.log
+    tail -f ${LOG_DIR}/bluewatch.stderr.log
 
   Uninstall:           ./install.sh uninstall
   Uninstall + wipe:    ./install.sh uninstall --purge

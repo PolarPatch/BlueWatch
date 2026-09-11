@@ -1,4 +1,4 @@
-"""Web server for the Bluehood dashboard."""
+"""Web server for the BlueWatch dashboard."""
 
 import csv
 import hashlib
@@ -53,7 +53,7 @@ def verify_password(password: str, stored_hash: str) -> bool:
 
 
 class WebServer:
-    """Web server for Bluehood dashboard."""
+    """Web server for BlueWatch dashboard."""
 
     def __init__(self, host: str = "0.0.0.0", port: int = 8080, notifications=None):
         self.host = host
@@ -391,7 +391,7 @@ class WebServer:
             return name[:2] + "*" * min(len(name) - 2, 8)
 
         filename = (
-            "bluehood-recon-" + datetime.now().strftime("%Y-%m-%d") + "." + export_format
+            "bluewatch-export-" + datetime.now().strftime("%Y-%m-%d") + "." + export_format
         )
         content_type = (
             "application/json; charset=utf-8"

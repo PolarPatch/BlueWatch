@@ -35,7 +35,7 @@ from .config import SCAN_DURATION, BLUETOOTH_ADAPTER, CLASSIC_BLUETOOTH_ADAPTER,
 
 logger = logging.getLogger(__name__)
 
-# Configure mac-vendor-lookup to use BLUEHOOD_DATA_DIR for caching
+# Configure mac-vendor-lookup to use BLUEWATCH_DATA_DIR for caching
 if HAS_MAC_LOOKUP:
     BaseMacLookup.cache_path = str(DATA_DIR / "mac-vendors.txt")
 

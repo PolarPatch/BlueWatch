@@ -1,4 +1,4 @@
-"""Bluehood daemon - continuous Bluetooth scanning service."""
+"""BlueWatch daemon - continuous Bluetooth scanning service."""
 
 import argparse
 import asyncio
@@ -30,7 +30,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-class BluehoodDaemon:
+class BlueWatchDaemon:
     """Main daemon process for Bluetooth scanning."""
 
     def __init__(self, adapter: Optional[str] = None, classic_adapter: Optional[str] = None, web_port: Optional[int] = None, metrics_port: Optional[int] = None):
@@ -100,7 +100,7 @@ class BluehoodDaemon:
 
     async def start(self) -> None:
         """Start the daemon."""
-        logger.info("Starting bluehood daemon...")
+        logger.info("Starting bluewatch daemon...")
 
         # Block until the Bluetooth adapter is ready (macOS only).
         await self._wait_for_bluetooth()
@@ -138,14 +138,14 @@ class BluehoodDaemon:
             await self._web_server.start()
             logger.info(f"Web dashboard available at http://0.0.0.0:{effective_port}")
 
-        # Start Prometheus metrics exporter (requires `pip install bluehood[metrics]`)
+        # Start Prometheus metrics exporter (requires `pip install bluewatch[metrics]`)
         if self._metrics_port:
             try:
                 from .prometheus import MetricsExporter
                 self._metrics = MetricsExporter(port=self._metrics_port, version=__version__)
                 self._metrics.start()
             except ImportError:
-                logger.error("prometheus-client not installed. Install with: pip install bluehood[metrics]")
+                logger.error("prometheus-client not installed. Install with: pip install bluewatch[metrics]")
                 self._metrics = None
 
         # Start scanning and background loops
@@ -160,7 +160,7 @@ class BluehoodDaemon:
 
     async def stop(self) -> None:
         """Stop the daemon."""
-        logger.info("Stopping bluehood daemon...")
+        logger.info("Stopping bluewatch daemon...")
         self.running = False
 
         # Close all client connections
@@ -591,9 +591,9 @@ class BluehoodDaemon:
 
 
 def main() -> None:
-    """Entry point for bluehood-daemon."""
+    """Entry point for bluewatch-daemon."""
     parser = argparse.ArgumentParser(
-        description="Bluehood Bluetooth neighborhood monitor daemon"
+        description="BlueWatch Bluetooth neighborhood monitor daemon"
     )
     parser.add_argument(
         "-a", "--adapter",
@@ -624,7 +624,7 @@ def main() -> None:
         "--metrics-port",
         type=int,
         default=None,
-        help="Prometheus metrics port (default: disabled, env: BLUEHOOD_METRICS_PORT)"
+        help="Prometheus metrics port (default: disabled, env: BLUEWATCH_METRICS_PORT)"
     )
     args = parser.parse_args()
 
@@ -640,7 +640,7 @@ def main() -> None:
 
     web_port = None if args.no_web else args.port
     metrics_port = args.metrics_port or METRICS_PORT
-    daemon = BluehoodDaemon(adapter=args.adapter, classic_adapter=args.classic_adapter, web_port=web_port, metrics_port=metrics_port)
+    daemon = BlueWatchDaemon(adapter=args.adapter, classic_adapter=args.classic_adapter, web_port=web_port, metrics_port=metrics_port)
     try:
         asyncio.run(daemon.start())
     except KeyboardInterrupt:

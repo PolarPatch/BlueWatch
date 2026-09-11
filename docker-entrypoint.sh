@@ -12,20 +12,20 @@ fi
 
 echo "Starting with UID: $PUID, GID: $PGID"
 
-# Update bluehood group GID
-if [ "$(id -g bluehood 2>/dev/null)" != "$PGID" ]; then
-    groupmod -o -g "$PGID" bluehood
+# Update bluewatch group GID
+if [ "$(id -g bluewatch 2>/dev/null)" != "$PGID" ]; then
+    groupmod -o -g "$PGID" bluewatch
 fi
 
-# Update bluehood user UID and ensure group membership
-if [ "$(id -u bluehood 2>/dev/null)" != "$PUID" ]; then
-    usermod -o -u "$PUID" bluehood
+# Update bluewatch user UID and ensure group membership
+if [ "$(id -u bluewatch 2>/dev/null)" != "$PUID" ]; then
+    usermod -o -u "$PUID" bluewatch
 fi
 
-# Ensure bluehood is in the bluetooth group
-usermod -aG bluetooth bluehood 2>/dev/null || true
+# Ensure bluewatch is in the bluetooth group
+usermod -aG bluetooth bluewatch 2>/dev/null || true
 
 # Fix ownership of data directory
-chown -R bluehood:bluehood /data
+chown -R bluewatch:bluewatch /data
 
-exec gosu bluehood "$@"
+exec gosu bluewatch "$@"

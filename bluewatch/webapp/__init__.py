@@ -1,4 +1,4 @@
-"""Bluehood web app package."""
+"""BlueWatch web app package."""
 
 from .server import WebServer
 
