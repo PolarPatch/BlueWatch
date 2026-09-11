@@ -3,12 +3,13 @@
 Get alerts when new Bluetooth devices appear in your local neighbourhood.
 
 Started from [bluehood](https://github.com/dannymcc/bluehood) (MIT licensed
-— see `CREDITS.md`) but diverging into its own project. See `SPEC.md` for
-the design this codebase is being reworked toward: known/unknown device
-triage, user-defined nested categories, drag-and-drop assignment,
-per-device arrive/depart notification overrides, and an independent
-watchlist. The content below this point is still bluehood's own
-documentation and describes the *current* code, not yet the target design.
+— see `CREDITS.md`) but has since diverged into its own project: known/
+unknown device triage, user-defined nested categories with drag-and-drop
+assignment, per-device arrive/depart notification overrides, an
+independent watchlist, a live "nearby now" dashboard, IRK-based address
+resolution, and a WiGLE.net vendor-lookup fallback, among other things
+not in the original. See `SPEC.md` for the original design notes and
+`CREDITS.md` for the full breakdown of what's inherited vs. new.
 
 ---
 
@@ -31,9 +32,7 @@ documentation and describes the *current* code, not yet the target design.
 
 ## Why?
 
-This project was inspired by the [WhisperPair vulnerability](https://whisperpair.eu/) ([CVE-2025-36911](https://nvd.nist.gov/vuln/detail/CVE-2025-36911)), which highlighted privacy risks in Bluetooth devices.
-
-Thousands of Bluetooth devices surround us at all times: phones, cars, TVs, headphones, hearing aids, delivery vehicles, and more. Bluehood demonstrates how simple it is to passively detect these devices and observe patterns in their presence.
+Thousands of Bluetooth devices surround us at all times: phones, cars, TVs, headphones, hearing aids, delivery vehicles, and more. BlueWatch demonstrates how simple it is to passively detect these devices and observe patterns in their presence — no pairing, no active interaction, nothing the device owner would ever notice.
 
 With enough data, you could potentially:
 - Understand what time someone typically walks their dog
@@ -42,11 +41,11 @@ With enough data, you could potentially:
 
 This metadata can reveal surprisingly personal information without any active interaction with the devices.
 
-**Bluehood is an educational tool to raise awareness about Bluetooth privacy.** It's a weekend project, but the implications are worth thinking about.
+**BlueWatch is an educational tool to raise awareness about Bluetooth privacy.** It started as a weekend project, but the implications are worth thinking about.
 
 ## What?
 
-Bluehood is a Bluetooth scanner that:
+BlueWatch is a Bluetooth scanner that:
 
 - **Continuously scans** for nearby Bluetooth devices (both BLE and Classic)
 - **Identifies devices** by vendor (MAC address lookup) and BLE service UUIDs
@@ -111,7 +110,7 @@ Bluehood is a Bluetooth scanner that:
 
 > **Prerequisites — Linux hosts only**
 >
-> Bluehood communicates with your Bluetooth adapter via BlueZ, the Linux Bluetooth stack. **BlueZ must be installed and running on the host before starting the container** — the Docker image itself does not include it.
+> BlueWatch communicates with your Bluetooth adapter via BlueZ, the Linux Bluetooth stack. **BlueZ must be installed and running on the host before starting the container** — the Docker image itself does not include it.
 >
 > ```bash
 > # Debian / Ubuntu (including Ubuntu Server)
@@ -127,19 +126,16 @@ Bluehood is a Bluetooth scanner that:
 > `BLE scan error: [org.freedesktop.DBus.Error.ServiceUnknown] The name org.bluez was not provided by any .service files`
 
 ```bash
-# Create a docker-compose.yml or download the one from this repo
-# Then start with Docker Compose
-docker compose up -d
+# Clone this repository, then build and start with Docker Compose
+git clone <this-repo-url>
+cd bluewatch
+docker compose up -d --build
 
 # View logs
 docker compose logs -f
 ```
 
-The Docker image is available on GitHub Container Registry:
-
-```
-ghcr.io/dannymcc/bluehood:latest
-```
+There's no published BlueWatch image on a container registry yet — `docker-compose.yml` builds from the `Dockerfile` in this repo.
 
 The web dashboard will be available at **http://localhost:8080**
 
@@ -171,9 +167,9 @@ The web dashboard will be available at **http://localhost:8080**
 
 ### Bluetooth Adapter Requirements
 
-Bluehood requires a **BLE-capable Bluetooth adapter** (Bluetooth 4.0 or later) with **Central** role support. Older Bluetooth 2.x/3.x adapters do not support BLE scanning and will not work.
+BlueWatch requires a **BLE-capable Bluetooth adapter** (Bluetooth 4.0 or later) with **Central** role support. Older Bluetooth 2.x/3.x adapters do not support BLE scanning and will not work.
 
-If your adapter does not support the BLE Central role, Bluehood will exit with:
+If your adapter does not support the BLE Central role, BlueWatch will exit with:
 ```
 No Bluetooth adapters with BLE 'central' role found
 ```
@@ -190,8 +186,8 @@ sudo pacman -S bluez bluez-utils python-pip
 sudo apt install bluez python3-pip
 
 # Clone and install
-git clone https://github.com/dannymcc/bluehood.git
-cd bluehood
+git clone <this-repo-url>
+cd bluewatch
 pip install -e .
 ```
 
@@ -219,12 +215,12 @@ Bluetooth scanning requires elevated privileges. Choose one:
 
 ### macOS
 
-Bluehood works natively on macOS without Docker. macOS uses CoreBluetooth instead of BlueZ, which is handled automatically by the `bleak` library.
+BlueWatch works natively on macOS without Docker. macOS uses CoreBluetooth instead of BlueZ, which is handled automatically by the `bleak` library.
 
 ```bash
 # Clone the repository
-git clone https://github.com/dannymcc/bluehood.git
-cd bluehood
+git clone <this-repo-url>
+cd bluewatch
 
 # Create a virtual environment
 python3 -m venv .venv
@@ -274,7 +270,7 @@ The dashboard provides:
 - **Device filters** by type (phones, audio, IoT, etc.) and watched status
 - **Search** by MAC, vendor, or name
 - **Date range search** to find devices seen in a specific time window
-- **Tabbed settings** page — Alerts, Operations, Groups, and Security (direct-link via hash, e.g. `/settings#operations`)
+- **Tabbed settings** page — Alerts, Operations, Groups, Security, WiGLE, and Export (direct-link via hash, e.g. `/settings#operations`)
 - **Device details** modal with:
   - BLE service fingerprints
   - Hourly/daily activity heatmaps
@@ -282,11 +278,9 @@ The dashboard provides:
   - Signal strength (RSSI) history chart
   - Pattern analysis
   - Dwell time statistics
-  - Correlated devices list
-  - Likely same device (MAC rotation) list
   - Proximity zone indicator
-  - Operator notes field
-  - Group assignment
+  - Notes field
+  - Group and type assignment
 
 ### Keyboard Shortcuts
 
@@ -299,20 +293,26 @@ The dashboard provides:
 | `Esc` | Close modal |
 | `?` | Show keyboard shortcuts |
 
-### Screenshot Mode
+### Screenshot Mode / Demo Mode
 
-Enable screenshot mode from the sidebar to obfuscate sensitive data before sharing screenshots:
-- MAC addresses show only first 2 octets (e.g., `AA:BB:XX:XX:XX:XX`)
-- Friendly names show only first 2 characters (e.g., `Da********`)
+Two levels of redaction for sharing screenshots safely, toggled via the
+browser console (`localStorage.setItem('bluehood_screenshot_mode', 'true')`
+/ `'bluehood_demo_mode'`) or, for demo mode, a `?demo=1` URL param:
+- **Screenshot mode**: partial masking — MAC addresses show only the
+  first 2 octets (e.g., `AA:BB:XX:XX:XX:XX`), names show only the first
+  2 characters (e.g., `Da********`)
+- **Demo mode**: full redaction — every MAC becomes `00:00:00:00:00:00`,
+  and names/vendors/categories are replaced with generic placeholders
+  (used for this README's own screenshots)
 - CSV exports also respect screenshot mode
 
 ## Push Notifications
 
-Bluehood can send push notifications via [ntfy.sh](https://ntfy.sh), a free, open-source notification service.
+BlueWatch can send push notifications via [ntfy.sh](https://ntfy.sh), a free, open-source notification service.
 
-1. Create a topic at ntfy.sh (e.g., `bluehood-myname-alerts`)
+1. Create a topic at ntfy.sh (e.g., `bluewatch-myname-alerts`)
 2. Subscribe to the topic on your phone using the ntfy app
-3. In Bluehood settings, enter your topic name and enable notifications
+3. In BlueWatch settings, enter your topic name and enable notifications
 4. Configure which events trigger notifications:
    - New device detected
    - Watched device returns (after being absent)
@@ -332,7 +332,7 @@ Override location with environment variables:
 
 ### Device Classification
 
-Bluehood classifies devices using multiple signals (in priority order):
+BlueWatch classifies devices using multiple signals (in priority order):
 
 1. **BLE Service UUIDs** - Most accurate (Heart Rate = wearable, A2DP = audio, etc.)
 2. **Device name patterns** - "iPhone", "Galaxy", "AirPods", etc.
@@ -340,14 +340,14 @@ Bluehood classifies devices using multiple signals (in priority order):
 
 ### Randomized MACs
 
-Modern devices randomize their MAC addresses for privacy. Bluehood:
+Modern devices randomize their MAC addresses for privacy. BlueWatch:
 - Detects randomized MACs (locally administered bit)
 - Hides them from the main device list (not useful for tracking)
 - Shows a count of hidden randomized devices
 
 ### Pattern Analysis
 
-Bluehood analyzes sighting timestamps to detect patterns:
+BlueWatch analyzes sighting timestamps to detect patterns:
 
 - **Time of day**: Morning, Afternoon, Evening, Night
 - **Day of week**: Weekdays, Weekends
@@ -357,7 +357,7 @@ Example patterns: "Daily, evenings (5PM-9PM)", "Weekdays, morning (8AM-12PM)"
 
 ### Device Correlation
 
-Bluehood detects devices that frequently appear together within a configurable time window. This can reveal:
+BlueWatch detects devices that frequently appear together within a configurable time window. This can reveal:
 - Devices owned by the same person (phone + smartwatch)
 - People who travel together
 - Devices that share a schedule
@@ -376,7 +376,7 @@ Tracks how long devices spend in range by analyzing gaps between sightings. A co
 
 ## Prometheus Metrics
 
-Bluehood can expose metrics for Prometheus scraping. Enable by setting the `BLUEHOOD_METRICS_PORT` environment variable or the `--metrics-port` CLI flag.
+BlueWatch can expose metrics for Prometheus scraping. Enable by setting the `BLUEHOOD_METRICS_PORT` environment variable or the `--metrics-port` CLI flag.
 
 ```bash
 # Via environment variable
@@ -444,16 +444,9 @@ docker compose restart
 
 Contributions welcome! Please open an issue or PR on GitHub.
 
-### Contributors
-
-- [@martinh2011](https://github.com/martinh2011) (Martin Hüser) - MAC vendor cache improvements
-- [@hatedabamboo](https://github.com/hatedabamboo) (Kirill Solovei) - Light theme support
-- [@krnltrp](https://github.com/krnltrp) - Web UI enhancements
-- [@jacobpretorius](https://github.com/jacobpretorius) (Jacob Pretorius) - CSV export JS fix (#14), click to open setting (#16)
-- [@unqualifiedkoala](https://github.com/unqualifiedkoala) - Documented BLE adapter requirements
-- [@dazzag24](https://github.com/dazzag24) - Reported macOS address format issue
-- [@floese](https://github.com/floese) (W.A.Flozart) - Firefox doubleclick fix (#29)
-- [@GeiserX](https://github.com/GeiserX) (Sergio Fernández) - Prometheus metrics exporter (#35), non-blocking vendor DB fix (#37), dual-adapter scanning (#33), robust scan recovery with rfkill (#40)
+For credit for the bluehood-era contributors whose work this project's
+scanning/persistence/notification plumbing was originally built on, see
+`CREDITS.md`.
 
 ## License
 
@@ -462,7 +455,3 @@ MIT License - See [LICENSE](LICENSE) for details.
 ## Disclaimer
 
 This tool is for educational purposes only. Be mindful of privacy laws in your jurisdiction when monitoring Bluetooth devices. The author is not responsible for any misuse of this software.
-
----
-
-Created by [Danny McClelland](https://github.com/dannymcc)
