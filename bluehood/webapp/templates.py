@@ -1913,13 +1913,14 @@ HTML_TEMPLATE = """
                 const rowClass = isSelected ? 'selected' : '';
                 const checkedAttr = isSelected ? 'checked' : '';
 
-                // Build group pill HTML
+                // Build group pill HTML -- clickable, jumps into that
+                // category's list view (same as clicking it in the sidebar).
                 let groupHtml = '—';
                 if (d.group_name && d.group_color) {
                     const textColor = getContrastColor(d.group_color);
-                    groupHtml = '<span style="background: ' + d.group_color + '; color: ' + textColor + '; padding: 0.15rem 0.5rem; border-radius: 3px; font-size: 0.7rem; font-weight: 500;">' + d.group_name + '</span>';
+                    groupHtml = '<span onclick="event.stopPropagation(); selectCategory(' + d.group_id + ');" style="cursor: pointer; background: ' + d.group_color + '; color: ' + textColor + '; padding: 0.15rem 0.5rem; border-radius: 3px; font-size: 0.7rem; font-weight: 500;" title="View this category">' + d.group_name + '</span>';
                 } else if (d.group_name) {
-                    groupHtml = '<span style="background: var(--bg-tertiary); color: var(--text-secondary); padding: 0.15rem 0.5rem; border-radius: 3px; font-size: 0.7rem;">' + d.group_name + '</span>';
+                    groupHtml = '<span onclick="event.stopPropagation(); selectCategory(' + d.group_id + ');" style="cursor: pointer; background: var(--bg-tertiary); color: var(--text-secondary); padding: 0.15rem 0.5rem; border-radius: 3px; font-size: 0.7rem;" title="View this category">' + d.group_name + '</span>';
                 }
 
                 if (compactView) {
@@ -5449,13 +5450,14 @@ LIVE_TEMPLATE = """
                 const rowClass = isSelected ? 'selected' : '';
                 const checkedAttr = isSelected ? 'checked' : '';
 
-                // Build group pill HTML
+                // Build group pill HTML -- clickable, jumps into that
+                // category's list view (same as clicking it in the sidebar).
                 let groupHtml = '—';
                 if (d.group_name && d.group_color) {
                     const textColor = getContrastColor(d.group_color);
-                    groupHtml = '<span style="background: ' + d.group_color + '; color: ' + textColor + '; padding: 0.15rem 0.5rem; border-radius: 3px; font-size: 0.7rem; font-weight: 500;">' + d.group_name + '</span>';
+                    groupHtml = '<span onclick="event.stopPropagation(); selectCategory(' + d.group_id + ');" style="cursor: pointer; background: ' + d.group_color + '; color: ' + textColor + '; padding: 0.15rem 0.5rem; border-radius: 3px; font-size: 0.7rem; font-weight: 500;" title="View this category">' + d.group_name + '</span>';
                 } else if (d.group_name) {
-                    groupHtml = '<span style="background: var(--bg-tertiary); color: var(--text-secondary); padding: 0.15rem 0.5rem; border-radius: 3px; font-size: 0.7rem;">' + d.group_name + '</span>';
+                    groupHtml = '<span onclick="event.stopPropagation(); selectCategory(' + d.group_id + ');" style="cursor: pointer; background: var(--bg-tertiary); color: var(--text-secondary); padding: 0.15rem 0.5rem; border-radius: 3px; font-size: 0.7rem;" title="View this category">' + d.group_name + '</span>';
                 }
 
                 if (compactView) {
