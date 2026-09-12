@@ -4562,10 +4562,17 @@ LIVE_TEMPLATE = """
                         Hide categorized devices
                     </label>
                 </div>
-                <div style="display: flex; align-items: center; gap: 0.75rem;">
-                    <span class="stat-label">RSSI &ge;</span>
-                    <input type="range" id="rssi-threshold" min="-100" max="-20" value="-100" step="1" oninput="onRssiThresholdChange()" style="width: 160px;">
-                    <span id="rssi-threshold-value" style="font-size: 0.75rem; color: var(--text-primary); min-width: 4.5rem;">-100 dBm</span>
+                <div style="display: flex; align-items: center; gap: 1.25rem; flex-wrap: wrap;">
+                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                        <span class="stat-label">Sightings &ge;</span>
+                        <input type="range" id="sightings-threshold" min="1" max="50" value="1" step="1" oninput="onSightingsThresholdChange()" style="width: 140px;">
+                        <span id="sightings-threshold-value" style="font-size: 0.75rem; color: var(--text-primary); min-width: 2.5rem;">1</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                        <span class="stat-label">RSSI &ge;</span>
+                        <input type="range" id="rssi-threshold" min="-100" max="-20" value="-100" step="1" oninput="onRssiThresholdChange()" style="width: 160px;">
+                        <span id="rssi-threshold-value" style="font-size: 0.75rem; color: var(--text-primary); min-width: 4.5rem;">-100 dBm</span>
+                    </div>
                 </div>
             </div>
             <div class="table-container" id="devices-container">
@@ -4694,6 +4701,7 @@ LIVE_TEMPLATE = """
         let currentGroupId = null;
         let hideCategorized = localStorage.getItem('bluewatch_hide_categorized') === 'true';
         let rssiThreshold = -100;
+        let sightingsThreshold = 1;
         let dateFilteredDevices = null;
         let compactView = localStorage.getItem('bluewatch_compact_view') === 'true';
         let screenshotMode = localStorage.getItem('bluewatch_screenshot_mode') === 'true';
@@ -5058,6 +5066,13 @@ LIVE_TEMPLATE = """
             const slider = document.getElementById('rssi-threshold');
             rssiThreshold = parseInt(slider.value, 10);
             document.getElementById('rssi-threshold-value').textContent = rssiThreshold + ' dBm';
+            renderDevices();
+        }
+
+        function onSightingsThresholdChange() {
+            const slider = document.getElementById('sightings-threshold');
+            sightingsThreshold = parseInt(slider.value, 10);
+            document.getElementById('sightings-threshold-value').textContent = sightingsThreshold;
             renderDevices();
         }
 
@@ -5532,7 +5547,10 @@ LIVE_TEMPLATE = """
             // Devices with no recent RSSI reading are never hidden by the
             // threshold -- the slider filters by signal strength, not by
             // whether we happen to have a fresh reading.
-            let visibleDevices = sourceDevices.filter(d => d.last_rssi == null || d.last_rssi >= rssiThreshold);
+            let visibleDevices = sourceDevices.filter(d =>
+                (d.last_rssi == null || d.last_rssi >= rssiThreshold) &&
+                (d.total_sightings == null || d.total_sightings >= sightingsThreshold)
+            );
 
             if (dateFilteredDevices !== null) {
                 const searchTerm = document.getElementById('search').value.toLowerCase();
