@@ -2042,6 +2042,7 @@ HTML_TEMPLATE = """
 
             content.innerHTML = '<div class="detail-grid">' +
                 '<div class="detail-item"><div class="detail-label">Address</div><div class="detail-value mono" style="font-size:' + (isMacOSUUID(d.mac) ? '0.65rem' : '0.85rem') + '; word-break: break-all;">' + obfuscateMAC(d.mac) + '</div></div>' +
+                '<div class="detail-item"><div class="detail-label">Identifier</div><input class="form-input" id="device-identifier" value="' + escapeHtml(d.friendly_name || '') + '" placeholder="No identifier -- set manually" style="font-size: 0.85rem;" onchange="setDeviceName(\\'' + d.mac + '\\', this.value)"></div>' +
                 '<div class="detail-item"><div class="detail-label">Type</div><select class="form-input" id="device-type" onchange="setDeviceType(\\'' + d.mac + '\\', this.value)" style="font-size: 0.8rem;"></select></div>' +
                 '<div class="detail-item"><div class="detail-label">Vendor OUI</div><input class="form-input" id="device-vendor" value="' + escapeHtml(d.vendor || '') + '" placeholder="Unknown -- set manually" style="font-size: 0.85rem;" onchange="setDeviceVendor(\\'' + d.mac + '\\', this.value)"></div>' +
                 '<div class="detail-item"><div class="detail-label">Proximity</div><div class="detail-value" style="color: ' + proximityColor + '; ">' + proximityZone + '</div></div>' +
@@ -2162,6 +2163,17 @@ HTML_TEMPLATE = """
                 });
                 refreshDevices();
             } catch (error) { console.error('Error setting vendor:', error); }
+        }
+
+        async function setDeviceName(mac, name) {
+            try {
+                await fetch('/api/device/' + encodeURIComponent(mac) + '/name', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: name })
+                });
+                refreshDevices();
+            } catch (error) { console.error('Error setting identifier:', error); }
         }
 
         let cachedDeviceTypes = [];
@@ -5707,6 +5719,7 @@ LIVE_TEMPLATE = """
 
             content.innerHTML = '<div class="detail-grid">' +
                 '<div class="detail-item"><div class="detail-label">Address</div><div class="detail-value mono" style="font-size:' + (isMacOSUUID(d.mac) ? '0.65rem' : '0.85rem') + '; word-break: break-all;">' + obfuscateMAC(d.mac) + '</div></div>' +
+                '<div class="detail-item"><div class="detail-label">Identifier</div><input class="form-input" id="device-identifier" value="' + escapeHtml(d.friendly_name || '') + '" placeholder="No identifier -- set manually" style="font-size: 0.85rem;" onchange="setDeviceName(\\'' + d.mac + '\\', this.value)"></div>' +
                 '<div class="detail-item"><div class="detail-label">Type</div><select class="form-input" id="device-type" onchange="setDeviceType(\\'' + d.mac + '\\', this.value)" style="font-size: 0.8rem;"></select></div>' +
                 '<div class="detail-item"><div class="detail-label">Vendor OUI</div><input class="form-input" id="device-vendor" value="' + escapeHtml(d.vendor || '') + '" placeholder="Unknown -- set manually" style="font-size: 0.85rem;" onchange="setDeviceVendor(\\'' + d.mac + '\\', this.value)"></div>' +
                 '<div class="detail-item"><div class="detail-label">Proximity</div><div class="detail-value" style="color: ' + proximityColor + '; ">' + proximityZone + '</div></div>' +
@@ -5827,6 +5840,17 @@ LIVE_TEMPLATE = """
                 });
                 refreshDevices();
             } catch (error) { console.error('Error setting vendor:', error); }
+        }
+
+        async function setDeviceName(mac, name) {
+            try {
+                await fetch('/api/device/' + encodeURIComponent(mac) + '/name', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: name })
+                });
+                refreshDevices();
+            } catch (error) { console.error('Error setting identifier:', error); }
         }
 
         let cachedDeviceTypes = [];
