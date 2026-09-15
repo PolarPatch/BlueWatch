@@ -32,6 +32,8 @@ class Device:
     bt_type: str = "ble"  # "ble" or "classic"
     device_class: Optional[int] = None  # Classic BT device class
     manufacturer_data: dict = None  # company_id (int) -> raw payload bytes
+    name_conflict_at: Optional[datetime] = None  # Last time this MAC advertised a different name than its stored one
+    name_conflict_name: Optional[str] = None  # The conflicting name seen (stored name is left unchanged)
     group_id: Optional[int] = None  # Device group (category or subcategory)
     notes: Optional[str] = None  # Operator notes
     new_device_notified: bool = True  # Whether new-device notification has been sent
@@ -329,6 +331,8 @@ async def init_db() -> None:
             ("notify_depart_expires_at", "TIMESTAMP"),
             ("identity_id", "INTEGER REFERENCES identities(id)"),
             ("manufacturer_data", "TEXT"),
+            ("name_conflict_at", "TIMESTAMP"),
+            ("name_conflict_name", "TEXT"),
         ]
 
         for column, column_type in migrations:
@@ -384,6 +388,8 @@ def _parse_device_row(row) -> Device:
         total_sightings=row["total_sightings"],
         service_uuids=service_uuids,
         manufacturer_data=manufacturer_data,
+        name_conflict_at=datetime.fromisoformat(row["name_conflict_at"]) if "name_conflict_at" in keys and row["name_conflict_at"] else None,
+        name_conflict_name=row["name_conflict_name"] if "name_conflict_name" in keys else None,
         bt_type=row["bt_type"] if "bt_type" in keys and row["bt_type"] else "ble",
         device_class=row["device_class"] if "device_class" in keys else None,
         group_id=row["group_id"] if "group_id" in keys else None,
@@ -415,7 +421,10 @@ async def get_device(mac: str) -> Optional[Device]:
     async with _connect() as db:
         db.row_factory = aiosqlite.Row
         async with db.execute(
-            "SELECT * FROM devices WHERE mac = ?", (mac,)
+            """SELECT d.*,
+                (SELECT COUNT(*) FROM devices d2 WHERE d2.identity_id = d.identity_id) AS identity_mac_count
+                FROM devices d WHERE d.mac = ?""",
+            (mac,)
         ) as cursor:
             row = await cursor.fetchone()
             if row:
@@ -900,6 +909,17 @@ async def upsert_device(
             if friendly_name and not existing["friendly_name"]:
                 updates.append("friendly_name = ?")
                 params.append(friendly_name)
+            elif friendly_name and existing["friendly_name"] and friendly_name != existing["friendly_name"]:
+                # A single MAC address advertising a different name than it
+                # did before is a real anomaly -- a device doesn't normally
+                # rename itself mid-lifetime. Keep the original (sticky)
+                # name as before, but record the conflicting name so it's
+                # visible in the UI, e.g. as a possible spoofing/cloning
+                # signal rather than silently ignored or silently swapped.
+                updates.append("name_conflict_at = ?")
+                params.append(now.isoformat())
+                updates.append("name_conflict_name = ?")
+                params.append(friendly_name)
 
             # Update vendor if we have one and device doesn't
             if vendor and not existing["vendor"]:
@@ -1023,6 +1043,32 @@ async def upsert_device(
                         "UPDATE devices SET identity_id = ? WHERE mac = ?",
                         (identity_row["id"], mac),
                     )
+                else:
+                    # No identity exists for this name yet -- this could
+                    # still be the *first* rotation of a device whose
+                    # earlier MAC is sitting there un-clustered (identities
+                    # are otherwise only created via the manual merge UI).
+                    # If another randomized-MAC device already shares this
+                    # exact name and isn't in an identity of its own yet,
+                    # spin up a new identity now and link both MACs into it
+                    # -- this is what actually makes rotation auto-tracked
+                    # from the second sighting onward instead of requiring
+                    # a manual merge every time.
+                    async with db.execute(
+                        "SELECT mac FROM devices WHERE friendly_name = ? COLLATE NOCASE "
+                        "AND mac != ? AND identity_id IS NULL LIMIT 1",
+                        (friendly_name, mac),
+                    ) as cursor:
+                        sibling_row = await cursor.fetchone()
+                    if sibling_row and _is_randomized_mac(sibling_row["mac"]):
+                        cursor = await db.execute(
+                            "INSERT INTO identities (name) VALUES (?)", (friendly_name,)
+                        )
+                        new_identity_id = cursor.lastrowid
+                        await db.execute(
+                            "UPDATE devices SET identity_id = ? WHERE mac IN (?, ?)",
+                            (new_identity_id, mac, sibling_row["mac"]),
+                        )
 
         # Record sighting
         await db.execute(

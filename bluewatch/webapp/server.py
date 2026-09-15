@@ -307,6 +307,8 @@ class WebServer:
                 "identity_mac_count": d.identity_mac_count,
                 "identity_total_sightings": d.identity_total_sightings,
                 "identity_first_seen": (d.identity_first_seen.isoformat() + "Z") if d.identity_first_seen else None,
+                "name_conflict_at": (d.name_conflict_at.isoformat() + "Z") if d.name_conflict_at else None,
+                "name_conflict_name": d.name_conflict_name,
             })
 
         total_pages = max(1, math.ceil(total / page_size)) if total else 1
@@ -589,6 +591,9 @@ class WebServer:
                 "service_uuids": device.service_uuids,
                 "notes": device.notes,
                 "group_id": device.group_id,
+                "identity_mac_count": device.identity_mac_count,
+                "name_conflict_at": (device.name_conflict_at.isoformat() + "Z") if device.name_conflict_at else None,
+                "name_conflict_name": device.name_conflict_name,
             },
             "type_label": get_type_label(device_type),
             "uuid_names": get_uuid_names(device.service_uuids),
