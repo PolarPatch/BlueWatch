@@ -21,6 +21,13 @@ logger = logging.getLogger(__name__)
 BLE_TIMEOUT = 12.0
 CLASSIC_TIMEOUT = 15.0
 
+# Set for the duration of an active Scan Unit poll (both BLE and Classic)
+# so the passive scan loop (daemon.py) can skip starting a new discovery
+# cycle rather than competing with it for the adapter -- an operator
+# explicitly asking about one device takes priority over the background
+# sweep, which just picks back up on its own once this clears.
+SCAN_IN_PROGRESS = asyncio.Event()
+
 # Device Information Service (0x180A) and its standard readable
 # characteristics -- the BLE analogue of an SDP service record, often
 # exposing manufacturer/model/serial/firmware in plain text.
@@ -56,46 +63,50 @@ async def poll_ble_device(mac: str, adapter: Optional[str] = None) -> dict:
     if adapter:
         kwargs["adapter"] = adapter
 
-    last_error = None
-    for attempt in range(1, _INPROGRESS_RETRIES + 1):
-        try:
-            async with BleakClient(mac, **kwargs) as client:
-                services = []
-                device_info = {}
-                for service in client.services:
-                    chars = []
-                    for char in service.characteristics:
-                        entry = {"uuid": char.uuid, "properties": list(char.properties)}
-                        if "read" in char.properties:
-                            readable_name = DEVICE_INFO_CHARACTERISTICS.get(char.uuid.lower())
-                            try:
-                                value = await client.read_gatt_char(char)
-                                if readable_name:
-                                    try:
-                                        device_info[readable_name] = value.decode("utf-8").strip("\x00")
-                                    except UnicodeDecodeError:
-                                        device_info[readable_name] = value.hex()
-                                entry["value"] = value.hex()
-                            except Exception:
-                                pass  # Some characteristics are readable in principle but reject us -- skip silently.
-                        chars.append(entry)
-                    services.append({
-                        "uuid": service.uuid,
-                        "description": service.description,
-                        "characteristics": chars,
-                    })
-                return {"ok": True, "services": services, "device_info": device_info}
-        except asyncio.TimeoutError:
-            return {"ok": False, "error": "Timed out connecting -- device may be out of range or not connectable."}
-        except Exception as e:
-            last_error = e
-            if "InProgress" in str(e) and attempt < _INPROGRESS_RETRIES:
-                logger.info(f"Scan Unit: adapter busy (attempt {attempt}/{_INPROGRESS_RETRIES}), retrying in {_INPROGRESS_RETRY_DELAY}s")
-                await asyncio.sleep(_INPROGRESS_RETRY_DELAY)
-                continue
-            return {"ok": False, "error": str(e)}
+    SCAN_IN_PROGRESS.set()
+    try:
+        last_error = None
+        for attempt in range(1, _INPROGRESS_RETRIES + 1):
+            try:
+                async with BleakClient(mac, **kwargs) as client:
+                    services = []
+                    device_info = {}
+                    for service in client.services:
+                        chars = []
+                        for char in service.characteristics:
+                            entry = {"uuid": char.uuid, "properties": list(char.properties)}
+                            if "read" in char.properties:
+                                readable_name = DEVICE_INFO_CHARACTERISTICS.get(char.uuid.lower())
+                                try:
+                                    value = await client.read_gatt_char(char)
+                                    if readable_name:
+                                        try:
+                                            device_info[readable_name] = value.decode("utf-8").strip("\x00")
+                                        except UnicodeDecodeError:
+                                            device_info[readable_name] = value.hex()
+                                    entry["value"] = value.hex()
+                                except Exception:
+                                    pass  # Some characteristics are readable in principle but reject us -- skip silently.
+                            chars.append(entry)
+                        services.append({
+                            "uuid": service.uuid,
+                            "description": service.description,
+                            "characteristics": chars,
+                        })
+                    return {"ok": True, "services": services, "device_info": device_info}
+            except asyncio.TimeoutError:
+                return {"ok": False, "error": "Timed out connecting -- device may be out of range or not connectable."}
+            except Exception as e:
+                last_error = e
+                if "InProgress" in str(e) and attempt < _INPROGRESS_RETRIES:
+                    logger.info(f"Scan Unit: adapter busy (attempt {attempt}/{_INPROGRESS_RETRIES}), retrying in {_INPROGRESS_RETRY_DELAY}s")
+                    await asyncio.sleep(_INPROGRESS_RETRY_DELAY)
+                    continue
+                return {"ok": False, "error": str(e)}
 
-    return {"ok": False, "error": str(last_error) if last_error else "unknown error"}
+        return {"ok": False, "error": str(last_error) if last_error else "unknown error"}
+    finally:
+        SCAN_IN_PROGRESS.clear()
 
 
 _SDP_FIELD_RE = re.compile(r'^(Service Name|Service Description|Service Provider):\s*(.+)$', re.MULTILINE)
@@ -108,6 +119,7 @@ async def poll_classic_device(mac: str) -> dict:
     description/provider, where advertised), plus the raw sdptool output,
     or `ok: False` with an error message.
     """
+    SCAN_IN_PROGRESS.set()
     try:
         proc = await asyncio.create_subprocess_exec(
             "sdptool", "browse", mac,
@@ -137,3 +149,5 @@ async def poll_classic_device(mac: str) -> dict:
         return {"ok": False, "error": "sdptool is not installed on this host."}
     except Exception as e:
         return {"ok": False, "error": str(e)}
+    finally:
+        SCAN_IN_PROGRESS.clear()
