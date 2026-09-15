@@ -106,7 +106,7 @@ TYPE_LABELS = {
     TYPE_CAMERA: "Camera",
     TYPE_PRINTER: "Printer",
     TYPE_NETWORK: "Network",
-    TYPE_TRACKER: "Tracker (Find My/AirTag)",
+    TYPE_TRACKER: "Tracker",
     TYPE_FLIPPER: "Flipper Zero",
     TYPE_GLASSES: "Smart Glasses (Meta)",
     TYPE_BEACON: "Beacon (iBeacon)",
