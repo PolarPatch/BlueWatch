@@ -580,6 +580,15 @@ def classify_device(
     if name and _TESLA_KEY_RE.match(name):
         return TYPE_VEHICLE
 
+    # Insta360's GO 3S action camera supports Apple's third-party Find My
+    # network program (it's small and easy to lose), so it genuinely
+    # broadcasts a real Find My separated-from-owner signal -- which would
+    # otherwise shadow it into TYPE_TRACKER below. It's fundamentally a
+    # camera that happens to have Find My support, not a tracker, so this
+    # is checked first (source: decoded from a live Scan Unit GATT read).
+    if name and "insta360" in name.lower():
+        return TYPE_CAMERA
+
     # iOS strips manufacturer data from adverts it surfaces to apps, so a
     # Tesla key fob seen via an iOS-based scanner may only have this
     # service UUID plus a looser name shape left to go on (source:

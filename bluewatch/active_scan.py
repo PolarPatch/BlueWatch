@@ -39,6 +39,14 @@ DEVICE_INFO_CHARACTERISTICS = {
     "00002a27-0000-1000-8000-00805f9b34fb": "Hardware Revision",
     "00002a26-0000-1000-8000-00805f9b34fb": "Firmware Revision",
     "00002a28-0000-1000-8000-00805f9b34fb": "Software Revision",
+    # Insta360 GO 3S vendor-specific service (87290102-...) exposes its
+    # brand/model as plain null-padded ASCII in these two characteristics
+    # instead of the standard Device Information Service -- found by
+    # decoding a live Scan Unit read ("Insta360" / "Insta360 GO 3S").
+    # Reusing this same readable-name mechanism lets the existing
+    # vendor/identifier auto-fill pick it up with no extra plumbing.
+    "6aa50002-6352-4d57-a7b4-003a416fbb0b": "Manufacturer Name",
+    "6aa50003-6352-4d57-a7b4-003a416fbb0b": "Model Number",
 }
 
 
