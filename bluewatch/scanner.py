@@ -90,12 +90,15 @@ class ScannedDevice:
     bt_type: str = "ble"  # "ble" or "classic"
     device_class: Optional[int] = None  # Classic Bluetooth device class
     manufacturer_data: dict = None  # company_id (int) -> raw payload bytes
+    service_data: dict = None  # service UUID (str) -> raw payload bytes -- e.g. Fast Pair's 3-byte Model ID under 0xFE2C
 
     def __post_init__(self):
         if self.service_uuids is None:
             self.service_uuids = []
         if self.manufacturer_data is None:
             self.manufacturer_data = {}
+        if self.service_data is None:
+            self.service_data = {}
 
 
 def parse_device_class(device_class: int) -> tuple[str, Optional[str]]:
@@ -532,6 +535,7 @@ class BluetoothScanner:
             vendor = await self._get_vendor(mac)
             service_uuids = list(adv_data.service_uuids) if adv_data.service_uuids else []
             manufacturer_data = dict(adv_data.manufacturer_data) if adv_data.manufacturer_data else {}
+            service_data = dict(adv_data.service_data) if adv_data.service_data else {}
             devices.append(ScannedDevice(
                 mac=mac,
                 name=device.name or adv_data.local_name,
@@ -540,6 +544,7 @@ class BluetoothScanner:
                 service_uuids=service_uuids,
                 bt_type="ble",
                 manufacturer_data=manufacturer_data,
+                service_data=service_data,
             ))
         return devices
 
@@ -579,6 +584,7 @@ class BluetoothScanner:
 
                 service_uuids = list(adv_data.service_uuids) if adv_data.service_uuids else []
                 manufacturer_data = dict(adv_data.manufacturer_data) if adv_data.manufacturer_data else {}
+                service_data = dict(adv_data.service_data) if adv_data.service_data else {}
 
                 devices.append(ScannedDevice(
                     mac=mac,
@@ -588,6 +594,7 @@ class BluetoothScanner:
                     service_uuids=service_uuids,
                     bt_type="ble",
                     manufacturer_data=manufacturer_data,
+                    service_data=service_data,
                 ))
 
             logger.debug(f"BLE scan: found {len(devices)} devices")

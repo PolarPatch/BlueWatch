@@ -32,6 +32,7 @@ class Device:
     bt_type: str = "ble"  # "ble" or "classic"
     device_class: Optional[int] = None  # Classic BT device class
     manufacturer_data: dict = None  # company_id (int) -> raw payload bytes
+    service_data: dict = None  # service UUID (str) -> raw payload bytes -- e.g. Fast Pair's 3-byte Model ID under 0xFE2C
     name_conflict_at: Optional[datetime] = None  # Last time this MAC advertised a different name than its stored one
     name_conflict_name: Optional[str] = None  # The conflicting name seen (stored name is left unchanged)
     group_id: Optional[int] = None  # Device group (category or subcategory)
@@ -56,6 +57,8 @@ class Device:
             self.service_uuids = []
         if self.manufacturer_data is None:
             self.manufacturer_data = {}
+        if self.service_data is None:
+            self.service_data = {}
 
 
 @dataclass
@@ -331,6 +334,7 @@ async def init_db() -> None:
             ("notify_depart_expires_at", "TIMESTAMP"),
             ("identity_id", "INTEGER REFERENCES identities(id)"),
             ("manufacturer_data", "TEXT"),
+            ("service_data", "TEXT"),
             ("name_conflict_at", "TIMESTAMP"),
             ("name_conflict_name", "TEXT"),
         ]
@@ -386,6 +390,15 @@ def _parse_device_row(row) -> Device:
         except (json.JSONDecodeError, TypeError, ValueError):
             pass
 
+    # Parse service_data from JSON (service UUID -> hex string -> bytes)
+    service_data = {}
+    if "service_data" in keys and row["service_data"]:
+        try:
+            raw = json.loads(row["service_data"])
+            service_data = {k: bytes.fromhex(v) for k, v in raw.items()}
+        except (json.JSONDecodeError, TypeError, ValueError):
+            pass
+
     return Device(
         mac=row["mac"],
         vendor=row["vendor"],
@@ -398,6 +411,7 @@ def _parse_device_row(row) -> Device:
         total_sightings=row["total_sightings"],
         service_uuids=service_uuids,
         manufacturer_data=manufacturer_data,
+        service_data=service_data,
         name_conflict_at=datetime.fromisoformat(row["name_conflict_at"]) if "name_conflict_at" in keys and row["name_conflict_at"] else None,
         name_conflict_name=row["name_conflict_name"] if "name_conflict_name" in keys else None,
         bt_type=row["bt_type"] if "bt_type" in keys and row["bt_type"] else "ble",
@@ -882,6 +896,7 @@ async def upsert_device(
     bt_type: str = "ble",
     device_class: Optional[int] = None,
     manufacturer_data: Optional[dict] = None,
+    service_data: Optional[dict] = None,
 ) -> tuple[Device, bool]:
     """Insert or update a device and record a sighting.
 
@@ -892,6 +907,10 @@ async def upsert_device(
     mfg_json = (
         json.dumps({str(k): v.hex() for k, v in manufacturer_data.items()})
         if manufacturer_data else None
+    )
+    svc_data_json = (
+        json.dumps({str(k): v.hex() for k, v in service_data.items()})
+        if service_data else None
     )
 
     # A cryptographic IRK match (if any key is configured and resolves this
@@ -980,6 +999,20 @@ async def upsert_device(
                 updates.append("manufacturer_data = ?")
                 params.append(json.dumps(existing_mfg))
 
+            # Same merge behavior for service_data (Fast Pair's Model ID
+            # under 0xFE2C, Eddystone frames, etc.)
+            if service_data:
+                existing_svc_data = {}
+                if "service_data" in existing.keys() and existing["service_data"]:
+                    try:
+                        raw = json.loads(existing["service_data"])
+                        existing_svc_data = {str(k): v for k, v in raw.items()}
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+                existing_svc_data.update({str(k): v.hex() for k, v in service_data.items()})
+                updates.append("service_data = ?")
+                params.append(json.dumps(existing_svc_data))
+
             # Update bt_type if we got classic BT info for a device we only had BLE for
             existing_bt_type = existing["bt_type"] if "bt_type" in existing.keys() else "ble"
             if bt_type == "classic" and existing_bt_type == "ble":
@@ -1023,10 +1056,10 @@ async def upsert_device(
             # Insert new device
             await db.execute(
                 """
-                INSERT INTO devices (mac, vendor, friendly_name, first_seen, last_seen, total_sightings, service_uuids, bt_type, device_class, manufacturer_data, new_device_notified)
-                VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, 0)
+                INSERT INTO devices (mac, vendor, friendly_name, first_seen, last_seen, total_sightings, service_uuids, bt_type, device_class, manufacturer_data, service_data, new_device_notified)
+                VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, 0)
                 """,
-                (mac, insert_vendor, friendly_name, now.isoformat(), now.isoformat(), uuids_json, bt_type, device_class, mfg_json)
+                (mac, insert_vendor, friendly_name, now.isoformat(), now.isoformat(), uuids_json, bt_type, device_class, mfg_json, svc_data_json)
             )
 
             if irk_identity_id is not None:
@@ -1902,6 +1935,44 @@ async def set_wigle_credentials(api_name: str, api_token: str) -> None:
 async def clear_wigle_credentials() -> None:
     async with _connect() as db:
         await db.execute("DELETE FROM settings WHERE key IN ('wigle_api_name', 'wigle_api_token')")
+        await db.commit()
+
+
+async def get_fastpair_settings() -> tuple[bool, Optional[str]]:
+    """Returns (enabled, api_key) for Fast Pair anti-spoof verification.
+
+    Same reasoning as get_wigle_credentials(): stored via the generic
+    settings table rather than the Settings dataclass so the key never
+    round-trips through the general /api/settings GET response."""
+    async with _connect() as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT key, value FROM settings WHERE key IN ('fastpair_enabled', 'fastpair_api_key')"
+        ) as cursor:
+            rows = await cursor.fetchall()
+    values = {row["key"]: row["value"] for row in rows}
+    enabled = values.get("fastpair_enabled", "0") == "1"
+    api_key = values.get("fastpair_api_key")
+    return (enabled, api_key)
+
+
+async def set_fastpair_settings(enabled: bool, api_key: Optional[str] = None) -> None:
+    async with _connect() as db:
+        await db.execute(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES ('fastpair_enabled', ?)",
+            ("1" if enabled else "0",),
+        )
+        if api_key is not None:
+            await db.execute(
+                "INSERT OR REPLACE INTO settings (key, value) VALUES ('fastpair_api_key', ?)",
+                (api_key,),
+            )
+        await db.commit()
+
+
+async def clear_fastpair_settings() -> None:
+    async with _connect() as db:
+        await db.execute("DELETE FROM settings WHERE key IN ('fastpair_enabled', 'fastpair_api_key')")
         await db.commit()
 
 
