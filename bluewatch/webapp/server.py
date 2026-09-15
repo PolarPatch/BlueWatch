@@ -60,11 +60,12 @@ def verify_password(password: str, stored_hash: str) -> bool:
 class WebServer:
     """Web server for BlueWatch dashboard."""
 
-    def __init__(self, host: str = "0.0.0.0", port: int = 8080, notifications=None):
+    def __init__(self, host: str = "0.0.0.0", port: int = 8080, notifications=None, adapter=None):
         self.host = host
         self.port = port
         self.app = web.Application(middlewares=[self._auth_middleware])
         self._notifications = notifications
+        self._adapter = adapter
         self._sessions: dict[str, datetime] = {}  # session_token -> expiry
         self._session_duration = timedelta(hours=24)
         self._setup_routes()
@@ -87,6 +88,7 @@ class WebServer:
         self.app.router.add_post("/api/device/{mac}/unmerge", self.api_unmerge_device)
         self.app.router.add_get("/api/identity/{identity_id}/macs", self.api_identity_macs)
         self.app.router.add_post("/api/device/{mac}/name", self.api_set_device_name)
+        self.app.router.add_post("/api/device/{mac}/scan", self.api_scan_device)
         self.app.router.add_get("/api/device/{mac}/rssi", self.api_device_rssi)
         self.app.router.add_get("/api/device/{mac}/dwell", self.api_device_dwell)
         self.app.router.add_get("/api/device/{mac}/correlation", self.api_device_correlation)
@@ -733,6 +735,38 @@ class WebServer:
             return web.json_response({"mac": mac, "friendly_name": name})
         except Exception as e:
             return web.json_response({"error": str(e)}, status=400)
+
+    async def api_scan_device(self, request: web.Request) -> web.Response:
+        """On-demand active poll of one device ("Scan Unit") -- BLE GATT
+        service/characteristic discovery or Classic SDP browsing,
+        whichever matches the device's known bt_type. Unlike everything
+        else in BlueWatch, this actively connects to the target device
+        rather than only listening -- only ever triggered manually, one
+        device at a time, from the UI."""
+        mac = request.match_info["mac"]
+        device = await db.get_device(mac)
+        if not device:
+            return web.json_response({"error": "Device not found"}, status=404)
+
+        from ..active_scan import poll_ble_device, poll_classic_device
+
+        bt_type = device.bt_type or "ble"
+        try:
+            if bt_type == "classic":
+                result = await poll_classic_device(mac)
+            elif bt_type == "both":
+                # Try BLE first (faster, more commonly useful), fall back
+                # to classic SDP if the BLE connection itself fails.
+                result = await poll_ble_device(mac, adapter=self._adapter)
+                if not result.get("ok"):
+                    result = await poll_classic_device(mac)
+            else:
+                result = await poll_ble_device(mac, adapter=self._adapter)
+        except Exception as e:
+            return web.json_response({"error": str(e)}, status=500)
+
+        result["bt_type"] = bt_type
+        return web.json_response(result)
 
     async def api_device_rssi(self, request: web.Request) -> web.Response:
         """Get RSSI history for a device."""

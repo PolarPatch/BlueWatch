@@ -1022,6 +1022,7 @@ HTML_TEMPLATE = """
             <div class="modal-header">
                 <span class="modal-title">Device Details</span>
                 <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <button class="btn" id="scan-unit-btn" onclick="scanUnit(currentDeviceMac)" title="Actively contact this device to ask what it supports (BLE GATT services / Classic SDP records). Unlike the rest of BlueWatch, this connects to the device rather than only listening.">Scan Unit</button>
                     <button class="btn btn-watch" id="watch-btn" onclick="toggleWatch(currentDeviceMac)"></button>
                     <button class="modal-close" onclick="closeModal()">&times;</button>
                 </div>
@@ -2044,6 +2045,8 @@ HTML_TEMPLATE = """
                 watchBtn.textContent = d.watched ? '★ Watching' : '☆ Watch';
                 watchBtn.className = d.watched ? 'btn btn-watch active' : 'btn btn-watch';
             }
+            const scanBtn = document.getElementById('scan-unit-btn');
+            if (scanBtn) { scanBtn.disabled = false; scanBtn.textContent = 'Scan Unit'; }
 
             content.innerHTML = '<div class="detail-grid">' +
                 '<div class="detail-item"><div class="detail-label">Address</div><div class="detail-value mono" style="font-size:' + (isMacOSUUID(d.mac) ? '0.65rem' : '0.85rem') + '; word-break: break-all;">' + obfuscateMAC(d.mac) + '</div></div>' +
@@ -2060,6 +2063,10 @@ HTML_TEMPLATE = """
                 '<div class="detail-item full"><div class="detail-label">BLE Services</div><div class="detail-value mono" style="font-size:0.75rem;">' + (data.uuid_names && data.uuid_names.length > 0 ? data.uuid_names.join(', ') : '—') + '</div></div>' +
                 '<div class="detail-item full"><div class="detail-label">Assign to Group</div><select class="form-input" id="device-group" onchange="setDeviceGroup(\\'' + d.mac + '\\', this.value)" style="font-size: 0.8rem;"><option value="">No group</option></select></div>' +
                 '<div class="detail-item full"><div class="detail-label">Notes</div><textarea class="form-input" id="device-notes" rows="2" style="font-size: 0.8rem; resize: vertical;" placeholder="Add notes...">' + (d.notes || '') + '</textarea><button class="btn" style="margin-top: 0.5rem;" onclick="saveNotes(\\'' + d.mac + '\\')">Save Notes</button></div>' +
+                '</div>' +
+                '<div class="heatmap-section" id="scan-unit-section" hidden>' +
+                '<div class="heatmap-title">Scan Unit Result</div>' +
+                '<div id="scan-unit-result" style="font-size: 0.75rem; font-family: monospace; white-space: pre-wrap; word-break: break-all; max-height: 300px; overflow-y: auto;"></div>' +
                 '</div>' +
                 '<div class="heatmap-section">' +
                 '<div class="heatmap-title">Time Nearby (30d)</div>' +
@@ -2180,6 +2187,54 @@ HTML_TEMPLATE = """
                 });
                 refreshDevices();
             } catch (error) { console.error('Error setting identifier:', error); }
+        }
+
+        async function scanUnit(mac) {
+            const btn = document.getElementById('scan-unit-btn');
+            const section = document.getElementById('scan-unit-section');
+            const result = document.getElementById('scan-unit-result');
+            btn.disabled = true;
+            btn.textContent = 'Scanning...';
+            section.hidden = false;
+            result.textContent = 'Actively contacting device, this may take up to 15 seconds...';
+            try {
+                const response = await fetch('/api/device/' + encodeURIComponent(mac) + '/scan', { method: 'POST' });
+                const data = await response.json();
+                if (!data.ok) {
+                    result.textContent = 'Scan failed: ' + (data.error || 'unknown error');
+                } else if (data.bt_type === 'classic' || data.records) {
+                    if (!data.records || data.records.length === 0) {
+                        result.textContent = 'Connected, but no SDP service records advertised.';
+                    } else {
+                        result.textContent = data.records.map((r, i) =>
+                            'Service ' + (i + 1) + ':\n' +
+                            Object.entries(r).map(([k, v]) => '  ' + k + ': ' + v).join('\n')
+                        ).join('\n\n');
+                    }
+                } else {
+                    let lines = [];
+                    if (data.device_info && Object.keys(data.device_info).length > 0) {
+                        lines.push('Device Information:');
+                        for (const [k, v] of Object.entries(data.device_info)) {
+                            lines.push('  ' + k + ': ' + v);
+                        }
+                        lines.push('');
+                    }
+                    lines.push('GATT Services (' + data.services.length + '):');
+                    for (const svc of data.services) {
+                        lines.push('  ' + svc.uuid + (svc.description ? ' (' + svc.description + ')' : ''));
+                        for (const c of svc.characteristics) {
+                            lines.push('    ' + c.uuid + ' [' + c.properties.join(', ') + ']' + (c.value ? ' = ' + c.value : ''));
+                        }
+                    }
+                    result.textContent = lines.join('\n');
+                }
+            } catch (error) {
+                result.textContent = 'Scan failed: ' + error;
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Scan Unit';
+            }
         }
 
         let cachedDeviceTypes = [];
@@ -4655,6 +4710,7 @@ LIVE_TEMPLATE = """
             <div class="modal-header">
                 <span class="modal-title">Device Details</span>
                 <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <button class="btn" id="scan-unit-btn" onclick="scanUnit(currentDeviceMac)" title="Actively contact this device to ask what it supports (BLE GATT services / Classic SDP records). Unlike the rest of BlueWatch, this connects to the device rather than only listening.">Scan Unit</button>
                     <button class="btn btn-watch" id="watch-btn" onclick="toggleWatch(currentDeviceMac)"></button>
                     <button class="modal-close" onclick="closeModal()">&times;</button>
                 </div>
@@ -5727,6 +5783,8 @@ LIVE_TEMPLATE = """
                 watchBtn.textContent = d.watched ? '★ Watching' : '☆ Watch';
                 watchBtn.className = d.watched ? 'btn btn-watch active' : 'btn btn-watch';
             }
+            const scanBtn = document.getElementById('scan-unit-btn');
+            if (scanBtn) { scanBtn.disabled = false; scanBtn.textContent = 'Scan Unit'; }
 
             content.innerHTML = '<div class="detail-grid">' +
                 '<div class="detail-item"><div class="detail-label">Address</div><div class="detail-value mono" style="font-size:' + (isMacOSUUID(d.mac) ? '0.65rem' : '0.85rem') + '; word-break: break-all;">' + obfuscateMAC(d.mac) + '</div></div>' +
@@ -5743,6 +5801,10 @@ LIVE_TEMPLATE = """
                 '<div class="detail-item full"><div class="detail-label">BLE Services</div><div class="detail-value mono" style="font-size:0.75rem;">' + (data.uuid_names && data.uuid_names.length > 0 ? data.uuid_names.join(', ') : '—') + '</div></div>' +
                 '<div class="detail-item full"><div class="detail-label">Assign to Group</div><select class="form-input" id="device-group" onchange="setDeviceGroup(\\'' + d.mac + '\\', this.value)" style="font-size: 0.8rem;"><option value="">No group</option></select></div>' +
                 '<div class="detail-item full"><div class="detail-label">Notes</div><textarea class="form-input" id="device-notes" rows="2" style="font-size: 0.8rem; resize: vertical;" placeholder="Add notes...">' + (d.notes || '') + '</textarea><button class="btn" style="margin-top: 0.5rem;" onclick="saveNotes(\\'' + d.mac + '\\')">Save Notes</button></div>' +
+                '</div>' +
+                '<div class="heatmap-section" id="scan-unit-section" hidden>' +
+                '<div class="heatmap-title">Scan Unit Result</div>' +
+                '<div id="scan-unit-result" style="font-size: 0.75rem; font-family: monospace; white-space: pre-wrap; word-break: break-all; max-height: 300px; overflow-y: auto;"></div>' +
                 '</div>' +
                 '<div class="heatmap-section">' +
                 '<div class="heatmap-title">Time Nearby (30d)</div>' +
@@ -5863,6 +5925,54 @@ LIVE_TEMPLATE = """
                 });
                 refreshDevices();
             } catch (error) { console.error('Error setting identifier:', error); }
+        }
+
+        async function scanUnit(mac) {
+            const btn = document.getElementById('scan-unit-btn');
+            const section = document.getElementById('scan-unit-section');
+            const result = document.getElementById('scan-unit-result');
+            btn.disabled = true;
+            btn.textContent = 'Scanning...';
+            section.hidden = false;
+            result.textContent = 'Actively contacting device, this may take up to 15 seconds...';
+            try {
+                const response = await fetch('/api/device/' + encodeURIComponent(mac) + '/scan', { method: 'POST' });
+                const data = await response.json();
+                if (!data.ok) {
+                    result.textContent = 'Scan failed: ' + (data.error || 'unknown error');
+                } else if (data.bt_type === 'classic' || data.records) {
+                    if (!data.records || data.records.length === 0) {
+                        result.textContent = 'Connected, but no SDP service records advertised.';
+                    } else {
+                        result.textContent = data.records.map((r, i) =>
+                            'Service ' + (i + 1) + ':\n' +
+                            Object.entries(r).map(([k, v]) => '  ' + k + ': ' + v).join('\n')
+                        ).join('\n\n');
+                    }
+                } else {
+                    let lines = [];
+                    if (data.device_info && Object.keys(data.device_info).length > 0) {
+                        lines.push('Device Information:');
+                        for (const [k, v] of Object.entries(data.device_info)) {
+                            lines.push('  ' + k + ': ' + v);
+                        }
+                        lines.push('');
+                    }
+                    lines.push('GATT Services (' + data.services.length + '):');
+                    for (const svc of data.services) {
+                        lines.push('  ' + svc.uuid + (svc.description ? ' (' + svc.description + ')' : ''));
+                        for (const c of svc.characteristics) {
+                            lines.push('    ' + c.uuid + ' [' + c.properties.join(', ') + ']' + (c.value ? ' = ' + c.value : ''));
+                        }
+                    }
+                    result.textContent = lines.join('\n');
+                }
+            } catch (error) {
+                result.textContent = 'Scan failed: ' + error;
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Scan Unit';
+            }
         }
 
         let cachedDeviceTypes = [];

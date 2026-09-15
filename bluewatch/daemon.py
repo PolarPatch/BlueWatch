@@ -134,7 +134,7 @@ class BlueWatchDaemon:
         if self._web_port:
             settings = await db.get_settings()
             effective_port = settings.web_port or self._web_port
-            self._web_server = WebServer(port=effective_port, notifications=self._notifications)
+            self._web_server = WebServer(port=effective_port, notifications=self._notifications, adapter=self.scanner.adapter)
             await self._web_server.start()
             logger.info(f"Web dashboard available at http://0.0.0.0:{effective_port}")
 
