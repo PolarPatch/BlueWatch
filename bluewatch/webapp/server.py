@@ -122,7 +122,6 @@ class WebServer:
 
         self.app.router.add_get("/api/fastpair-settings", self.api_get_fastpair_settings)
         self.app.router.add_post("/api/fastpair-settings", self.api_set_fastpair_settings)
-        self.app.router.add_delete("/api/fastpair-settings", self.api_delete_fastpair_settings)
         # Authentication
         self.app.router.add_post("/api/auth/login", self.api_login)
         self.app.router.add_post("/api/auth/logout", self.api_logout)
@@ -782,7 +781,7 @@ class WebServer:
         if bt_type in ("ble", "both"):
             from .. import fastpair
 
-            fastpair_enabled, _ = await db.get_fastpair_settings()
+            fastpair_enabled = await db.get_fastpair_settings()
             model_id_hex = fastpair.model_id_from_service_data(device.service_data)
             if fastpair_enabled and model_id_hex:
                 fp_result = await fastpair.verify_fastpair_device(mac, model_id_hex, adapter=self._adapter)
@@ -1318,28 +1317,18 @@ class WebServer:
         return web.json_response({"status": "ok"})
 
     async def api_get_fastpair_settings(self, request: web.Request) -> web.Response:
-        """Whether Fast Pair verification is enabled and whether an API key
-        is on file. The key is never sent back to the browser once saved --
-        only a masked preview (same pattern as WiGLE)."""
-        enabled, api_key = await db.get_fastpair_settings()
-        if not api_key:
-            return web.json_response({"enabled": enabled, "configured": False})
-        mask = api_key[:4] + "..." + api_key[-4:] if len(api_key) > 8 else "***"
-        return web.json_response({"enabled": enabled, "configured": True, "api_key_masked": mask})
+        """Whether Fast Pair verification is enabled in Scan Unit."""
+        enabled = await db.get_fastpair_settings()
+        return web.json_response({"enabled": enabled})
 
     async def api_set_fastpair_settings(self, request: web.Request) -> web.Response:
         try:
             data = await request.json()
             enabled = bool(data.get("enabled"))
-            api_key = (data.get("api_key") or "").strip() or None
-            await db.set_fastpair_settings(enabled, api_key)
+            await db.set_fastpair_settings(enabled)
             return web.json_response({"status": "ok"})
         except Exception as e:
             return web.json_response({"error": str(e)}, status=400)
-
-    async def api_delete_fastpair_settings(self, request: web.Request) -> web.Response:
-        await db.clear_fastpair_settings()
-        return web.json_response({"status": "ok"})
 
     # ========================================================================
     # Authentication API

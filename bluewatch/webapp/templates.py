@@ -3073,20 +3073,14 @@ SETTINGS_TEMPLATE = """
             <div class="panel">
                 <div class="panel-header">Fast Pair Anti-Spoof Verification</div>
                 <div class="panel-body">
-                    <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 1rem;">When enabled, "Scan Unit" can run a Google Fast Pair Key-based Pairing challenge against a device to check whether it holds the genuine Anti-Spoofing Private Key for its advertised Model ID -- a real device answers correctly, a spoofed/cloned advertisement can't. This requires the device's Anti-Spoofing Public Key on file locally first (there is no simple self-service Google API for looking this up automatically -- see below).</p>
+                    <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 1rem;">When enabled, "Scan Unit" can run a Google Fast Pair Key-based Pairing challenge against a device to check whether it holds the genuine Anti-Spoofing Private Key for its advertised Model ID -- a real device answers correctly, a spoofed/cloned advertisement can't. This requires the device's Anti-Spoofing Public Key on file locally first (Google does not publish a self-service API for looking this up automatically -- see below).</p>
                     <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;">
-                        <input type="checkbox" id="fastpair-enabled">
+                        <input type="checkbox" id="fastpair-enabled" onchange="saveFastpairSettings()">
                         <label for="fastpair-enabled" style="font-size: 0.85rem;">Enable Fast Pair verification in Scan Unit</label>
-                    </div>
-                    <div id="fastpair-status" style="font-size: 0.8rem; margin-bottom: 1rem; color: var(--text-muted);">Loading...</div>
-                    <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
-                        <input type="password" class="form-input" id="fastpair-api-key" placeholder="Google API key (optional, reserved for future use)" style="flex: 1;">
-                        <button type="button" class="btn btn-primary" onclick="saveFastpairSettings()">Save</button>
-                        <button type="button" class="btn" id="fastpair-clear-btn" onclick="clearFastpairSettings()" style="display: none;">Clear</button>
                     </div>
                     <details style="font-size: 0.75rem; color: var(--text-muted);">
                         <summary style="cursor: pointer;">How do Anti-Spoofing keys get added?</summary>
-                        <p style="margin-top: 0.5rem;">Google does not publish a simple self-service API for looking up a device model's Anti-Spoofing Public Key -- the API key field above is stored for potential future use but nothing is looked up with it automatically yet. For now, verification only works for models you've added by hand to the local key file on the BlueWatch host (<code>fastpair_keys.json</code> under its data directory), mapping a 3-byte Model ID to its 64-byte public key from a source you trust.</p>
+                        <p style="margin-top: 0.5rem;">Google does not publish a self-service API for looking up a device model's Anti-Spoofing Public Key -- verification only works for models you've added by hand to the local key file on the BlueWatch host (<code>fastpair_keys.json</code> under its data directory), mapping a 3-byte Model ID to its 64-byte public key from a source you trust.</p>
                     </details>
                 </div>
             </div>
@@ -3474,57 +3468,30 @@ SETTINGS_TEMPLATE = """
         }
 
         async function loadFastpairSettings() {
-            const statusEl = document.getElementById('fastpair-status');
-            const clearBtn = document.getElementById('fastpair-clear-btn');
             const enabledBox = document.getElementById('fastpair-enabled');
-            if (!statusEl) return;
+            if (!enabledBox) return;
             try {
                 const response = await fetch('/api/fastpair-settings');
                 const data = await response.json();
-                if (enabledBox) enabledBox.checked = !!data.enabled;
-                if (data.configured) {
-                    statusEl.textContent = 'API key on file -- ' + data.api_key_masked;
-                    statusEl.style.color = 'var(--accent-green)';
-                    if (clearBtn) clearBtn.style.display = '';
-                } else {
-                    statusEl.textContent = 'No API key on file';
-                    statusEl.style.color = 'var(--text-muted)';
-                    if (clearBtn) clearBtn.style.display = 'none';
-                }
-            } catch (error) {
-                statusEl.textContent = 'Error loading status';
-            }
+                enabledBox.checked = !!data.enabled;
+            } catch (error) { /* leave checkbox as-is */ }
         }
 
         async function saveFastpairSettings() {
             const enabled = document.getElementById('fastpair-enabled').checked;
-            const apiKey = document.getElementById('fastpair-api-key').value.trim();
             try {
-                const body = { enabled: enabled };
-                if (apiKey) body.api_key = apiKey;
                 const response = await fetch('/api/fastpair-settings', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(body)
+                    body: JSON.stringify({ enabled: enabled })
                 });
                 if (response.ok) {
-                    document.getElementById('fastpair-api-key').value = '';
-                    loadFastpairSettings();
                     showStatus('Fast Pair settings saved', 'success');
                 } else {
                     const err = await response.json().catch(() => ({}));
                     showStatus(err.error || 'Error saving Fast Pair settings', 'error');
                 }
             } catch (error) { showStatus('Error saving Fast Pair settings', 'error'); }
-        }
-
-        async function clearFastpairSettings() {
-            if (!confirm('Remove the saved Fast Pair API key?')) return;
-            try {
-                const response = await fetch('/api/fastpair-settings', { method: 'DELETE' });
-                if (response.ok) { loadFastpairSettings(); showStatus('Fast Pair API key cleared', 'success'); }
-                else { showStatus('Error clearing Fast Pair settings', 'error'); }
-            } catch (error) { showStatus('Error clearing Fast Pair settings', 'error'); }
         }
 
         async function renameGroup(g) {

@@ -1938,41 +1938,28 @@ async def clear_wigle_credentials() -> None:
         await db.commit()
 
 
-async def get_fastpair_settings() -> tuple[bool, Optional[str]]:
-    """Returns (enabled, api_key) for Fast Pair anti-spoof verification.
+async def get_fastpair_settings() -> bool:
+    """Whether Fast Pair anti-spoof verification is enabled in Scan Unit.
 
-    Same reasoning as get_wigle_credentials(): stored via the generic
-    settings table rather than the Settings dataclass so the key never
-    round-trips through the general /api/settings GET response."""
+    Stored via the generic settings table (same pattern as other toggles).
+    There is no API key here -- Google doesn't publish a self-service
+    lookup API for Anti-Spoofing Public Keys, so verification only works
+    for Model IDs added by hand to the local key file (see fastpair.py)."""
     async with _connect() as db:
         db.row_factory = aiosqlite.Row
         async with db.execute(
-            "SELECT key, value FROM settings WHERE key IN ('fastpair_enabled', 'fastpair_api_key')"
+            "SELECT value FROM settings WHERE key = 'fastpair_enabled'"
         ) as cursor:
-            rows = await cursor.fetchall()
-    values = {row["key"]: row["value"] for row in rows}
-    enabled = values.get("fastpair_enabled", "0") == "1"
-    api_key = values.get("fastpair_api_key")
-    return (enabled, api_key)
+            row = await cursor.fetchone()
+    return bool(row and row["value"] == "1")
 
 
-async def set_fastpair_settings(enabled: bool, api_key: Optional[str] = None) -> None:
+async def set_fastpair_settings(enabled: bool) -> None:
     async with _connect() as db:
         await db.execute(
             "INSERT OR REPLACE INTO settings (key, value) VALUES ('fastpair_enabled', ?)",
             ("1" if enabled else "0",),
         )
-        if api_key is not None:
-            await db.execute(
-                "INSERT OR REPLACE INTO settings (key, value) VALUES ('fastpair_api_key', ?)",
-                (api_key,),
-            )
-        await db.commit()
-
-
-async def clear_fastpair_settings() -> None:
-    async with _connect() as db:
-        await db.execute("DELETE FROM settings WHERE key IN ('fastpair_enabled', 'fastpair_api_key')")
         await db.commit()
 
 
