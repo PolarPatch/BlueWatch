@@ -110,6 +110,11 @@ COMPANY_ID_APPLE = 0x004C
 COMPANY_ID_FLIPPER = 0x0E29
 COMPANY_ID_META_PLATFORMS = 0x01AB
 COMPANY_ID_META_PLATFORMS_TECH = 0x058E
+# Dedicated smart-glasses makers only -- deliberately not including
+# multi-product companies (Google, Samsung, Amazon, Lenovo, etc.) since
+# they'd misclassify unrelated phones/earbuds/laptops as glasses too.
+COMPANY_ID_EVEN_REALITIES = 0x10F9
+COMPANY_ID_VUZIX = 0x060C
 
 # Apple's Continuity/manufacturer-data "type" byte (first byte of the
 # payload after the company ID) that identifies an offline-finding /
@@ -135,7 +140,8 @@ def classify_by_manufacturer_data(manufacturer_data: Optional[dict]) -> Optional
     if COMPANY_ID_FLIPPER in manufacturer_data:
         return TYPE_FLIPPER
 
-    if COMPANY_ID_META_PLATFORMS in manufacturer_data or COMPANY_ID_META_PLATFORMS_TECH in manufacturer_data:
+    if (COMPANY_ID_META_PLATFORMS in manufacturer_data or COMPANY_ID_META_PLATFORMS_TECH in manufacturer_data
+            or COMPANY_ID_EVEN_REALITIES in manufacturer_data or COMPANY_ID_VUZIX in manufacturer_data):
         return TYPE_GLASSES
 
     apple_payload = manufacturer_data.get(COMPANY_ID_APPLE)
