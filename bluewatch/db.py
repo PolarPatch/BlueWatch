@@ -352,6 +352,16 @@ async def init_db() -> None:
             except Exception:
                 pass  # Column already exists
 
+        # devices.identity_id is looked up via 3 correlated subqueries on
+        # every paginated device-list request (identity_mac_count/
+        # identity_total_sightings/identity_first_seen) -- without an
+        # index this degrades from milliseconds to well over a minute
+        # once the devices table grows into the tens of thousands of
+        # rows, since each subquery falls back to a full table scan.
+        # Added after the column itself via ALTER TABLE above, so this
+        # runs last to guarantee the column exists first.
+        await db.execute("CREATE INDEX IF NOT EXISTS idx_devices_identity_id ON devices(identity_id)")
+
         await db.commit()
 
 

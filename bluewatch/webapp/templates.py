@@ -1831,11 +1831,6 @@ HTML_TEMPLATE = """
             const isCtrl = event.ctrlKey || event.metaKey;
             const isShift = event.shiftKey;
 
-            if (!isCtrl && !isShift) {
-                showDevice(mac);
-                return;
-            }
-
             if (isShift && lastSelectedIndex !== null && currentVisibleDevices.length > 0) {
                 const start = Math.max(0, Math.min(lastSelectedIndex, index));
                 const end = Math.min(currentVisibleDevices.length - 1, Math.max(lastSelectedIndex, index));
@@ -5565,11 +5560,6 @@ LIVE_TEMPLATE = """
             if (event.target && event.target.closest('input.row-select-checkbox')) return;
             const isCtrl = event.ctrlKey || event.metaKey;
             const isShift = event.shiftKey;
-
-            if (!isCtrl && !isShift) {
-                showDevice(mac);
-                return;
-            }
 
             if (isShift && lastSelectedIndex !== null && currentVisibleDevices.length > 0) {
                 const start = Math.max(0, Math.min(lastSelectedIndex, index));
