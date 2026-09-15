@@ -125,6 +125,18 @@ COMPANY_ID_VUZIX = 0x060C
 # iPhone/AirPods/etc.
 APPLE_FINDMY_TYPE_BYTE = 0x12
 
+# Apple's Continuity "Proximity Pairing" message (type 0x07 -- the same
+# message type used for the AirPods pairing popup) carries a product-id
+# byte at payload offset 2 (offset 4 in the raw advert, minus the 2-byte
+# company ID). 0x05 there specifically means "new/unpaired AirTag" --
+# the broadcast that triggers the "Connect New AirTag?" popup on a
+# nearby iPhone. This catches a brand-new AirTag someone just unboxed
+# nearby, before it would ever start Find My/offline-finding broadcasts
+# (type 0x12 above), which only start once it's actually separated from
+# an owner. Cross-checked against cifertech/ESP32-DIV's AirTag Sniffer.
+APPLE_PROXIMITY_PAIRING_TYPE_BYTE = 0x07
+APPLE_NEW_AIRTAG_PRODUCT_BYTE = 0x05
+
 
 def classify_by_manufacturer_data(manufacturer_data: Optional[dict]) -> Optional[str]:
     """
@@ -146,6 +158,10 @@ def classify_by_manufacturer_data(manufacturer_data: Optional[dict]) -> Optional
 
     apple_payload = manufacturer_data.get(COMPANY_ID_APPLE)
     if apple_payload and len(apple_payload) >= 1 and apple_payload[0] == APPLE_FINDMY_TYPE_BYTE:
+        return TYPE_TRACKER
+    if (apple_payload and len(apple_payload) >= 3
+            and apple_payload[0] == APPLE_PROXIMITY_PAIRING_TYPE_BYTE
+            and apple_payload[2] == APPLE_NEW_AIRTAG_PRODUCT_BYTE):
         return TYPE_TRACKER
 
     return None
