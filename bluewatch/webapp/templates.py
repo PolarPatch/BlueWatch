@@ -2825,6 +2825,7 @@ SETTINGS_TEMPLATE = """
         <a href="#groups" data-tab="groups" onclick="switchTab('groups')">Groups</a>
         <a href="#security" data-tab="security" onclick="switchTab('security')">Security</a>
         <a href="#wigle" data-tab="wigle" onclick="switchTab('wigle')">WiGLE</a>
+        <a href="#fastpair" data-tab="fastpair" onclick="switchTab('fastpair')">Fast Pair</a>
         <a href="#export" data-tab="export" onclick="switchTab('export')">Export</a>
         <a href="#about" data-tab="about" onclick="switchTab('about')">About</a>
     </nav>
@@ -3058,6 +3059,35 @@ SETTINGS_TEMPLATE = """
                         <button type="button" class="btn btn-primary" onclick="saveWigleSettings()">Save</button>
                         <button type="button" class="btn" id="wigle-clear-btn" onclick="clearWigleSettings()" style="display: none;">Clear</button>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Fast Pair Tab -->
+        <div class="config-tab" id="tab-fastpair">
+            <div class="page-header">
+                <div class="page-title">System Configuration</div>
+                <h1 class="page-heading">Fast Pair Verification</h1>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">Fast Pair Anti-Spoof Verification</div>
+                <div class="panel-body">
+                    <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 1rem;">When enabled, "Scan Unit" can run a Google Fast Pair Key-based Pairing challenge against a device to check whether it holds the genuine Anti-Spoofing Private Key for its advertised Model ID -- a real device answers correctly, a spoofed/cloned advertisement can't. This requires the device's Anti-Spoofing Public Key on file locally first (there is no simple self-service Google API for looking this up automatically -- see below).</p>
+                    <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;">
+                        <input type="checkbox" id="fastpair-enabled">
+                        <label for="fastpair-enabled" style="font-size: 0.85rem;">Enable Fast Pair verification in Scan Unit</label>
+                    </div>
+                    <div id="fastpair-status" style="font-size: 0.8rem; margin-bottom: 1rem; color: var(--text-muted);">Loading...</div>
+                    <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
+                        <input type="password" class="form-input" id="fastpair-api-key" placeholder="Google API key (optional, reserved for future use)" style="flex: 1;">
+                        <button type="button" class="btn btn-primary" onclick="saveFastpairSettings()">Save</button>
+                        <button type="button" class="btn" id="fastpair-clear-btn" onclick="clearFastpairSettings()" style="display: none;">Clear</button>
+                    </div>
+                    <details style="font-size: 0.75rem; color: var(--text-muted);">
+                        <summary style="cursor: pointer;">How do Anti-Spoofing keys get added?</summary>
+                        <p style="margin-top: 0.5rem;">Google does not publish a simple self-service API for looking up a device model's Anti-Spoofing Public Key -- the API key field above is stored for potential future use but nothing is looked up with it automatically yet. For now, verification only works for models you've added by hand to the local key file on the BlueWatch host (<code>fastpair_keys.json</code> under its data directory), mapping a 3-byte Model ID to its 64-byte public key from a source you trust.</p>
+                    </details>
                 </div>
             </div>
         </div>
@@ -3425,6 +3455,7 @@ SETTINGS_TEMPLATE = """
                     document.getElementById('wigle-api-name').value = '';
                     document.getElementById('wigle-api-token').value = '';
                     loadWigleSettings();
+        loadFastpairSettings();
                     showStatus('WiGLE credentials saved', 'success');
                 } else {
                     const err = await response.json().catch(() => ({}));
@@ -3440,6 +3471,60 @@ SETTINGS_TEMPLATE = """
                 if (response.ok) { loadWigleSettings(); showStatus('WiGLE credentials cleared', 'success'); }
                 else { showStatus('Error clearing WiGLE credentials', 'error'); }
             } catch (error) { showStatus('Error clearing WiGLE credentials', 'error'); }
+        }
+
+        async function loadFastpairSettings() {
+            const statusEl = document.getElementById('fastpair-status');
+            const clearBtn = document.getElementById('fastpair-clear-btn');
+            const enabledBox = document.getElementById('fastpair-enabled');
+            if (!statusEl) return;
+            try {
+                const response = await fetch('/api/fastpair-settings');
+                const data = await response.json();
+                if (enabledBox) enabledBox.checked = !!data.enabled;
+                if (data.configured) {
+                    statusEl.textContent = 'API key on file -- ' + data.api_key_masked;
+                    statusEl.style.color = 'var(--accent-green)';
+                    if (clearBtn) clearBtn.style.display = '';
+                } else {
+                    statusEl.textContent = 'No API key on file';
+                    statusEl.style.color = 'var(--text-muted)';
+                    if (clearBtn) clearBtn.style.display = 'none';
+                }
+            } catch (error) {
+                statusEl.textContent = 'Error loading status';
+            }
+        }
+
+        async function saveFastpairSettings() {
+            const enabled = document.getElementById('fastpair-enabled').checked;
+            const apiKey = document.getElementById('fastpair-api-key').value.trim();
+            try {
+                const body = { enabled: enabled };
+                if (apiKey) body.api_key = apiKey;
+                const response = await fetch('/api/fastpair-settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                if (response.ok) {
+                    document.getElementById('fastpair-api-key').value = '';
+                    loadFastpairSettings();
+                    showStatus('Fast Pair settings saved', 'success');
+                } else {
+                    const err = await response.json().catch(() => ({}));
+                    showStatus(err.error || 'Error saving Fast Pair settings', 'error');
+                }
+            } catch (error) { showStatus('Error saving Fast Pair settings', 'error'); }
+        }
+
+        async function clearFastpairSettings() {
+            if (!confirm('Remove the saved Fast Pair API key?')) return;
+            try {
+                const response = await fetch('/api/fastpair-settings', { method: 'DELETE' });
+                if (response.ok) { loadFastpairSettings(); showStatus('Fast Pair API key cleared', 'success'); }
+                else { showStatus('Error clearing Fast Pair settings', 'error'); }
+            } catch (error) { showStatus('Error clearing Fast Pair settings', 'error'); }
         }
 
         async function renameGroup(g) {
@@ -3511,13 +3596,14 @@ SETTINGS_TEMPLATE = """
 
         // Tab routing: read hash on load, default to alerts
         var hash = window.location.hash.replace('#', '') || 'alerts';
-        switchTab(['alerts', 'operations', 'groups', 'security', 'wigle', 'export', 'about'].indexOf(hash) !== -1 ? hash : 'alerts');
+        switchTab(['alerts', 'operations', 'groups', 'security', 'wigle', 'fastpair', 'export', 'about'].indexOf(hash) !== -1 ? hash : 'alerts');
 
         loadSettings();
         loadAuthStatus();
         loadGroups();
         loadIrkKeys();
         loadWigleSettings();
+        loadFastpairSettings();
     </script>
 </body>
 </html>

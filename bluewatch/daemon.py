@@ -466,6 +466,7 @@ class BlueWatchDaemon:
                         bt_type=device.bt_type,
                         device_class=device.device_class,
                         manufacturer_data=device.manufacturer_data,
+                        service_data=device.service_data,
                     )
                     if is_new:
                         new_count += 1
