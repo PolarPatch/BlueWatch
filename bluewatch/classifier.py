@@ -55,6 +55,7 @@ TYPE_NETWORK = "network"
 TYPE_TRACKER = "tracker"
 TYPE_FLIPPER = "flipper"
 TYPE_GLASSES = "glasses"
+TYPE_BEACON = "beacon"
 TYPE_UNKNOWN = "unknown"
 
 # Icons for each device type (using simple ASCII for terminal compatibility)
@@ -77,6 +78,7 @@ TYPE_ICONS = {
     TYPE_TRACKER: "[TRK]",
     TYPE_FLIPPER: "[FLP]",
     TYPE_GLASSES: "[GLS]",
+    TYPE_BEACON: "[BCN]",
     TYPE_UNKNOWN: "[---]",
 }
 
@@ -100,6 +102,7 @@ TYPE_LABELS = {
     TYPE_TRACKER: "Tracker (Find My/AirTag)",
     TYPE_FLIPPER: "Flipper Zero",
     TYPE_GLASSES: "Smart Glasses (Meta)",
+    TYPE_BEACON: "Beacon (iBeacon)",
     TYPE_UNKNOWN: "Unknown",
 }
 
@@ -115,6 +118,7 @@ COMPANY_ID_META_PLATFORMS_TECH = 0x058E
 # they'd misclassify unrelated phones/earbuds/laptops as glasses too.
 COMPANY_ID_EVEN_REALITIES = 0x10F9
 COMPANY_ID_VUZIX = 0x060C
+COMPANY_ID_MICROSOFT = 0x0006
 
 # Apple's Continuity/manufacturer-data "type" byte (first byte of the
 # payload after the company ID) that identifies an offline-finding /
@@ -137,6 +141,36 @@ APPLE_FINDMY_TYPE_BYTE = 0x12
 APPLE_PROXIMITY_PAIRING_TYPE_BYTE = 0x07
 APPLE_NEW_AIRTAG_PRODUCT_BYTE = 0x05
 
+# A few more Apple Continuity message types (see nccgroup/Sniffle's
+# advdata/msd_apple.py for the full reference table) that map cleanly
+# to a device type without ambiguity. AirPlay Target/Source (0x09/0x0A)
+# deliberately excluded -- those cover HomePod, Apple TV, and Macs
+# alike, too broad to classify safely.
+APPLE_AIRPRINT_TYPE_BYTE = 0x03
+APPLE_HOMEKIT_TYPE_BYTE = 0x06
+APPLE_IBEACON_TYPE_BYTE = 0x02
+APPLE_IBEACON_MIN_LEN = 23  # type + length byte + 21-byte UUID/major/minor/power payload
+
+# Microsoft's Swift Pair / "Nearby Share" beacon (Connected Devices
+# Platform) encodes an explicit device-type byte on purpose, for the
+# pairing-popup UI -- far more reliable than guessing from vendor/name.
+# See https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-cdp/
+# and nccgroup/Sniffle's advdata/msd_microsoft.py.
+MS_SWIFT_PAIR_SCENARIO_TYPE = 1
+MS_SWIFT_PAIR_DEVICE_TYPES = {
+    1: TYPE_GAMING,     # Xbox One
+    6: TYPE_PHONE,      # Apple iPhone
+    7: TYPE_TABLET,     # Apple iPad
+    8: TYPE_PHONE,      # Android device
+    9: TYPE_COMPUTER,   # Windows 10 Desktop
+    11: TYPE_PHONE,     # Windows 10 Phone
+    12: TYPE_COMPUTER,  # Linux device
+    13: TYPE_SMART_HOME,  # Windows IoT
+    14: TYPE_TV,        # Surface Hub
+    15: TYPE_LAPTOP,    # Windows laptop
+    16: TYPE_TABLET,    # Windows tablet
+}
+
 
 def classify_by_manufacturer_data(manufacturer_data: Optional[dict]) -> Optional[str]:
     """
@@ -156,13 +190,27 @@ def classify_by_manufacturer_data(manufacturer_data: Optional[dict]) -> Optional
             or COMPANY_ID_EVEN_REALITIES in manufacturer_data or COMPANY_ID_VUZIX in manufacturer_data):
         return TYPE_GLASSES
 
+    ms_payload = manufacturer_data.get(COMPANY_ID_MICROSOFT)
+    if ms_payload and len(ms_payload) >= 2 and ms_payload[0] == MS_SWIFT_PAIR_SCENARIO_TYPE:
+        device_type_nibble = ms_payload[1] & 0x1F
+        ms_type = MS_SWIFT_PAIR_DEVICE_TYPES.get(device_type_nibble)
+        if ms_type:
+            return ms_type
+
     apple_payload = manufacturer_data.get(COMPANY_ID_APPLE)
-    if apple_payload and len(apple_payload) >= 1 and apple_payload[0] == APPLE_FINDMY_TYPE_BYTE:
-        return TYPE_TRACKER
-    if (apple_payload and len(apple_payload) >= 3
-            and apple_payload[0] == APPLE_PROXIMITY_PAIRING_TYPE_BYTE
-            and apple_payload[2] == APPLE_NEW_AIRTAG_PRODUCT_BYTE):
-        return TYPE_TRACKER
+    if apple_payload and len(apple_payload) >= 1:
+        apple_type = apple_payload[0]
+        if apple_type == APPLE_FINDMY_TYPE_BYTE:
+            return TYPE_TRACKER
+        if (apple_type == APPLE_PROXIMITY_PAIRING_TYPE_BYTE and len(apple_payload) >= 3
+                and apple_payload[2] == APPLE_NEW_AIRTAG_PRODUCT_BYTE):
+            return TYPE_TRACKER
+        if apple_type == APPLE_AIRPRINT_TYPE_BYTE:
+            return TYPE_PRINTER
+        if apple_type == APPLE_HOMEKIT_TYPE_BYTE:
+            return TYPE_SMART_HOME
+        if apple_type == APPLE_IBEACON_TYPE_BYTE and len(apple_payload) >= APPLE_IBEACON_MIN_LEN:
+            return TYPE_BEACON
 
     return None
 
