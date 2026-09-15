@@ -35,6 +35,15 @@ DEVICE_INFO_CHARACTERISTICS = {
 }
 
 
+# On a single-adapter host, this connect attempt competes with the
+# passive scan loop's own discovery cycles for the same radio -- BlueZ
+# rejects a connect with "InProgress" if it lands mid-cycle. That window
+# is brief (a few seconds), so a short retry loop usually finds a gap
+# rather than surfacing a transient, timing-dependent error to the operator.
+_INPROGRESS_RETRIES = 4
+_INPROGRESS_RETRY_DELAY = 3.0
+
+
 async def poll_ble_device(mac: str, adapter: Optional[str] = None) -> dict:
     """Connect to a BLE device and enumerate its GATT services/characteristics.
 
@@ -47,37 +56,46 @@ async def poll_ble_device(mac: str, adapter: Optional[str] = None) -> dict:
     if adapter:
         kwargs["adapter"] = adapter
 
-    try:
-        async with BleakClient(mac, **kwargs) as client:
-            services = []
-            device_info = {}
-            for service in client.services:
-                chars = []
-                for char in service.characteristics:
-                    entry = {"uuid": char.uuid, "properties": list(char.properties)}
-                    if "read" in char.properties:
-                        readable_name = DEVICE_INFO_CHARACTERISTICS.get(char.uuid.lower())
-                        try:
-                            value = await client.read_gatt_char(char)
-                            if readable_name:
-                                try:
-                                    device_info[readable_name] = value.decode("utf-8").strip("\x00")
-                                except UnicodeDecodeError:
-                                    device_info[readable_name] = value.hex()
-                            entry["value"] = value.hex()
-                        except Exception:
-                            pass  # Some characteristics are readable in principle but reject us -- skip silently.
-                    chars.append(entry)
-                services.append({
-                    "uuid": service.uuid,
-                    "description": service.description,
-                    "characteristics": chars,
-                })
-            return {"ok": True, "services": services, "device_info": device_info}
-    except asyncio.TimeoutError:
-        return {"ok": False, "error": "Timed out connecting -- device may be out of range or not connectable."}
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
+    last_error = None
+    for attempt in range(1, _INPROGRESS_RETRIES + 1):
+        try:
+            async with BleakClient(mac, **kwargs) as client:
+                services = []
+                device_info = {}
+                for service in client.services:
+                    chars = []
+                    for char in service.characteristics:
+                        entry = {"uuid": char.uuid, "properties": list(char.properties)}
+                        if "read" in char.properties:
+                            readable_name = DEVICE_INFO_CHARACTERISTICS.get(char.uuid.lower())
+                            try:
+                                value = await client.read_gatt_char(char)
+                                if readable_name:
+                                    try:
+                                        device_info[readable_name] = value.decode("utf-8").strip("\x00")
+                                    except UnicodeDecodeError:
+                                        device_info[readable_name] = value.hex()
+                                entry["value"] = value.hex()
+                            except Exception:
+                                pass  # Some characteristics are readable in principle but reject us -- skip silently.
+                        chars.append(entry)
+                    services.append({
+                        "uuid": service.uuid,
+                        "description": service.description,
+                        "characteristics": chars,
+                    })
+                return {"ok": True, "services": services, "device_info": device_info}
+        except asyncio.TimeoutError:
+            return {"ok": False, "error": "Timed out connecting -- device may be out of range or not connectable."}
+        except Exception as e:
+            last_error = e
+            if "InProgress" in str(e) and attempt < _INPROGRESS_RETRIES:
+                logger.info(f"Scan Unit: adapter busy (attempt {attempt}/{_INPROGRESS_RETRIES}), retrying in {_INPROGRESS_RETRY_DELAY}s")
+                await asyncio.sleep(_INPROGRESS_RETRY_DELAY)
+                continue
+            return {"ok": False, "error": str(e)}
+
+    return {"ok": False, "error": str(last_error) if last_error else "unknown error"}
 
 
 _SDP_FIELD_RE = re.compile(r'^(Service Name|Service Description|Service Provider):\s*(.+)$', re.MULTILINE)

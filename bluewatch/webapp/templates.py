@@ -2191,7 +2191,7 @@ HTML_TEMPLATE = """
             btn.disabled = true;
             btn.textContent = 'Scanning...';
             section.hidden = false;
-            result.textContent = 'Actively contacting device, this may take up to 15 seconds...';
+            result.textContent = 'Actively contacting device, this may take up to 30 seconds (longer if the adapter is mid-scan and needs a retry)...';
             try {
                 const response = await fetch('/api/device/' + encodeURIComponent(mac) + '/scan', { method: 'POST' });
                 const data = await response.json();
@@ -5941,7 +5941,7 @@ LIVE_TEMPLATE = """
             btn.disabled = true;
             btn.textContent = 'Scanning...';
             section.hidden = false;
-            result.textContent = 'Actively contacting device, this may take up to 15 seconds...';
+            result.textContent = 'Actively contacting device, this may take up to 30 seconds (longer if the adapter is mid-scan and needs a retry)...';
             try {
                 const response = await fetch('/api/device/' + encodeURIComponent(mac) + '/scan', { method: 'POST' });
                 const data = await response.json();
