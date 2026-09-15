@@ -63,6 +63,8 @@ TYPE_TRACKER = "tracker"
 TYPE_FLIPPER = "flipper"
 TYPE_GLASSES = "glasses"
 TYPE_BEACON = "beacon"
+TYPE_MESH = "mesh"
+TYPE_SKIMMER = "skimmer"
 TYPE_UNKNOWN = "unknown"
 
 # Icons for each device type (using simple ASCII for terminal compatibility)
@@ -86,6 +88,8 @@ TYPE_ICONS = {
     TYPE_FLIPPER: "[FLP]",
     TYPE_GLASSES: "[GLS]",
     TYPE_BEACON: "[BCN]",
+    TYPE_MESH: "[MSH]",
+    TYPE_SKIMMER: "[SKM]",
     TYPE_UNKNOWN: "[---]",
 }
 
@@ -110,6 +114,8 @@ TYPE_LABELS = {
     TYPE_FLIPPER: "Flipper Zero",
     TYPE_GLASSES: "Smart Glasses (Meta)",
     TYPE_BEACON: "Beacon (iBeacon)",
+    TYPE_MESH: "Mesh Radio",
+    TYPE_SKIMMER: "Possible Skimmer",
     TYPE_UNKNOWN: "Unknown",
 }
 
@@ -414,11 +420,18 @@ SERVICE_UUID_PATTERNS = [
     ("0000feaa", TYPE_SMART_HOME),  # Google Eddystone (beacons)
     ("0000feab", TYPE_SMART_HOME),  # Nokia beacons
 
-    # Trackers / Finders
-    ("0000fe2c", TYPE_SMART_HOME),  # Tile tracker
-    ("0000feed", TYPE_SMART_HOME),  # Tile
+    # Trackers / Finders (source: jbohack/nyanBOX detector fingerprints,
+    # cross-checked against Bluetooth SIG assigned 16-bit UUID numbers)
+    ("0000feed", TYPE_TRACKER),  # Tile
+    ("0000feec", TYPE_TRACKER),  # Tile
+    ("0000fd5a", TYPE_TRACKER),  # Samsung SmartTag
     ("0000febe", TYPE_SMART_HOME),  # Bose
-    ("0000feec", TYPE_SMART_HOME),  # Tile
+
+    # Smart glasses
+    ("0000fd5f", TYPE_GLASSES),  # Meta/Ray-Ban Meta glasses
+
+    # Off-grid mesh radio
+    ("6ba1b21815a8461f9fa85dcae273eafd", TYPE_MESH),  # Meshtastic
 
     # Location/Navigation
     ("00001819", TYPE_WEARABLE),  # Location and Navigation
@@ -553,6 +566,18 @@ def classify_device(
     # Check name if provided (some devices advertise their type)
     if name:
         name_lower = name.lower()
+
+        # HC-03/05/06 are cheap classic-Bluetooth serial modules -- also
+        # the modules most commonly found wired into credit-card
+        # skimmers. Exact match only (source: jbohack/nyanBOX's card
+        # skimmer detector), flagged distinctly rather than folded into
+        # a generic type since it's worth the operator's attention.
+        if name in ("HC-03", "HC-05", "HC-06"):
+            return TYPE_SKIMMER
+
+        # Off-grid mesh radio firmware (source: jbohack/nyanBOX detectors)
+        if name.startswith("MeshCore-") or "meshtastic" in name_lower:
+            return TYPE_MESH
 
         # Common name patterns
         if any(x in name_lower for x in ["iphone", "android", "pixel", "galaxy s", "galaxy z"]):

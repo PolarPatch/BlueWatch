@@ -156,7 +156,25 @@ class BlueWatchDaemon:
             asyncio.create_task(self._metrics_update_loop())
         asyncio.create_task(self._heartbeat_loop())
         asyncio.create_task(self._storage_prune_loop())
+        await self.scanner.start_continuous_ble()
+        asyncio.create_task(self._ble_continuous_manager())
         await self._scan_loop()
+
+    async def _ble_continuous_manager(self) -> None:
+        """Keeps continuous BLE scanning paused for as long as a Scan
+        Unit poll is active, resuming it as soon as the poll clears --
+        checked frequently so the pause/resume reacts quickly rather
+        than waiting for the next scan-loop cycle boundary."""
+        paused_for_scan_unit = False
+        while self.running:
+            want_paused = active_scan.SCAN_IN_PROGRESS.is_set()
+            if want_paused and not paused_for_scan_unit:
+                await self.scanner.stop_continuous_ble()
+                paused_for_scan_unit = True
+            elif not want_paused and paused_for_scan_unit:
+                await self.scanner.start_continuous_ble()
+                paused_for_scan_unit = False
+            await asyncio.sleep(0.5)
 
     async def stop(self) -> None:
         """Stop the daemon."""
@@ -179,6 +197,9 @@ class BlueWatchDaemon:
 
         # Stop notifications
         await self._notifications.stop()
+
+        # Stop continuous BLE scanning
+        await self.scanner.stop_continuous_ble()
 
         # Close HTTP session
         if self._http_session:

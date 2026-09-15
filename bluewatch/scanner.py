@@ -188,6 +188,16 @@ class BluetoothScanner:
         self._maclookup_loaded = False
         self._maclookup_update_task: Optional[asyncio.Task] = None
 
+        # Continuous BLE scanning: a single long-lived BleakScanner with a
+        # detection callback, instead of repeatedly stopping/restarting a
+        # timed discover() every cycle. Avoids the stop/restart overhead
+        # and the gap where advertisements go unseen between cycles.
+        # Paused (stopped) on demand for Scan Unit or a classic BT inquiry,
+        # since only one adapter operation can run at a time.
+        self._continuous_ble_scanner: Optional[BleakScanner] = None
+        self._live_ble: dict[str, dict] = {}  # address -> {"device", "adv", "seen_at"}
+        self._ble_adapter_lock = asyncio.Lock()  # serializes start/stop transitions only
+
     def _is_vendor_db_fresh(self) -> bool:
         """Check if the cached vendor DB exists and is less than 7 days old."""
         cache_path = BaseMacLookup.cache_path if HAS_MAC_LOOKUP else None
@@ -466,8 +476,82 @@ class BluetoothScanner:
         self._rfkill_toggle()
         os._exit(0)
 
+    def _on_ble_detection(self, device: BLEDevice, adv_data: AdvertisementData) -> None:
+        """Detection callback for the continuous scanner -- just records
+        the latest advertisement seen for this address. Kept cheap and
+        synchronous since bleak calls this directly from its D-Bus
+        message-handling path."""
+        self._live_ble[device.address] = {
+            "device": device,
+            "adv": adv_data,
+            "seen_at": time.monotonic(),
+        }
+
+    async def start_continuous_ble(self) -> None:
+        """Start (or resume) continuous BLE scanning: a single long-lived
+        scan instead of repeated stop/restart cycles. Safe to call when
+        already running (no-op)."""
+        async with self._ble_adapter_lock:
+            if self._continuous_ble_scanner is not None:
+                return
+            kwargs = {"detection_callback": self._on_ble_detection}
+            if self.adapter:
+                kwargs["adapter"] = self.adapter
+            scanner = BleakScanner(**kwargs)
+            try:
+                await scanner.start()
+            except Exception as e:
+                logger.error(f"Failed to start continuous BLE scan: {e}")
+                return
+            self._continuous_ble_scanner = scanner
+            logger.info("Continuous BLE scan started")
+
+    async def stop_continuous_ble(self) -> None:
+        """Stop continuous BLE scanning -- e.g. to free the adapter for a
+        Scan Unit poll or a classic BT inquiry, which can't run
+        concurrently with it on a single-adapter host. Safe to call when
+        already stopped (no-op)."""
+        async with self._ble_adapter_lock:
+            if self._continuous_ble_scanner is None:
+                return
+            scanner = self._continuous_ble_scanner
+            self._continuous_ble_scanner = None
+            try:
+                await scanner.stop()
+            except Exception as e:
+                logger.debug(f"Error stopping continuous BLE scan: {e}")
+
+    async def _snapshot_ble_devices(self) -> list[ScannedDevice]:
+        """Convert the continuous scanner's accumulated advertisements
+        into the same ScannedDevice shape a one-shot scan_ble() returns."""
+        devices: list[ScannedDevice] = []
+        for entry in list(self._live_ble.values()):
+            device = entry["device"]
+            adv_data = entry["adv"]
+            mac = device.address
+            vendor = await self._get_vendor(mac)
+            service_uuids = list(adv_data.service_uuids) if adv_data.service_uuids else []
+            manufacturer_data = dict(adv_data.manufacturer_data) if adv_data.manufacturer_data else {}
+            devices.append(ScannedDevice(
+                mac=mac,
+                name=device.name or adv_data.local_name,
+                rssi=adv_data.rssi,
+                vendor=vendor,
+                service_uuids=service_uuids,
+                bt_type="ble",
+                manufacturer_data=manufacturer_data,
+            ))
+        return devices
+
     async def scan_ble(self, duration: float = SCAN_DURATION) -> list[ScannedDevice]:
-        """Perform a Bluetooth LE scan."""
+        """Perform a Bluetooth LE scan.
+
+        If continuous scanning is active, returns a snapshot of what it's
+        accumulated instead of running a separate timed discover() -- the
+        continuous scanner is already doing the listening."""
+        if self._continuous_ble_scanner is not None:
+            return await self._snapshot_ble_devices()
+
         devices: list[ScannedDevice] = []
 
         if self._ble_stuck:
@@ -635,16 +719,26 @@ class BluetoothScanner:
             else:
                 classic_devices = results[1]
         else:
-            # Same adapter — run sequentially to avoid contention
+            # Same adapter — run sequentially to avoid contention. With
+            # continuous BLE scanning active, scan_ble() here is just a
+            # cheap snapshot (no adapter I/O), but scan_classic()'s hcitool
+            # inquiry does need exclusive access, so continuous scanning
+            # is paused around it and resumed straight after.
             try:
                 ble_devices = await self.scan_ble(duration)
             except Exception as e:
                 logger.error(f"BLE scan failed: {e}")
 
+            was_continuous = self._continuous_ble_scanner is not None
+            if was_continuous:
+                await self.stop_continuous_ble()
             try:
                 classic_devices = await self.scan_classic()
             except Exception as e:
                 logger.debug(f"Classic scan failed: {e}")
+            finally:
+                if was_continuous:
+                    await self.start_continuous_ble()
 
         # Merge results, preferring BLE data if device seen in both
         seen_macs = set()
