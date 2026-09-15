@@ -52,6 +52,9 @@ TYPE_GAMING = "gaming"
 TYPE_CAMERA = "camera"
 TYPE_PRINTER = "printer"
 TYPE_NETWORK = "network"
+TYPE_TRACKER = "tracker"
+TYPE_FLIPPER = "flipper"
+TYPE_GLASSES = "glasses"
 TYPE_UNKNOWN = "unknown"
 
 # Icons for each device type (using simple ASCII for terminal compatibility)
@@ -71,6 +74,9 @@ TYPE_ICONS = {
     TYPE_CAMERA: "[CAM]",
     TYPE_PRINTER: "[PRT]",
     TYPE_NETWORK: "[NET]",
+    TYPE_TRACKER: "[TRK]",
+    TYPE_FLIPPER: "[FLP]",
+    TYPE_GLASSES: "[GLS]",
     TYPE_UNKNOWN: "[---]",
 }
 
@@ -91,8 +97,52 @@ TYPE_LABELS = {
     TYPE_CAMERA: "Camera",
     TYPE_PRINTER: "Printer",
     TYPE_NETWORK: "Network",
+    TYPE_TRACKER: "Tracker (Find My/AirTag)",
+    TYPE_FLIPPER: "Flipper Zero",
+    TYPE_GLASSES: "Smart Glasses (Meta)",
     TYPE_UNKNOWN: "Unknown",
 }
+
+# Bluetooth SIG company identifiers (manufacturer-specific data), used for
+# fingerprints that are far more specific than a vendor-OUI/name guess --
+# see https://bitbucket.org/bluetooth-SIG/public/raw/main/assigned_numbers/company_identifiers/company_identifiers.yaml
+COMPANY_ID_APPLE = 0x004C
+COMPANY_ID_FLIPPER = 0x0E29
+COMPANY_ID_META_PLATFORMS = 0x01AB
+COMPANY_ID_META_PLATFORMS_TECH = 0x058E
+
+# Apple's Continuity/manufacturer-data "type" byte (first byte of the
+# payload after the company ID) that identifies an offline-finding /
+# Find My network broadcast -- this is what an AirTag (or any other
+# Find My accessory) sends while separated from its owner. Checking for
+# this specific byte (rather than just company ID 0x004C, which matches
+# every Apple device) is what actually distinguishes an AirTag from an
+# iPhone/AirPods/etc.
+APPLE_FINDMY_TYPE_BYTE = 0x12
+
+
+def classify_by_manufacturer_data(manufacturer_data: Optional[dict]) -> Optional[str]:
+    """
+    Classify a device from its raw BLE manufacturer-specific data
+    (company ID -> payload bytes). This is the most specific signal
+    available, since it comes straight from the chipset/firmware rather
+    than a spoofable advertised name -- checked before UUIDs/name/vendor.
+    Returns device type or None if no match.
+    """
+    if not manufacturer_data:
+        return None
+
+    if COMPANY_ID_FLIPPER in manufacturer_data:
+        return TYPE_FLIPPER
+
+    if COMPANY_ID_META_PLATFORMS in manufacturer_data or COMPANY_ID_META_PLATFORMS_TECH in manufacturer_data:
+        return TYPE_GLASSES
+
+    apple_payload = manufacturer_data.get(COMPANY_ID_APPLE)
+    if apple_payload and len(apple_payload) >= 1 and apple_payload[0] == APPLE_FINDMY_TYPE_BYTE:
+        return TYPE_TRACKER
+
+    return None
 
 # Vendor patterns for classification
 # Format: (pattern_to_match_in_vendor, device_type)
@@ -395,13 +445,21 @@ def classify_device(
     name: Optional[str] = None,
     service_uuids: Optional[list[str]] = None,
     device_class: Optional[int] = None,
+    manufacturer_data: Optional[dict] = None,
 ) -> str:
     """
-    Classify a device based on its vendor, name, service UUIDs, and device class.
-    Returns a device type constant.
+    Classify a device based on its vendor, name, service UUIDs, device
+    class, and raw manufacturer data. Returns a device type constant.
 
-    Priority: Service UUIDs > Name patterns > Device class > Vendor patterns
+    Priority: Manufacturer data > Service UUIDs > Name patterns > Device class > Vendor patterns
     """
+    # Manufacturer-data fingerprints (AirTag/Find My, Flipper Zero, Meta
+    # glasses) are the most specific signal available -- check first.
+    if manufacturer_data:
+        mfg_type = classify_by_manufacturer_data(manufacturer_data)
+        if mfg_type:
+            return mfg_type
+
     # Try UUID-based classification first (most accurate)
     if service_uuids:
         uuid_type = classify_by_uuids(service_uuids)

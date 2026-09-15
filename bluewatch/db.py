@@ -31,6 +31,7 @@ class Device:
     service_uuids: list[str] = None  # BLE service UUIDs for fingerprinting
     bt_type: str = "ble"  # "ble" or "classic"
     device_class: Optional[int] = None  # Classic BT device class
+    manufacturer_data: dict = None  # company_id (int) -> raw payload bytes
     group_id: Optional[int] = None  # Device group (category or subcategory)
     notes: Optional[str] = None  # Operator notes
     new_device_notified: bool = True  # Whether new-device notification has been sent
@@ -51,6 +52,8 @@ class Device:
     def __post_init__(self):
         if self.service_uuids is None:
             self.service_uuids = []
+        if self.manufacturer_data is None:
+            self.manufacturer_data = {}
 
 
 @dataclass
@@ -325,6 +328,7 @@ async def init_db() -> None:
             ("notify_depart", "TEXT"),
             ("notify_depart_expires_at", "TIMESTAMP"),
             ("identity_id", "INTEGER REFERENCES identities(id)"),
+            ("manufacturer_data", "TEXT"),
         ]
 
         for column, column_type in migrations:
@@ -359,6 +363,15 @@ def _parse_device_row(row) -> Device:
         except (json.JSONDecodeError, TypeError):
             pass
 
+    # Parse manufacturer_data from JSON (company_id -> hex string -> bytes)
+    manufacturer_data = {}
+    if "manufacturer_data" in keys and row["manufacturer_data"]:
+        try:
+            raw = json.loads(row["manufacturer_data"])
+            manufacturer_data = {int(k): bytes.fromhex(v) for k, v in raw.items()}
+        except (json.JSONDecodeError, TypeError, ValueError):
+            pass
+
     return Device(
         mac=row["mac"],
         vendor=row["vendor"],
@@ -370,6 +383,7 @@ def _parse_device_row(row) -> Device:
         last_seen=datetime.fromisoformat(row["last_seen"]) if row["last_seen"] else None,
         total_sightings=row["total_sightings"],
         service_uuids=service_uuids,
+        manufacturer_data=manufacturer_data,
         bt_type=row["bt_type"] if "bt_type" in keys and row["bt_type"] else "ble",
         device_class=row["device_class"] if "device_class" in keys else None,
         group_id=row["group_id"] if "group_id" in keys else None,
@@ -848,6 +862,7 @@ async def upsert_device(
     service_uuids: Optional[list[str]] = None,
     bt_type: str = "ble",
     device_class: Optional[int] = None,
+    manufacturer_data: Optional[dict] = None,
 ) -> tuple[Device, bool]:
     """Insert or update a device and record a sighting.
 
@@ -855,6 +870,10 @@ async def upsert_device(
     """
     now = datetime.now()
     uuids_json = json.dumps(service_uuids) if service_uuids else None
+    mfg_json = (
+        json.dumps({str(k): v.hex() for k, v in manufacturer_data.items()})
+        if manufacturer_data else None
+    )
 
     # A cryptographic IRK match (if any key is configured and resolves this
     # address) is strictly stronger evidence than the advertised-name
@@ -916,6 +935,21 @@ async def upsert_device(
                 updates.append("service_uuids = ?")
                 params.append(json.dumps(merged))
 
+            # Update/merge manufacturer_data if we have new company IDs (or
+            # updated payloads for ones we already had -- firmware can
+            # rotate the bytes, e.g. an AirTag's rolling identifier).
+            if manufacturer_data:
+                existing_mfg = {}
+                if "manufacturer_data" in existing.keys() and existing["manufacturer_data"]:
+                    try:
+                        raw = json.loads(existing["manufacturer_data"])
+                        existing_mfg = {str(k): v for k, v in raw.items()}
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+                existing_mfg.update({str(k): v.hex() for k, v in manufacturer_data.items()})
+                updates.append("manufacturer_data = ?")
+                params.append(json.dumps(existing_mfg))
+
             # Update bt_type if we got classic BT info for a device we only had BLE for
             existing_bt_type = existing["bt_type"] if "bt_type" in existing.keys() else "ble"
             if bt_type == "classic" and existing_bt_type == "ble":
@@ -959,10 +993,10 @@ async def upsert_device(
             # Insert new device
             await db.execute(
                 """
-                INSERT INTO devices (mac, vendor, friendly_name, first_seen, last_seen, total_sightings, service_uuids, bt_type, device_class, new_device_notified)
-                VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, 0)
+                INSERT INTO devices (mac, vendor, friendly_name, first_seen, last_seen, total_sightings, service_uuids, bt_type, device_class, manufacturer_data, new_device_notified)
+                VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, 0)
                 """,
-                (mac, insert_vendor, friendly_name, now.isoformat(), now.isoformat(), uuids_json, bt_type, device_class)
+                (mac, insert_vendor, friendly_name, now.isoformat(), now.isoformat(), uuids_json, bt_type, device_class, mfg_json)
             )
 
             if irk_identity_id is not None:

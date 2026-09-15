@@ -89,10 +89,13 @@ class ScannedDevice:
     service_uuids: list[str] = None  # BLE service UUIDs for fingerprinting
     bt_type: str = "ble"  # "ble" or "classic"
     device_class: Optional[int] = None  # Classic Bluetooth device class
+    manufacturer_data: dict = None  # company_id (int) -> raw payload bytes
 
     def __post_init__(self):
         if self.service_uuids is None:
             self.service_uuids = []
+        if self.manufacturer_data is None:
+            self.manufacturer_data = {}
 
 
 def parse_device_class(device_class: int) -> tuple[str, Optional[str]]:
@@ -491,6 +494,7 @@ class BluetoothScanner:
                 vendor = await self._get_vendor(mac)
 
                 service_uuids = list(adv_data.service_uuids) if adv_data.service_uuids else []
+                manufacturer_data = dict(adv_data.manufacturer_data) if adv_data.manufacturer_data else {}
 
                 devices.append(ScannedDevice(
                     mac=mac,
@@ -499,6 +503,7 @@ class BluetoothScanner:
                     vendor=vendor,
                     service_uuids=service_uuids,
                     bt_type="ble",
+                    manufacturer_data=manufacturer_data,
                 ))
 
             logger.debug(f"BLE scan: found {len(devices)} devices")
