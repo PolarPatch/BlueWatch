@@ -15,7 +15,7 @@ from typing import Optional
 
 import aiohttp
 
-from . import db, wigle, __version__
+from . import active_scan, db, wigle, __version__
 from .classifier import is_randomized_mac
 from .config import SCAN_INTERVAL, SOCKET_PATH, METRICS_PORT
 from .scanner import BluetoothScanner, ScannedDevice, list_adapters
@@ -420,6 +420,15 @@ class BlueWatchDaemon:
 
         while self.running:
             try:
+                # An operator-triggered Scan Unit poll gets priority over
+                # the background sweep -- skip starting a new passive
+                # cycle while one is active rather than competing with it
+                # for the adapter (BlueZ only allows one connect/discover
+                # at a time on a single-adapter host).
+                if active_scan.SCAN_IN_PROGRESS.is_set():
+                    await asyncio.sleep(1)
+                    continue
+
                 start_ts = time.monotonic()
                 devices = await self.scanner.scan()
                 duration = time.monotonic() - start_ts
