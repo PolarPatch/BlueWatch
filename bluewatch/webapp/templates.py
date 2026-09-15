@@ -2224,6 +2224,23 @@ HTML_TEMPLATE = """
                     }
                     result.textContent = lines.join('\\n');
                 }
+
+                if (data.applied && Object.keys(data.applied).length > 0) {
+                    const appliedLines = ['Auto-filled from scan (fields that were empty):'];
+                    for (const [k, v] of Object.entries(data.applied)) {
+                        appliedLines.push('  ' + k + ': ' + v);
+                    }
+                    result.textContent = appliedLines.join('\\n') + '\\n\\n' + result.textContent;
+
+                    const vendorInput = document.getElementById('device-vendor');
+                    if (data.applied.vendor && vendorInput) vendorInput.value = data.applied.vendor;
+                    const idInput = document.getElementById('device-identifier');
+                    if (data.applied.identifier && idInput) idInput.value = data.applied.identifier;
+                    if (data.applied.device_type) {
+                        await loadDeviceTypes(data.applied.device_type);
+                    }
+                    refreshDevices();
+                }
             } catch (error) {
                 result.textContent = 'Scan failed: ' + error;
             } finally {
@@ -5956,6 +5973,23 @@ LIVE_TEMPLATE = """
                         }
                     }
                     result.textContent = lines.join('\\n');
+                }
+
+                if (data.applied && Object.keys(data.applied).length > 0) {
+                    const appliedLines = ['Auto-filled from scan (fields that were empty):'];
+                    for (const [k, v] of Object.entries(data.applied)) {
+                        appliedLines.push('  ' + k + ': ' + v);
+                    }
+                    result.textContent = appliedLines.join('\\n') + '\\n\\n' + result.textContent;
+
+                    const vendorInput = document.getElementById('device-vendor');
+                    if (data.applied.vendor && vendorInput) vendorInput.value = data.applied.vendor;
+                    const idInput = document.getElementById('device-identifier');
+                    if (data.applied.identifier && idInput) idInput.value = data.applied.identifier;
+                    if (data.applied.device_type) {
+                        await loadDeviceTypes(data.applied.device_type);
+                    }
+                    refreshDevices();
                 }
             } catch (error) {
                 result.textContent = 'Scan failed: ' + error;

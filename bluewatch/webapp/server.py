@@ -766,7 +766,62 @@ class WebServer:
             return web.json_response({"error": str(e)}, status=500)
 
         result["bt_type"] = bt_type
+        if result.get("ok"):
+            applied = await self._apply_scan_unit_results(mac, device, result)
+            result["applied"] = applied
         return web.json_response(result)
+
+    async def _apply_scan_unit_results(self, mac: str, device, result: dict) -> dict:
+        """Fill in vendor/identifier/type from a successful Scan Unit poll,
+        but only fields the operator hasn't already set by hand -- this
+        never overwrites an existing vendor, identifier, or type, it only
+        fills gaps that active probing can answer more precisely than
+        passive advertisement data ever could."""
+        applied = {}
+
+        vendor_hint = None
+        name_hint = None
+
+        device_info = result.get("device_info") or {}
+        if device_info:
+            manufacturer = device_info.get("Manufacturer Name")
+            model = device_info.get("Model Number")
+            if manufacturer:
+                vendor_hint = manufacturer
+            if manufacturer and model:
+                name_hint = f"{manufacturer} {model}"
+            elif model:
+                name_hint = model
+        elif result.get("records"):
+            # Classic/SDP: less structured, but "Service Provider" is
+            # sometimes populated with the vendor name.
+            for rec in result["records"]:
+                provider = rec.get("Service Provider")
+                if provider:
+                    vendor_hint = provider
+                    break
+
+        if vendor_hint and not device.vendor:
+            await db.set_device_vendor(mac, vendor_hint)
+            applied["vendor"] = vendor_hint
+
+        if name_hint and not device.friendly_name:
+            await db.set_friendly_name(mac, name_hint)
+            applied["identifier"] = name_hint
+
+        if not device.device_type:
+            guessed_type = classify_device(
+                vendor_hint or device.vendor,
+                name_hint or device.friendly_name,
+                device.service_uuids,
+                device.device_class,
+                device.manufacturer_data,
+            )
+            if guessed_type and guessed_type != "unknown":
+                await db.set_device_type(mac, guessed_type)
+                applied["device_type"] = guessed_type
+
+        return applied
 
     async def api_device_rssi(self, request: web.Request) -> web.Response:
         """Get RSSI history for a device."""

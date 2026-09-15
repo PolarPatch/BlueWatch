@@ -1211,15 +1211,17 @@ async def get_sightings(mac: str, days: int = 30) -> list[Sighting]:
             (mac, f"-{days} days")
         ) as cursor:
             rows = await cursor.fetchall()
-            return [
-                Sighting(
+            sightings = []
+            for row in rows:
+                if not isinstance(row["timestamp"], str):
+                    continue  # Skip malformed rows (e.g. wrong column type affinity left over from a db recovery) rather than 500 the whole device page.
+                sightings.append(Sighting(
                     id=row["id"],
                     mac=row["mac"],
                     timestamp=datetime.fromisoformat(row["timestamp"]),
                     rssi=row["rssi"],
-                )
-                for row in rows
-            ]
+                ))
+            return sightings
 
 
 async def get_hourly_distribution(mac: str, days: int = 30) -> dict[int, int]:

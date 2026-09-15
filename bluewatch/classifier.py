@@ -9,6 +9,13 @@ _MACOS_UUID_RE = re.compile(
     r'^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$'
 )
 
+# Tesla's phone-key/key-fob BLE advertisement uses an iBeacon-format
+# frame (via a Texas Instruments BLE chip, not an Apple one) with a
+# fixed-shape local name: "S" + 16 lowercase hex chars + "C", e.g.
+# "S60845be37d53334eC". Checked before the generic iBeacon classification
+# below so a Tesla doesn't get labeled as a generic beacon.
+_TESLA_KEY_RE = re.compile(r'^S[0-9a-f]{16}C$')
+
 
 def is_macos_uuid(address: str) -> bool:
     """Check if a device address is a macOS CoreBluetooth UUID.
@@ -523,6 +530,13 @@ def classify_device(
 
     Priority: Manufacturer data > Service UUIDs > Name patterns > Device class > Vendor patterns
     """
+    # Tesla's key-fob/phone-key name pattern is checked first -- it would
+    # otherwise get shadowed by the generic iBeacon manufacturer-data
+    # classification below, since Tesla's BLE key broadcasts in iBeacon
+    # format.
+    if name and _TESLA_KEY_RE.match(name):
+        return TYPE_VEHICLE
+
     # Manufacturer-data fingerprints (AirTag/Find My, Flipper Zero, Meta
     # glasses) are the most specific signal available -- check first.
     if manufacturer_data:
