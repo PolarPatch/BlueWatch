@@ -16,6 +16,15 @@ _MACOS_UUID_RE = re.compile(
 # below so a Tesla doesn't get labeled as a generic beacon.
 _TESLA_KEY_RE = re.compile(r'^S[0-9a-f]{16}C$')
 
+# Tesla's iBeacon frame also carries a fixed proximity UUID
+# (74278bda-b644-4520-8f0c-720eaf059935) -- unlike major/minor, which
+# rotate, this UUID is the constant part of the frame and identifies the
+# beacon format as Tesla's specifically. A second, independent signal
+# alongside the name-pattern match above (source: blesploit device
+# library, https://blesplo.it/docs/device-library/).
+TESLA_IBEACON_UUID = "74278bda-b644-4520-8f0c-720eaf059935"
+_TESLA_IBEACON_UUID_HEX = TESLA_IBEACON_UUID.replace("-", "")
+
 
 def is_macos_uuid(address: str) -> bool:
     """Check if a device address is a macOS CoreBluetooth UUID.
@@ -124,6 +133,8 @@ TYPE_LABELS = {
 # see https://bitbucket.org/bluetooth-SIG/public/raw/main/assigned_numbers/company_identifiers/company_identifiers.yaml
 COMPANY_ID_APPLE = 0x004C
 COMPANY_ID_FLIPPER = 0x0E29
+# Swapfiets e-bike lock (source: blesploit device-library)
+COMPANY_ID_SWAPFIETS = 0x020F
 COMPANY_ID_META_PLATFORMS = 0x01AB
 COMPANY_ID_META_PLATFORMS_TECH = 0x058E
 # Dedicated smart-glasses makers only -- deliberately not including
@@ -223,6 +234,12 @@ def classify_by_manufacturer_data(manufacturer_data: Optional[dict]) -> Optional
         if apple_type == APPLE_HOMEKIT_TYPE_BYTE:
             return TYPE_SMART_HOME
         if apple_type == APPLE_IBEACON_TYPE_BYTE and len(apple_payload) >= APPLE_IBEACON_MIN_LEN:
+            # Tesla's phone-key/key-fob broadcasts in standard iBeacon
+            # format but with a fixed proximity UUID -- check that before
+            # falling back to a generic beacon classification.
+            ibeacon_uuid_hex = apple_payload[2:18].hex()
+            if ibeacon_uuid_hex == _TESLA_IBEACON_UUID_HEX:
+                return TYPE_VEHICLE
             return TYPE_BEACON
 
     return None
@@ -433,6 +450,19 @@ SERVICE_UUID_PATTERNS = [
     # Off-grid mesh radio
     ("6ba1b21815a8461f9fa85dcae273eafd", TYPE_MESH),  # Meshtastic
 
+    # Flipper Zero also advertises these 16-bit service UUIDs (in
+    # addition to company ID 0x0E29, checked separately in
+    # classify_by_manufacturer_data) -- source: blesploit device-library.
+    ("00003081", TYPE_FLIPPER),
+    ("00003082", TYPE_FLIPPER),
+    ("00003083", TYPE_FLIPPER),
+
+    # Note: Tesla's iOS-fallback (service UUID 0x1122) and Swapfiets
+    # (service UUID 0x1580) are deliberately NOT listed here -- those
+    # 16-bit UUIDs aren't specific enough alone (0x1122/0x1580 are
+    # generic legacy SIG-assigned UUIDs), so they're only classified
+    # when combined with a name match in classify_device().
+
     # Location/Navigation
     ("00001819", TYPE_WEARABLE),  # Location and Navigation
 
@@ -550,6 +580,24 @@ def classify_device(
     if name and _TESLA_KEY_RE.match(name):
         return TYPE_VEHICLE
 
+    # iOS strips manufacturer data from adverts it surfaces to apps, so a
+    # Tesla key fob seen via an iOS-based scanner may only have this
+    # service UUID plus a looser name shape left to go on (source:
+    # blesploit device-library).
+    if name and re.match(r'^S.{17}$', name) and service_uuids:
+        normalized_uuids = [u.lower().replace("-", "") for u in service_uuids]
+        if any("00001122" in u for u in normalized_uuids):
+            return TYPE_VEHICLE
+
+    # Swapfiets e-bike lock: company ID + service UUID + exact name,
+    # combined since none of those three is specific enough alone
+    # (source: blesploit device-library).
+    if (name == "Swapfiets" and service_uuids
+            and manufacturer_data and COMPANY_ID_SWAPFIETS in manufacturer_data):
+        normalized_uuids = [u.lower().replace("-", "") for u in service_uuids]
+        if any("00001580" in u for u in normalized_uuids):
+            return TYPE_VEHICLE
+
     # Manufacturer-data fingerprints (AirTag/Find My, Flipper Zero, Meta
     # glasses) are the most specific signal available -- check first.
     if manufacturer_data:
@@ -578,6 +626,10 @@ def classify_device(
         # Off-grid mesh radio firmware (source: jbohack/nyanBOX detectors)
         if name.startswith("MeshCore-") or "meshtastic" in name_lower:
             return TYPE_MESH
+
+        # Lime e-scooter (source: blesploit device-library)
+        if re.match(r'^lime-[0-9]+$', name):
+            return TYPE_VEHICLE
 
         # Common name patterns
         if any(x in name_lower for x in ["iphone", "android", "pixel", "galaxy s", "galaxy z"]):
