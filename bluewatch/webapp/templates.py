@@ -2231,14 +2231,24 @@ HTML_TEMPLATE = """
                         appliedLines.push('  ' + k + ': ' + v);
                     }
                     result.textContent = appliedLines.join('\\n') + '\\n\\n' + result.textContent;
+                }
 
-                    const vendorInput = document.getElementById('device-vendor');
-                    if (data.applied.vendor && vendorInput) vendorInput.value = data.applied.vendor;
-                    const idInput = document.getElementById('device-identifier');
-                    if (data.applied.identifier && idInput) idInput.value = data.applied.identifier;
-                    if (data.applied.device_type) {
-                        await loadDeviceTypes(data.applied.device_type);
-                    }
+                if (data.ok) {
+                    // Re-fetch the device from scratch rather than trust
+                    // the scan response's partial "applied" set -- this
+                    // guarantees the visible Type/Vendor/Identifier fields
+                    // always match what actually landed in the database,
+                    // with no separate save step for the operator.
+                    try {
+                        const freshResp = await fetch('/api/device/' + encodeURIComponent(mac));
+                        const fresh = await freshResp.json();
+                        const d = fresh.device;
+                        const vendorInput = document.getElementById('device-vendor');
+                        if (vendorInput) vendorInput.value = d.vendor || '';
+                        const idInput = document.getElementById('device-identifier');
+                        if (idInput) idInput.value = d.friendly_name || '';
+                        await loadDeviceTypes(d.device_type);
+                    } catch (e) { /* non-fatal -- scan result itself still shown */ }
                     refreshDevices();
                 }
             } catch (error) {
@@ -5981,14 +5991,24 @@ LIVE_TEMPLATE = """
                         appliedLines.push('  ' + k + ': ' + v);
                     }
                     result.textContent = appliedLines.join('\\n') + '\\n\\n' + result.textContent;
+                }
 
-                    const vendorInput = document.getElementById('device-vendor');
-                    if (data.applied.vendor && vendorInput) vendorInput.value = data.applied.vendor;
-                    const idInput = document.getElementById('device-identifier');
-                    if (data.applied.identifier && idInput) idInput.value = data.applied.identifier;
-                    if (data.applied.device_type) {
-                        await loadDeviceTypes(data.applied.device_type);
-                    }
+                if (data.ok) {
+                    // Re-fetch the device from scratch rather than trust
+                    // the scan response's partial "applied" set -- this
+                    // guarantees the visible Type/Vendor/Identifier fields
+                    // always match what actually landed in the database,
+                    // with no separate save step for the operator.
+                    try {
+                        const freshResp = await fetch('/api/device/' + encodeURIComponent(mac));
+                        const fresh = await freshResp.json();
+                        const d = fresh.device;
+                        const vendorInput = document.getElementById('device-vendor');
+                        if (vendorInput) vendorInput.value = d.vendor || '';
+                        const idInput = document.getElementById('device-identifier');
+                        if (idInput) idInput.value = d.friendly_name || '';
+                        await loadDeviceTypes(d.device_type);
+                    } catch (e) { /* non-fatal -- scan result itself still shown */ }
                     refreshDevices();
                 }
             } catch (error) {
