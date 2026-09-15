@@ -2207,9 +2207,9 @@ HTML_TEMPLATE = """
                         result.textContent = 'Connected, but no SDP service records advertised.';
                     } else {
                         result.textContent = data.records.map((r, i) =>
-                            'Service ' + (i + 1) + ':\n' +
-                            Object.entries(r).map(([k, v]) => '  ' + k + ': ' + v).join('\n')
-                        ).join('\n\n');
+                            'Service ' + (i + 1) + ':\\n' +
+                            Object.entries(r).map(([k, v]) => '  ' + k + ': ' + v).join('\\n')
+                        ).join('\\n\\n');
                     }
                 } else {
                     let lines = [];
@@ -2227,7 +2227,7 @@ HTML_TEMPLATE = """
                             lines.push('    ' + c.uuid + ' [' + c.properties.join(', ') + ']' + (c.value ? ' = ' + c.value : ''));
                         }
                     }
-                    result.textContent = lines.join('\n');
+                    result.textContent = lines.join('\\n');
                 }
             } catch (error) {
                 result.textContent = 'Scan failed: ' + error;
@@ -5945,9 +5945,9 @@ LIVE_TEMPLATE = """
                         result.textContent = 'Connected, but no SDP service records advertised.';
                     } else {
                         result.textContent = data.records.map((r, i) =>
-                            'Service ' + (i + 1) + ':\n' +
-                            Object.entries(r).map(([k, v]) => '  ' + k + ': ' + v).join('\n')
-                        ).join('\n\n');
+                            'Service ' + (i + 1) + ':\\n' +
+                            Object.entries(r).map(([k, v]) => '  ' + k + ': ' + v).join('\\n')
+                        ).join('\\n\\n');
                     }
                 } else {
                     let lines = [];
@@ -5965,7 +5965,7 @@ LIVE_TEMPLATE = """
                             lines.push('    ' + c.uuid + ' [' + c.properties.join(', ') + ']' + (c.value ? ' = ' + c.value : ''));
                         }
                     }
-                    result.textContent = lines.join('\n');
+                    result.textContent = lines.join('\\n');
                 }
             } catch (error) {
                 result.textContent = 'Scan failed: ' + error;
