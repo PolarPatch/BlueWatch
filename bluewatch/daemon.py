@@ -19,6 +19,7 @@ from . import active_scan, db, wigle, __version__
 from .classifier import is_randomized_mac
 from .config import SCAN_INTERVAL, SOCKET_PATH, METRICS_PORT
 from .scanner import BluetoothScanner, ScannedDevice, list_adapters
+from .esp32_scanner import ESP32Scanner
 from .web import WebServer
 from .notifications import NotificationManager
 
@@ -45,6 +46,8 @@ class BlueWatchDaemon:
         self._metrics_port = metrics_port
         self._http_session: aiohttp.ClientSession | None = None
         self._start_time = time.monotonic()
+        self._esp32_scanner: ESP32Scanner | None = None
+        self._esp32_config: tuple[bool, str] | None = None
 
     @staticmethod
     async def _wait_for_bluetooth(max_wait: int = 120, interval: int = 5) -> None:
@@ -158,6 +161,7 @@ class BlueWatchDaemon:
         asyncio.create_task(self._storage_prune_loop())
         await self.scanner.start_continuous_ble()
         asyncio.create_task(self._ble_continuous_manager())
+        asyncio.create_task(self._esp32_scanner_manager())
         await self._scan_loop()
 
     async def _ble_continuous_manager(self) -> None:
@@ -175,6 +179,27 @@ class BlueWatchDaemon:
                 await self.scanner.start_continuous_ble()
                 paused_for_scan_unit = False
             await asyncio.sleep(0.5)
+
+    async def _esp32_scanner_manager(self) -> None:
+        """Starts, stops, or reconfigures the optional ESP32-S3 second BLE
+        radio to match the operator's Config setting -- checked
+        periodically so a toggle or host-address change in /config takes
+        effect without a daemon restart."""
+        while self.running:
+            try:
+                enabled, host = await db.get_esp32_scanner_settings()
+                current = (enabled, host)
+                if current != self._esp32_config:
+                    if self._esp32_scanner is not None:
+                        await self._esp32_scanner.stop()
+                        self._esp32_scanner = None
+                    if enabled:
+                        self._esp32_scanner = ESP32Scanner(host=host, vendor_lookup=self.scanner._get_vendor)
+                        self._esp32_scanner.start()
+                    self._esp32_config = current
+            except Exception as e:
+                logger.warning(f"ESP32 scanner manager error: {e}")
+            await asyncio.sleep(5)
 
     async def stop(self) -> None:
         """Stop the daemon."""
@@ -200,6 +225,11 @@ class BlueWatchDaemon:
 
         # Stop continuous BLE scanning
         await self.scanner.stop_continuous_ble()
+
+        # Stop the optional ESP32 second scanner, if running
+        if self._esp32_scanner is not None:
+            await self._esp32_scanner.stop()
+            self._esp32_scanner = None
 
         # Close HTTP session
         if self._http_session:
@@ -452,6 +482,8 @@ class BlueWatchDaemon:
 
                 start_ts = time.monotonic()
                 devices = await self.scanner.scan()
+                if self._esp32_scanner is not None and self._esp32_scanner.connected:
+                    devices = devices + await self._esp32_scanner.snapshot()
                 duration = time.monotonic() - start_ts
 
                 new_count = 0

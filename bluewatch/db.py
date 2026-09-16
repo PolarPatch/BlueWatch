@@ -2134,6 +2134,39 @@ async def set_fastpair_settings(enabled: bool) -> None:
         await db.commit()
 
 
+_ESP32_SCANNER_DEFAULT_HOST = "192.168.5.1"
+
+
+async def get_esp32_scanner_settings() -> tuple[bool, str]:
+    """Whether the ESP32-S3 (blesploit firmware) second BLE radio is
+    enabled, and the host/IP to reach it on -- defaults to the USB-CDC
+    gadget address the firmware assigns itself when connected over USB
+    (192.168.5.1), since that's the expected common case."""
+    async with _connect() as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT key, value FROM settings WHERE key IN ('esp32_scanner_enabled', 'esp32_scanner_host')"
+        ) as cursor:
+            rows = await cursor.fetchall()
+    values = {row["key"]: row["value"] for row in rows}
+    enabled = values.get("esp32_scanner_enabled") == "1"
+    host = values.get("esp32_scanner_host") or _ESP32_SCANNER_DEFAULT_HOST
+    return (enabled, host)
+
+
+async def set_esp32_scanner_settings(enabled: bool, host: str) -> None:
+    async with _connect() as db:
+        await db.execute(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES ('esp32_scanner_enabled', ?)",
+            ("1" if enabled else "0",),
+        )
+        await db.execute(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES ('esp32_scanner_host', ?)",
+            (host or _ESP32_SCANNER_DEFAULT_HOST,),
+        )
+        await db.commit()
+
+
 async def get_wigle_cache_entry(mac: str) -> Optional[dict]:
     """None means this MAC has never been checked against WiGLE. A dict
     (possibly with vendor=None) means it has -- callers should not query

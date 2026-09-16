@@ -2916,6 +2916,7 @@ SETTINGS_TEMPLATE = """
         <a href="#security" data-tab="security" onclick="switchTab('security')">Security</a>
         <a href="#wigle" data-tab="wigle" onclick="switchTab('wigle')">WiGLE</a>
         <a href="#fastpair" data-tab="fastpair" onclick="switchTab('fastpair')">Fast Pair</a>
+        <a href="#esp32" data-tab="esp32" onclick="switchTab('esp32')">ESP32 Scanner</a>
         <a href="#export" data-tab="export" onclick="switchTab('export')">Export</a>
         <a href="#about" data-tab="about" onclick="switchTab('about')">About</a>
     </nav>
@@ -3180,6 +3181,29 @@ SETTINGS_TEMPLATE = """
                         <summary style="cursor: pointer;">How do Anti-Spoofing keys get added?</summary>
                         <p style="margin-top: 0.5rem;">Google does not publish a self-service API for looking up a device model's Anti-Spoofing Public Key -- verification only works for models you've added by hand to the local key file on the BlueWatch host (<code>fastpair_keys.json</code> under its data directory), mapping a 3-byte Model ID to its 64-byte public key from a source you trust.</p>
                     </details>
+                </div>
+            </div>
+        </div>
+
+        <!-- ESP32 Scanner Tab -->
+        <div class="config-tab" id="tab-esp32">
+            <div class="page-header">
+                <div class="page-title">System Configuration</div>
+                <h1 class="page-heading">ESP32 Scanner</h1>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">Second BLE Radio (ESP32-S3)</div>
+                <div class="panel-body">
+                    <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 1rem;">If you have an ESP32-S3 flashed with <a href="https://github.com/blesploit/esp32-firmware" target="_blank" rel="noopener" style="color: var(--accent-blue);">blesploit's observer firmware</a>, plug it into a USB port on this host. It appears as a USB-Ethernet device and exposes a raw BLE advertisement feed over WebSocket -- BlueWatch runs it purely as an independent second radio (passive observation only, no connecting/cloning), so it keeps listening continuously even while the built-in adapter is busy with a Scan Unit poll.</p>
+                    <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;">
+                        <input type="checkbox" id="esp32-enabled" onchange="saveEsp32Settings()">
+                        <label for="esp32-enabled" style="font-size: 0.85rem;">Enable ESP32 second scanner</label>
+                    </div>
+                    <div style="display: flex; gap: 0.5rem; align-items: center;">
+                        <label for="esp32-host" style="font-size: 0.8rem; color: var(--text-muted); white-space: nowrap;">Host / IP</label>
+                        <input type="text" class="form-input" id="esp32-host" placeholder="192.168.5.1" style="max-width: 12rem;" onchange="saveEsp32Settings()">
+                    </div>
                 </div>
             </div>
         </div>
@@ -3559,6 +3583,7 @@ SETTINGS_TEMPLATE = """
                     document.getElementById('wigle-api-token').value = '';
                     loadWigleSettings();
         loadFastpairSettings();
+        loadEsp32Settings();
                     showStatus('WiGLE credentials saved', 'success');
                 } else {
                     const err = await response.json().catch(() => ({}));
@@ -3601,6 +3626,35 @@ SETTINGS_TEMPLATE = """
                     showStatus(err.error || 'Error saving Fast Pair settings', 'error');
                 }
             } catch (error) { showStatus('Error saving Fast Pair settings', 'error'); }
+        }
+
+        async function loadEsp32Settings() {
+            const enabledBox = document.getElementById('esp32-enabled');
+            if (!enabledBox) return;
+            try {
+                const response = await fetch('/api/esp32-scanner-settings');
+                const data = await response.json();
+                enabledBox.checked = !!data.enabled;
+                document.getElementById('esp32-host').value = data.host || '192.168.5.1';
+            } catch (error) { /* leave fields as-is */ }
+        }
+
+        async function saveEsp32Settings() {
+            const enabled = document.getElementById('esp32-enabled').checked;
+            const host = document.getElementById('esp32-host').value;
+            try {
+                const response = await fetch('/api/esp32-scanner-settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ enabled: enabled, host: host })
+                });
+                if (response.ok) {
+                    showStatus('ESP32 scanner settings saved', 'success');
+                } else {
+                    const err = await response.json().catch(() => ({}));
+                    showStatus(err.error || 'Error saving ESP32 scanner settings', 'error');
+                }
+            } catch (error) { showStatus('Error saving ESP32 scanner settings', 'error'); }
         }
 
         async function renameGroup(g) {
@@ -3680,6 +3734,7 @@ SETTINGS_TEMPLATE = """
         loadIrkKeys();
         loadWigleSettings();
         loadFastpairSettings();
+        loadEsp32Settings();
     </script>
 </body>
 </html>

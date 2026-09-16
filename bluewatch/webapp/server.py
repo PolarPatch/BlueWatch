@@ -122,6 +122,8 @@ class WebServer:
 
         self.app.router.add_get("/api/fastpair-settings", self.api_get_fastpair_settings)
         self.app.router.add_post("/api/fastpair-settings", self.api_set_fastpair_settings)
+        self.app.router.add_get("/api/esp32-scanner-settings", self.api_get_esp32_scanner_settings)
+        self.app.router.add_post("/api/esp32-scanner-settings", self.api_set_esp32_scanner_settings)
         # Authentication
         self.app.router.add_post("/api/auth/login", self.api_login)
         self.app.router.add_post("/api/auth/logout", self.api_logout)
@@ -1372,6 +1374,22 @@ class WebServer:
             data = await request.json()
             enabled = bool(data.get("enabled"))
             await db.set_fastpair_settings(enabled)
+            return web.json_response({"status": "ok"})
+        except Exception as e:
+            return web.json_response({"error": str(e)}, status=400)
+
+    async def api_get_esp32_scanner_settings(self, request: web.Request) -> web.Response:
+        """Whether the optional ESP32-S3 (blesploit firmware) second BLE
+        radio is enabled, and the host/IP it's reached on."""
+        enabled, host = await db.get_esp32_scanner_settings()
+        return web.json_response({"enabled": enabled, "host": host})
+
+    async def api_set_esp32_scanner_settings(self, request: web.Request) -> web.Response:
+        try:
+            data = await request.json()
+            enabled = bool(data.get("enabled"))
+            host = (data.get("host") or "").strip() or "192.168.5.1"
+            await db.set_esp32_scanner_settings(enabled, host)
             return web.json_response({"status": "ok"})
         except Exception as e:
             return web.json_response({"error": str(e)}, status=400)
