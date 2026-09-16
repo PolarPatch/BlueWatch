@@ -307,23 +307,78 @@ APPLE_AIRPODS_MODEL_MAP: dict[int, tuple[str, str]] = {
     0x0620: ("Beats Solo3", TYPE_HEADPHONES),
 }
 
+# Apple concatenates multiple independent Continuity messages back-to-back
+# in a single manufacturer-data blob under company ID 0x004C -- each its
+# own type(1)+length(1)+payload(length) TLV, not one fixed-format message
+# as earlier code here assumed. Confirmed against two independent
+# authoritative sources that agree byte-for-byte on the walk algorithm:
+# furiousMAC/continuity's Wireshark dissector (dissector/4.4.0/
+# packet-bthci_cmd.c) and, more directly, blesploit's own real shipping
+# firmware/device-library implementation (vendors/apple/apple_dispatcher/
+# observer/adv_decode.lua's extract/scan loop, and apple_nearby_info's own
+# adv_decode.lua parse() loop -- both walk `type, len = data[pos],
+# data[pos+1]; pos += 2; if len == 0 or pos+len-1 > #data then break; ...
+# pos += len`, i.e. a zero-length TLV terminates the walk, not just an
+# overrun). Real-world evidence: a device seen broadcasting both a "0x09"
+# and a "0x16" message in the same advert (blesploit app, observed by the
+# user), and a real Apple Watch capture (user's own ESP32-S3 running
+# blesploit's firmware) whose advert is Handoff (0x0C) followed by Nearby
+# Info (0x10) -- confirming both that chaining happens in practice and
+# that 0x0C really is Handoff (blesploit's own `continuity_has_handoff`
+# attribute, backed by a dedicated apple_handoff/ observer). Every
+# function below that reads an Apple payload walks the full chain via
+# this helper instead of only inspecting the first message.
+def _walk_apple_tlvs(payload: bytes) -> list[tuple[int, bytes]]:
+    """Split an Apple Continuity manufacturer-data payload into its
+    constituent (message_type, message_body) TLVs. message_body excludes
+    the type/length header bytes -- e.g. for a Nearby Info message this is
+    the same as the old code's payload[2:], for Proximity Pairing the same
+    as the old code's payload[2:], etc. (every existing byte offset in this
+    file that indexed into "payload" starting at 2 maps 1:1 onto indexing
+    into a message's body starting at 0.) Stops cleanly -- rather than
+    raising -- at a zero-length TLV (treated as a chain terminator, same
+    as blesploit's own parser) or at the first TLV whose declared length
+    would overrun the remaining bytes (truncated/corrupt advert)."""
+    messages: list[tuple[int, bytes]] = []
+    offset = 0
+    n = len(payload)
+    while offset + 2 <= n:
+        msg_type = payload[offset]
+        length = payload[offset + 1]
+        if length == 0:
+            break
+        start = offset + 2
+        end = start + length
+        if end > n:
+            break
+        messages.append((msg_type, payload[start:end]))
+        offset = end
+    return messages
+
 
 def identify_apple_model(manufacturer_data: Optional[dict]) -> Optional[tuple[str, str]]:
     """Identify the specific AirPods/Beats model from Apple's Continuity
-    Proximity Pairing message (type 0x07), when present.
+    Proximity Pairing message (type 0x07), when present anywhere in the
+    advert's TLV chain (see _walk_apple_tlvs).
 
-    Returns (model_name, device_type) or None if this isn't a recognized
-    AirPods-family Proximity Pairing advertisement.
+    Returns (model_name, device_type) or None if no recognized AirPods-
+    family Proximity Pairing message is present.
     """
     if not manufacturer_data:
         return None
     payload = manufacturer_data.get(COMPANY_ID_APPLE)
-    if not payload or len(payload) < 5 or payload[0] != APPLE_PROXIMITY_PAIRING_TYPE_BYTE:
+    if not payload:
         return None
-    if payload[2] != APPLE_AIRPODS_PREFIX_BYTE:
-        return None
-    model_code = (payload[3] << 8) | payload[4]
-    return APPLE_AIRPODS_MODEL_MAP.get(model_code)
+    for msg_type, body in _walk_apple_tlvs(payload):
+        if msg_type != APPLE_PROXIMITY_PAIRING_TYPE_BYTE or len(body) < 3:
+            continue
+        if body[0] != APPLE_AIRPODS_PREFIX_BYTE:
+            continue
+        model_code = (body[1] << 8) | body[2]
+        result = APPLE_AIRPODS_MODEL_MAP.get(model_code)
+        if result:
+            return result
+    return None
 
 
 # Apple Continuity "Nearby Info" message (type 0x10) broadcasts a LIVE
@@ -369,34 +424,44 @@ def decode_apple_activity(manufacturer_data: Optional[dict]) -> Optional[dict]:
     if not manufacturer_data:
         return None
     payload = manufacturer_data.get(COMPANY_ID_APPLE)
-    if not payload or len(payload) < 4 or payload[0] != APPLE_NEARBY_INFO_TYPE_BYTE:
+    if not payload:
         return None
 
-    flags_action = payload[2]
-    status_flags = flags_action >> 4
-    action_code = flags_action & 0x0F
+    for msg_type, body in _walk_apple_tlvs(payload):
+        if msg_type != APPLE_NEARBY_INFO_TYPE_BYTE or len(body) < 2:
+            continue
 
-    # Data Flags byte (payload[3]): furiousMAC's docs list individual bits
-    # here (0x04 wifi, 0x20 watch locked, 0x80 auto-unlock enabled), but a
-    # second independent decoder instead treats this whole byte as a
-    # combined iOS-version/WiFi-state signature rather than clean
-    # independent bits -- exposed as best-effort, lower confidence than
-    # the action_code/status_flags nibbles above (which both sources
-    # agree on exactly).
-    data_flags = payload[3]
+        flags_action = body[0]
+        status_flags = flags_action >> 4
+        action_code = flags_action & 0x0F
 
-    return {
-        "action_code": action_code,
-        "activity": APPLE_ACTION_CODE_LABELS.get(action_code, f"unknown (0x{action_code:02x})"),
-        "screen_on": action_code in _APPLE_SCREEN_ON_CODES if (
-            action_code in _APPLE_SCREEN_ON_CODES or action_code in _APPLE_SCREEN_OFF_CODES
-        ) else None,
-        "primary_icloud_device": bool(status_flags & 0x01),
-        "airdrop_receiving": bool(status_flags & 0x04),
-        "wifi_on": bool(data_flags & 0x04),
-        "watch_locked": bool(data_flags & 0x20),
-        "auto_unlock_enabled": bool(data_flags & 0x80),
-    }
+        # Data Flags byte (body[1], old code's payload[3]): 0x04 (wifi) and
+        # 0x01 (AirPods connected) are confirmed by two independent sources
+        # that agree exactly -- furiousMAC's docs and blesploit's own
+        # device-library decoder (vendors/apple/apple_nearby_info/observer/
+        # adv_decode.lua's decode_nearby_info(), which also independently
+        # confirms the status_flags/action_code nibble split above byte-
+        # for-byte). 0x20 (watch locked) and 0x80 (auto-unlock enabled) are
+        # furiousMAC-only -- blesploit's decoder doesn't address those bits
+        # either way, so they're not contradicted, just less independently
+        # confirmed than the others -- exposed as best-effort.
+        data_flags = body[1]
+
+        return {
+            "action_code": action_code,
+            "activity": APPLE_ACTION_CODE_LABELS.get(action_code, f"unknown (0x{action_code:02x})"),
+            "screen_on": action_code in _APPLE_SCREEN_ON_CODES if (
+                action_code in _APPLE_SCREEN_ON_CODES or action_code in _APPLE_SCREEN_OFF_CODES
+            ) else None,
+            "primary_icloud_device": bool(status_flags & 0x01),
+            "airdrop_receiving": bool(status_flags & 0x04),
+            "wifi_on": bool(data_flags & 0x04),
+            "airpods_connected": bool(data_flags & 0x01),
+            "watch_locked": bool(data_flags & 0x20),
+            "auto_unlock_enabled": bool(data_flags & 0x80),
+        }
+
+    return None
 
 # Samsung's manufacturer-data format for its "VD" product line (TVs,
 # AV/soundbar equipment, monitors, and some appliances like fridges) --
@@ -534,28 +599,33 @@ def classify_by_manufacturer_data(manufacturer_data: Optional[dict]) -> Optional
         if ms_type:
             return ms_type
 
+    # Apple's manufacturer-data payload is a TLV chain (see
+    # _walk_apple_tlvs) -- walk every message rather than only the first,
+    # so a device broadcasting e.g. a Proximity Pairing message followed
+    # by an unrelated one still gets classified from whichever message in
+    # the chain actually matches. First classifiable message wins.
     apple_payload = manufacturer_data.get(COMPANY_ID_APPLE)
-    if apple_payload and len(apple_payload) >= 1:
-        apple_type = apple_payload[0]
-        if apple_type == APPLE_FINDMY_TYPE_BYTE:
-            return TYPE_TRACKER
-        if (apple_type == APPLE_PROXIMITY_PAIRING_TYPE_BYTE and len(apple_payload) >= 3
-                and apple_payload[2] == APPLE_NEW_AIRTAG_PRODUCT_BYTE):
-            return TYPE_TRACKER
-        if apple_type == APPLE_AIRPRINT_TYPE_BYTE:
-            return TYPE_PRINTER
-        if apple_type == APPLE_HOMEKIT_TYPE_BYTE:
-            return TYPE_SMART_HOME
-        if apple_type == APPLE_IBEACON_TYPE_BYTE and len(apple_payload) >= APPLE_IBEACON_MIN_LEN:
-            # Tesla's phone-key/key-fob broadcasts in standard iBeacon
-            # format but with a fixed proximity UUID -- check that before
-            # falling back to a generic beacon classification.
-            ibeacon_uuid_hex = apple_payload[2:18].hex()
-            if ibeacon_uuid_hex == _TESLA_IBEACON_UUID_HEX:
-                return TYPE_VEHICLE
-            if ibeacon_uuid_hex == _ARUBA_IBEACON_UUID_HEX:
-                return TYPE_NETWORK
-            return TYPE_BEACON
+    if apple_payload:
+        for apple_type, body in _walk_apple_tlvs(apple_payload):
+            if apple_type == APPLE_FINDMY_TYPE_BYTE:
+                return TYPE_TRACKER
+            if (apple_type == APPLE_PROXIMITY_PAIRING_TYPE_BYTE and len(body) >= 1
+                    and body[0] == APPLE_NEW_AIRTAG_PRODUCT_BYTE):
+                return TYPE_TRACKER
+            if apple_type == APPLE_AIRPRINT_TYPE_BYTE:
+                return TYPE_PRINTER
+            if apple_type == APPLE_HOMEKIT_TYPE_BYTE:
+                return TYPE_SMART_HOME
+            if apple_type == APPLE_IBEACON_TYPE_BYTE and len(body) >= APPLE_IBEACON_MIN_LEN - 2:
+                # Tesla's phone-key/key-fob broadcasts in standard iBeacon
+                # format but with a fixed proximity UUID -- check that
+                # before falling back to a generic beacon classification.
+                ibeacon_uuid_hex = body[0:16].hex()
+                if ibeacon_uuid_hex == _TESLA_IBEACON_UUID_HEX:
+                    return TYPE_VEHICLE
+                if ibeacon_uuid_hex == _ARUBA_IBEACON_UUID_HEX:
+                    return TYPE_NETWORK
+                return TYPE_BEACON
 
     # HPE Aruba access points also identify via a distinct company ID
     # with an "08"-prefixed payload (source: blesploit device-library).
@@ -564,6 +634,60 @@ def classify_by_manufacturer_data(manufacturer_data: Optional[dict]) -> Optional
         return TYPE_NETWORK
 
     return None
+
+
+# Message types this file already decodes into something useful (a device
+# type, a model name, or a live activity snapshot), plus a few more that
+# are recognized-but-intentionally-not-decoded-further -- AirPlay Target/
+# Source (0x09/0x0A, see the comment above APPLE_AIRPRINT_TYPE_BYTE),
+# Handoff (0x0C, confirmed via a real capture -- see _walk_apple_tlvs'
+# comment -- but its payload isn't independently useful here), and
+# Nearby Action (0x0F, and the same legacy 0x0A slot blesploit's own
+# dispatcher notes it can alias to -- no documented byte layout found to
+# decode further). All of these are deliberate non-decisions, not
+# genuinely unknown, so surfacing them as "Apple device (type 0x0c)"
+# would just be noise -- confirmed against blesploit's own device-library
+# dispatcher (vendors/apple/apple_dispatcher/observer/adv_decode.lua's
+# SUBSCRIPT_TYPES set), which draws this same recognized/unknown line at
+# exactly {0x02, 0x07, 0x0A, 0x0C, 0x0F, 0x10, 0x12}.
+_APPLE_KNOWN_MESSAGE_TYPES = {
+    APPLE_FINDMY_TYPE_BYTE,
+    APPLE_PROXIMITY_PAIRING_TYPE_BYTE,
+    APPLE_AIRPRINT_TYPE_BYTE,
+    APPLE_HOMEKIT_TYPE_BYTE,
+    APPLE_IBEACON_TYPE_BYTE,
+    APPLE_NEARBY_INFO_TYPE_BYTE,
+    0x09,  # AirPlay Target
+    0x0A,  # AirPlay Source / legacy Nearby Action alias
+    0x0C,  # Handoff
+    0x0F,  # Nearby Action
+}
+
+
+def identify_apple_unknown_label(manufacturer_data: Optional[dict]) -> Optional[str]:
+    """Fallback identifier for an Apple Continuity advert where NO message
+    in the TLV chain decodes into anything useful -- e.g. "Apple device
+    (type 0x16)" -- so the operator sees that *something* Apple-specific
+    was seen rather than nothing at all (mirrors how blesploit's app
+    surfaces unrecognized TLV type bytes instead of silently dropping
+    them). Returns None as soon as ANY message in the chain is one this
+    file already decodes elsewhere (a model, an activity snapshot, a
+    device-type match, etc.) -- e.g. a real Apple Watch capture carries a
+    Handoff (0x0c, not specifically decoded) message ahead of its Nearby
+    Info (0x10) one in the same advert; that device's Nearby Info activity
+    is genuinely useful, so it must NOT also get relabeled "Apple device
+    (type 0x0c)" just because Handoff happens to come first -- confirmed
+    against a real capture where blesploit itself surfaces "Nearby Info" /
+    the decoded activity for this exact advert, not an "unknown" label."""
+    if not manufacturer_data:
+        return None
+    payload = manufacturer_data.get(COMPANY_ID_APPLE)
+    if not payload:
+        return None
+    messages = _walk_apple_tlvs(payload)
+    if not messages or any(msg_type in _APPLE_KNOWN_MESSAGE_TYPES for msg_type, _ in messages):
+        return None
+    return f"Apple device (type 0x{messages[0][0]:02x})"
 
 
 # Broad "this company made it, subtype unknown" company IDs -- much

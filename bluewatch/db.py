@@ -982,7 +982,7 @@ async def upsert_device(
 
     Returns tuple of (device, is_new) where is_new indicates first sighting.
     """
-    from .classifier import identify_apple_model, decode_apple_activity, decode_samsung_status
+    from .classifier import identify_apple_model, decode_apple_activity, decode_samsung_status, identify_apple_unknown_label
     from .fastpair_models import identify_fastpair_device, decode_fastpair_battery
 
     now = datetime.now()
@@ -1014,6 +1014,15 @@ async def upsert_device(
             friendly_name = fastpair_match["name"]
         if not vendor and fastpair_match.get("manufacturer"):
             vendor = fastpair_match["manufacturer"]
+
+    # Last-resort friendly_name fill: an Apple Continuity advert whose
+    # message type(s) we don't decode into a name/model above -- still
+    # worth surfacing as "Apple device (type 0xNN)" rather than leaving
+    # the device nameless (see identify_apple_unknown_label's docstring).
+    if not friendly_name and manufacturer_data:
+        unknown_label = identify_apple_unknown_label(manufacturer_data)
+        if unknown_label:
+            friendly_name = unknown_label
 
     # Live activity snapshot (screen on/idle/driving, etc.) -- overwritten
     # on every sighting rather than filled once, since it's transient
