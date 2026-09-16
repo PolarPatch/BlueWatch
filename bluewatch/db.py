@@ -36,6 +36,8 @@ class Device:
     appearance: Optional[int] = None  # GAP Appearance (AD type 0x19) -- standardized Bluetooth SIG device-category code
     name_conflict_at: Optional[datetime] = None  # Last time this MAC advertised a different name than its stored one
     name_conflict_name: Optional[str] = None  # The conflicting name seen (stored name is left unchanged)
+    apple_activity: Optional[dict] = None  # Latest decoded Apple Continuity "Nearby Info" snapshot (screen on/idle/driving) -- overwritten every sighting, not fill-once
+    apple_activity_at: Optional[datetime] = None  # When apple_activity was last updated
     group_id: Optional[int] = None  # Device group (category or subcategory)
     notes: Optional[str] = None  # Operator notes
     new_device_notified: bool = True  # Whether new-device notification has been sent
@@ -339,6 +341,13 @@ async def init_db() -> None:
             ("appearance", "INTEGER"),
             ("name_conflict_at", "TIMESTAMP"),
             ("name_conflict_name", "TEXT"),
+            # Apple Continuity "Nearby Info" live activity snapshot (screen
+            # on/idle/driving, decoded in classifier.decode_apple_activity)
+            # -- unlike every other device column, this is OVERWRITTEN on
+            # every sighting rather than filled once, since it reflects
+            # transient state at the moment of that specific advertisement.
+            ("apple_activity", "TEXT"),
+            ("apple_activity_at", "TIMESTAMP"),
         ]
 
         for column, column_type in migrations:
@@ -401,6 +410,13 @@ def _parse_device_row(row) -> Device:
         except (json.JSONDecodeError, TypeError, ValueError):
             pass
 
+    apple_activity = None
+    if "apple_activity" in keys and row["apple_activity"]:
+        try:
+            apple_activity = json.loads(row["apple_activity"])
+        except (json.JSONDecodeError, TypeError):
+            pass
+
     return Device(
         mac=row["mac"],
         vendor=row["vendor"],
@@ -439,6 +455,11 @@ def _parse_device_row(row) -> Device:
         identity_first_seen=(
             datetime.fromisoformat(row["identity_first_seen"])
             if "identity_first_seen" in keys and row["identity_first_seen"] else None
+        ),
+        apple_activity=apple_activity,
+        apple_activity_at=(
+            datetime.fromisoformat(row["apple_activity_at"])
+            if "apple_activity_at" in keys and row["apple_activity_at"] else None
         ),
     )
 
@@ -906,6 +927,8 @@ async def upsert_device(
 
     Returns tuple of (device, is_new) where is_new indicates first sighting.
     """
+    from .classifier import identify_apple_model, decode_apple_activity
+
     now = datetime.now()
     uuids_json = json.dumps(service_uuids) if service_uuids else None
     mfg_json = (
@@ -916,6 +939,22 @@ async def upsert_device(
         json.dumps({str(k): v.hex() for k, v in service_data.items()})
         if service_data else None
     )
+
+    # AirPods/Beats broadcast a generic or empty local name, so Apple's
+    # Continuity Proximity Pairing message (when present) is a better
+    # source for friendly_name than the advertised name itself -- only
+    # used as a fallback when there's no advertised name to use instead.
+    apple_model = identify_apple_model(manufacturer_data) if manufacturer_data else None
+    if not friendly_name and apple_model:
+        friendly_name = apple_model[0]
+
+    # Live activity snapshot (screen on/idle/driving, etc.) -- overwritten
+    # on every sighting rather than filled once, since it's transient
+    # state, not a fixed property of the device. None (not an Apple
+    # Nearby Info advertisement this cycle) leaves the stored value alone
+    # rather than clearing it, so it still reflects the last time we did see one.
+    apple_activity = decode_apple_activity(manufacturer_data) if manufacturer_data else None
+    apple_activity_json = json.dumps(apple_activity) if apple_activity else None
 
     # A cryptographic IRK match (if any key is configured and resolves this
     # address) is strictly stronger evidence than the advertised-name
@@ -1038,6 +1077,15 @@ async def upsert_device(
                 updates.append("appearance = ?")
                 params.append(appearance)
 
+            # Unlike every field above, this one is deliberately overwritten
+            # on every sighting that has one -- it's live state, not a
+            # fixed property to fill once.
+            if apple_activity_json is not None:
+                updates.append("apple_activity = ?")
+                params.append(apple_activity_json)
+                updates.append("apple_activity_at = ?")
+                params.append(now.isoformat())
+
             # An IRK match always wins over whatever identity_id (if any)
             # the device already had -- it's a proof, not a guess.
             existing_identity_id = existing["identity_id"] if "identity_id" in existing.keys() else None
@@ -1066,10 +1114,14 @@ async def upsert_device(
             # Insert new device
             await db.execute(
                 """
-                INSERT INTO devices (mac, vendor, friendly_name, first_seen, last_seen, total_sightings, service_uuids, bt_type, device_class, manufacturer_data, service_data, appearance, new_device_notified)
-                VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, 0)
+                INSERT INTO devices (mac, vendor, friendly_name, first_seen, last_seen, total_sightings, service_uuids, bt_type, device_class, manufacturer_data, service_data, appearance, new_device_notified, apple_activity, apple_activity_at)
+                VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, 0, ?, ?)
                 """,
-                (mac, insert_vendor, friendly_name, now.isoformat(), now.isoformat(), uuids_json, bt_type, device_class, mfg_json, svc_data_json, appearance)
+                (
+                    mac, insert_vendor, friendly_name, now.isoformat(), now.isoformat(), uuids_json, bt_type,
+                    device_class, mfg_json, svc_data_json, appearance,
+                    apple_activity_json, now.isoformat() if apple_activity_json else None,
+                )
             )
 
             if irk_identity_id is not None:

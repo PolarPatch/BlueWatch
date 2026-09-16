@@ -602,6 +602,8 @@ class WebServer:
                 "identity_mac_count": device.identity_mac_count,
                 "name_conflict_at": (device.name_conflict_at.isoformat() + "Z") if device.name_conflict_at else None,
                 "name_conflict_name": device.name_conflict_name,
+                "apple_activity": device.apple_activity,
+                "apple_activity_at": (device.apple_activity_at.isoformat() + "Z") if device.apple_activity_at else None,
             },
             "type_label": get_type_label(device_type),
             "uuid_names": get_uuid_names(device.service_uuids),
