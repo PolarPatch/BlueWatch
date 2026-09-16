@@ -33,6 +33,7 @@ class Device:
     device_class: Optional[int] = None  # Classic BT device class
     manufacturer_data: dict = None  # company_id (int) -> raw payload bytes
     service_data: dict = None  # service UUID (str) -> raw payload bytes -- e.g. Fast Pair's 3-byte Model ID under 0xFE2C
+    appearance: Optional[int] = None  # GAP Appearance (AD type 0x19) -- standardized Bluetooth SIG device-category code
     name_conflict_at: Optional[datetime] = None  # Last time this MAC advertised a different name than its stored one
     name_conflict_name: Optional[str] = None  # The conflicting name seen (stored name is left unchanged)
     group_id: Optional[int] = None  # Device group (category or subcategory)
@@ -335,6 +336,7 @@ async def init_db() -> None:
             ("identity_id", "INTEGER REFERENCES identities(id)"),
             ("manufacturer_data", "TEXT"),
             ("service_data", "TEXT"),
+            ("appearance", "INTEGER"),
             ("name_conflict_at", "TIMESTAMP"),
             ("name_conflict_name", "TEXT"),
         ]
@@ -416,6 +418,7 @@ def _parse_device_row(row) -> Device:
         name_conflict_name=row["name_conflict_name"] if "name_conflict_name" in keys else None,
         bt_type=row["bt_type"] if "bt_type" in keys and row["bt_type"] else "ble",
         device_class=row["device_class"] if "device_class" in keys else None,
+        appearance=row["appearance"] if "appearance" in keys else None,
         group_id=row["group_id"] if "group_id" in keys else None,
         notes=row["notes"] if "notes" in keys else None,
         new_device_notified=bool(row["new_device_notified"]) if "new_device_notified" in keys else True,
@@ -897,6 +900,7 @@ async def upsert_device(
     device_class: Optional[int] = None,
     manufacturer_data: Optional[dict] = None,
     service_data: Optional[dict] = None,
+    appearance: Optional[int] = None,
 ) -> tuple[Device, bool]:
     """Insert or update a device and record a sighting.
 
@@ -1028,6 +1032,12 @@ async def upsert_device(
                 updates.append("device_class = ?")
                 params.append(device_class)
 
+            # Same -- fill appearance once, don't chase re-advertised values
+            existing_appearance = existing["appearance"] if "appearance" in existing.keys() else None
+            if appearance is not None and existing_appearance is None:
+                updates.append("appearance = ?")
+                params.append(appearance)
+
             # An IRK match always wins over whatever identity_id (if any)
             # the device already had -- it's a proof, not a guess.
             existing_identity_id = existing["identity_id"] if "identity_id" in existing.keys() else None
@@ -1056,10 +1066,10 @@ async def upsert_device(
             # Insert new device
             await db.execute(
                 """
-                INSERT INTO devices (mac, vendor, friendly_name, first_seen, last_seen, total_sightings, service_uuids, bt_type, device_class, manufacturer_data, service_data, new_device_notified)
-                VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, 0)
+                INSERT INTO devices (mac, vendor, friendly_name, first_seen, last_seen, total_sightings, service_uuids, bt_type, device_class, manufacturer_data, service_data, appearance, new_device_notified)
+                VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, 0)
                 """,
-                (mac, insert_vendor, friendly_name, now.isoformat(), now.isoformat(), uuids_json, bt_type, device_class, mfg_json, svc_data_json)
+                (mac, insert_vendor, friendly_name, now.isoformat(), now.isoformat(), uuids_json, bt_type, device_class, mfg_json, svc_data_json, appearance)
             )
 
             if irk_identity_id is not None:

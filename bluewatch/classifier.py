@@ -25,6 +25,14 @@ _TESLA_KEY_RE = re.compile(r'^S[0-9a-f]{16}C$')
 TESLA_IBEACON_UUID = "74278bda-b644-4520-8f0c-720eaf059935"
 _TESLA_IBEACON_UUID_HEX = TESLA_IBEACON_UUID.replace("-", "")
 
+# HPE Aruba access points also identify via a fixed iBeacon proximity
+# UUID, same idea as Tesla's above (source: blesploit device-library).
+ARUBA_IBEACON_UUID = "4152554e-f99b-4a3b-86d0-947070693a78"
+_ARUBA_IBEACON_UUID_HEX = ARUBA_IBEACON_UUID.replace("-", "")
+
+# Aruba AP local names follow "AP-" + 12 hex chars (source: same manifest).
+_ARUBA_NAME_RE = re.compile(r'^AP-[0-9a-f]{12}$', re.IGNORECASE)
+
 
 def is_macos_uuid(address: str) -> bool:
     """Check if a device address is a macOS CoreBluetooth UUID.
@@ -75,6 +83,65 @@ TYPE_BEACON = "beacon"
 TYPE_MESH = "mesh"
 TYPE_SKIMMER = "skimmer"
 TYPE_UNKNOWN = "unknown"
+
+# GAP Appearance (advertising AD type 0x19) is a Bluetooth SIG-standardized
+# 16-bit device-category code -- the high 10 bits are a category, e.g.
+# 192 = "Watch", 832 = "Heart Rate Sensor", 2112 = "Audio Sink". Unlike
+# every other signal in this file it's vendor-independent, so it's a
+# useful generic fallback for devices with no company-ID/UUID/name match.
+# Not every peripheral includes it, and bleak only exposes it via the
+# BlueZ backend's raw D-Bus properties (see scanner.py's
+# _extract_appearance()). Idea from blesploit's device_type_meta manifest
+# ("has_gap_device_type_hints"), category values from the Bluetooth SIG
+# Assigned Numbers "Appearance Values" table. Only unambiguous categories
+# are mapped -- e.g. "Remote Control"/"Control Device" are deliberately
+# left out, too broad to guess a type from.
+APPEARANCE_CATEGORY_MAP = {
+    1: TYPE_PHONE,          # Phone
+    2: TYPE_COMPUTER,       # Computer
+    3: TYPE_WATCH,          # Watch
+    5: TYPE_TV,             # Display
+    7: TYPE_GLASSES,        # Eye-glasses
+    8: TYPE_TRACKER,        # Tag
+    9: TYPE_TRACKER,        # Keyring (key finders)
+    12: TYPE_WEARABLE,      # Thermometer
+    13: TYPE_WEARABLE,      # Heart Rate Sensor
+    14: TYPE_WEARABLE,      # Blood Pressure
+    15: TYPE_GAMING,        # Human Interface Device
+    16: TYPE_WEARABLE,      # Glucose Meter
+    17: TYPE_WEARABLE,      # Running/Walking Sensor
+    18: TYPE_WEARABLE,      # Cycling
+    20: TYPE_NETWORK,       # Network Device
+    21: TYPE_SMART_HOME,    # Sensor
+    22: TYPE_SMART_HOME,    # Light Fixtures
+    23: TYPE_SMART_HOME,    # Fan
+    24: TYPE_SMART_HOME,    # HVAC
+    25: TYPE_SMART_HOME,    # Air Conditioning
+    26: TYPE_SMART_HOME,    # Humidifier
+    27: TYPE_SMART_HOME,    # Heating
+    28: TYPE_SMART_HOME,    # Access Control
+    30: TYPE_SMART_HOME,    # Power Device
+    31: TYPE_SMART_HOME,    # Light Source
+    32: TYPE_SMART_HOME,    # Window Covering
+    33: TYPE_HEADPHONES,    # Audio Sink
+    34: TYPE_HEADPHONES,    # Audio Source
+    35: TYPE_VEHICLE,       # Motorized Vehicle
+    36: TYPE_SMART_HOME,    # Domestic Appliance
+    37: TYPE_HEADPHONES,    # Wearable Audio Device
+    39: TYPE_TV,            # AV Equipment
+    40: TYPE_TV,            # Display Equipment
+    41: TYPE_WEARABLE,      # Hearing aid
+    42: TYPE_GAMING,        # Gaming
+}
+
+
+def classify_by_appearance(appearance: Optional[int]) -> Optional[str]:
+    """Classify a device from its GAP Appearance value. Returns device
+    type or None if absent/unmapped."""
+    if appearance is None:
+        return None
+    category = appearance >> 6
+    return APPEARANCE_CATEGORY_MAP.get(category)
 
 # Icons for each device type (using simple ASCII for terminal compatibility)
 TYPE_ICONS = {
@@ -143,6 +210,24 @@ COMPANY_ID_META_PLATFORMS_TECH = 0x058E
 COMPANY_ID_EVEN_REALITIES = 0x10F9
 COMPANY_ID_VUZIX = 0x060C
 COMPANY_ID_MICROSOFT = 0x0006
+
+# More vendor company IDs (source: blesploit device-library vendor
+# manifests -- each is just an icon/name match there, ported here as a
+# vendor-strength signal equivalent to the existing VENDOR_PATTERNS name
+# guesses, but working even when the advertised name doesn't contain the
+# brand name).
+COMPANY_ID_GARMIN = 0x0087
+COMPANY_ID_XIAOMI = 0x038F
+COMPANY_ID_SONOS = 0x05A7
+COMPANY_ID_POLAR = 0x006B
+COMPANY_ID_SAMSUNG = 0x0075
+COMPANY_ID_SONY = 0x012D
+COMPANY_ID_HUAWEI = 0x027D
+COMPANY_ID_ONEPLUS = 0x072F
+COMPANY_ID_LG = 0x00C4
+# HPE Aruba access points (enterprise WiFi infra, not a personal device --
+# useful to flag distinctly as Network rather than Unknown/generic beacon).
+COMPANY_ID_ARUBA = 0x011B
 
 # Apple's Continuity/manufacturer-data "type" byte (first byte of the
 # payload after the company ID) that identifies an offline-finding /
@@ -240,8 +325,45 @@ def classify_by_manufacturer_data(manufacturer_data: Optional[dict]) -> Optional
             ibeacon_uuid_hex = apple_payload[2:18].hex()
             if ibeacon_uuid_hex == _TESLA_IBEACON_UUID_HEX:
                 return TYPE_VEHICLE
+            if ibeacon_uuid_hex == _ARUBA_IBEACON_UUID_HEX:
+                return TYPE_NETWORK
             return TYPE_BEACON
 
+    # HPE Aruba access points also identify via a distinct company ID
+    # with an "08"-prefixed payload (source: blesploit device-library).
+    aruba_payload = manufacturer_data.get(COMPANY_ID_ARUBA)
+    if aruba_payload and aruba_payload[:1] == b"\x08":
+        return TYPE_NETWORK
+
+    return None
+
+
+# Broad "this company made it, subtype unknown" company IDs -- much
+# weaker than the specific fingerprints above (a single ID covers a
+# vendor's whole product line, e.g. Samsung phones/TVs/SmartTags all
+# share 0x0075), so this is checked as a fallback after UUID/name/
+# appearance classification rather than up front with the others.
+# Source: blesploit device-library vendor manifests (each just assigns
+# an icon there, with no specific device-type claim of their own).
+VENDOR_COMPANY_ID_MAP = {
+    COMPANY_ID_GARMIN: TYPE_WATCH,
+    COMPANY_ID_XIAOMI: TYPE_PHONE,
+    COMPANY_ID_SONOS: TYPE_SPEAKER,
+    COMPANY_ID_SAMSUNG: TYPE_PHONE,
+    COMPANY_ID_SONY: TYPE_HEADPHONES,
+    COMPANY_ID_ONEPLUS: TYPE_PHONE,
+    COMPANY_ID_LG: TYPE_PHONE,
+}
+
+
+def classify_by_vendor_company_id(manufacturer_data: Optional[dict]) -> Optional[str]:
+    """Weak fallback: a bare company-ID match with no specific subtype
+    guarantee. Returns device type or None."""
+    if not manufacturer_data:
+        return None
+    for company_id, device_type in VENDOR_COMPANY_ID_MAP.items():
+        if company_id in manufacturer_data:
+            return device_type
     return None
 
 # Vendor patterns for classification
@@ -457,6 +579,14 @@ SERVICE_UUID_PATTERNS = [
     ("00003082", TYPE_FLIPPER),
     ("00003083", TYPE_FLIPPER),
 
+    # Sony Sound Connect / SongPal proprietary service UUIDs -- a more
+    # specific audio-device signal than the generic Sony company ID
+    # fallback below (source: blesploit device-library).
+    ("5b833e05-6bc7-4802-8e9a-723ceca4bd8f".replace("-", ""), TYPE_HEADPHONES),
+    ("5b833e26-6bc7-4802-8e9a-723ceca4bd8f".replace("-", ""), TYPE_HEADPHONES),
+    ("5b833e28-6bc7-4802-8e9a-723ceca4bd8f".replace("-", ""), TYPE_HEADPHONES),
+    ("5b833e20-6bc7-4802-8e9a-723ceca4bd8f".replace("-", ""), TYPE_HEADPHONES),
+
     # Note: Tesla's iOS-fallback (service UUID 0x1122) and Swapfiets
     # (service UUID 0x1580) are deliberately NOT listed here -- those
     # 16-bit UUIDs aren't specific enough alone (0x1122/0x1580 are
@@ -566,12 +696,15 @@ def classify_device(
     service_uuids: Optional[list[str]] = None,
     device_class: Optional[int] = None,
     manufacturer_data: Optional[dict] = None,
+    appearance: Optional[int] = None,
 ) -> str:
     """
     Classify a device based on its vendor, name, service UUIDs, device
-    class, and raw manufacturer data. Returns a device type constant.
+    class, GAP Appearance, and raw manufacturer data. Returns a device
+    type constant.
 
-    Priority: Manufacturer data > Service UUIDs > Name patterns > Device class > Vendor patterns
+    Priority: Manufacturer data > Service UUIDs > GAP Appearance > Name
+    patterns > Device class > Company-ID vendor guess > Vendor patterns
     """
     # Tesla's key-fob/phone-key name pattern is checked first -- it would
     # otherwise get shadowed by the generic iBeacon manufacturer-data
@@ -607,6 +740,20 @@ def classify_device(
         if any("00001580" in u for u in normalized_uuids):
             return TYPE_VEHICLE
 
+    # Aruba access points, combined signals not specific enough alone
+    # (source: blesploit device-library).
+    if name and _ARUBA_NAME_RE.match(name):
+        return TYPE_NETWORK
+
+    # Polar watches: company ID alone (0x006B) is reused elsewhere, so
+    # require the name too, matching blesploit's own combined condition.
+    if name and "polar" in name.lower() and manufacturer_data and COMPANY_ID_POLAR in manufacturer_data:
+        return TYPE_WATCH
+
+    # Huawei: same reasoning -- company ID + name, not either alone.
+    if name and "huawei" in name.lower() and manufacturer_data and COMPANY_ID_HUAWEI in manufacturer_data:
+        return TYPE_PHONE
+
     # Manufacturer-data fingerprints (AirTag/Find My, Flipper Zero, Meta
     # glasses) are the most specific signal available -- check first.
     if manufacturer_data:
@@ -619,6 +766,14 @@ def classify_device(
         uuid_type = classify_by_uuids(service_uuids)
         if uuid_type:
             return uuid_type
+
+    # GAP Appearance -- a standardized, vendor-independent category code.
+    # Checked before name-pattern heuristics since it's a structured field
+    # rather than a spoofable/inconsistent advertised string, but after
+    # manufacturer-data/UUID fingerprints since those are more specific.
+    appearance_type = classify_by_appearance(appearance)
+    if appearance_type:
+        return appearance_type
 
     # Check name if provided (some devices advertise their type)
     if name:
@@ -665,6 +820,15 @@ def classify_device(
         class_type = classify_by_device_class(device_class)
         if class_type:
             return class_type
+
+    # Weak company-ID-only vendor guess (see VENDOR_COMPANY_ID_MAP) --
+    # more reliable than a fuzzy vendor-string match since it comes from
+    # the chipset rather than an OUI/name lookup, but checked after
+    # device_class since it can't distinguish a vendor's product line.
+    if manufacturer_data:
+        vendor_id_type = classify_by_vendor_company_id(manufacturer_data)
+        if vendor_id_type:
+            return vendor_id_type
 
     # Fall back to vendor-based classification
     if vendor:

@@ -272,7 +272,7 @@ class BlueWatchDaemon:
             for d in devices:
                 device_type = d.device_type
                 if not device_type:
-                    device_type = classify_device(d.vendor, d.friendly_name, d.service_uuids, d.device_class, d.manufacturer_data)
+                    device_type = classify_device(d.vendor, d.friendly_name, d.service_uuids, d.device_class, d.manufacturer_data, appearance=d.appearance)
                     # Store the auto-classified type
                     if device_type != "unknown":
                         await db.set_device_type(d.mac, device_type)
@@ -467,6 +467,7 @@ class BlueWatchDaemon:
                         device_class=device.device_class,
                         manufacturer_data=device.manufacturer_data,
                         service_data=device.service_data,
+                        appearance=device.appearance,
                     )
                     if is_new:
                         new_count += 1
