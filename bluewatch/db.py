@@ -928,6 +928,7 @@ async def upsert_device(
     Returns tuple of (device, is_new) where is_new indicates first sighting.
     """
     from .classifier import identify_apple_model, decode_apple_activity
+    from .fastpair_models import identify_fastpair_device
 
     now = datetime.now()
     uuids_json = json.dumps(service_uuids) if service_uuids else None
@@ -947,6 +948,17 @@ async def upsert_device(
     apple_model = identify_apple_model(manufacturer_data) if manufacturer_data else None
     if not friendly_name and apple_model:
         friendly_name = apple_model[0]
+
+    # Fast Pair devices broadcast a Model ID (service_data under 0xFE2C)
+    # that resolves to an exact product name/manufacturer via the bundled
+    # registry (fastpair_models.py) -- same only-fill-if-empty fallback
+    # reasoning as the Apple model lookup above.
+    fastpair_match = identify_fastpair_device(service_data) if service_data else None
+    if fastpair_match:
+        if not friendly_name:
+            friendly_name = fastpair_match["name"]
+        if not vendor and fastpair_match.get("manufacturer"):
+            vendor = fastpair_match["manufacturer"]
 
     # Live activity snapshot (screen on/idle/driving, etc.) -- overwritten
     # on every sighting rather than filled once, since it's transient

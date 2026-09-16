@@ -283,6 +283,7 @@ class WebServer:
                 d.device_class,
                 d.manufacturer_data,
                 appearance=d.appearance,
+                service_data=d.service_data,
             )
             group = group_lookup.get(d.group_id) if d.group_id else None
 
@@ -468,7 +469,7 @@ class WebServer:
             for d in subset:
                 device_type = d.device_type or classify_device(
                     d.vendor, d.friendly_name, d.service_uuids, d.device_class, d.manufacturer_data,
-                    appearance=d.appearance,
+                    appearance=d.appearance, service_data=d.service_data,
                 )
                 group = group_lookup.get(d.group_id) if d.group_id else None
                 uuids = "; ".join(d.service_uuids) if d.service_uuids else ""
@@ -525,7 +526,7 @@ class WebServer:
             for d in subset:
                 device_type = d.device_type or classify_device(
                     d.vendor, d.friendly_name, d.service_uuids, d.device_class, d.manufacturer_data,
-                    appearance=d.appearance,
+                    appearance=d.appearance, service_data=d.service_data,
                 )
                 group = group_lookup.get(d.group_id) if d.group_id else None
                 record = {
@@ -572,7 +573,7 @@ class WebServer:
         daily = await db.get_daily_distribution(mac, 30)
         sightings = await db.get_sightings(mac, 30)
         daily_timeline = await db.get_daily_sightings(mac, 30)
-        device_type = device.device_type or classify_device(device.vendor, device.friendly_name, device.service_uuids, device.device_class, device.manufacturer_data, appearance=device.appearance)
+        device_type = device.device_type or classify_device(device.vendor, device.friendly_name, device.service_uuids, device.device_class, device.manufacturer_data, appearance=device.appearance, service_data=device.service_data)
 
         # Calculate pattern summary
         pattern = self._analyze_pattern(hourly, daily, len(sightings))
@@ -844,6 +845,7 @@ class WebServer:
                 device.service_uuids,
                 device.device_class,
                 device.manufacturer_data,
+                service_data=device.service_data,
             )
             if guessed_type and guessed_type != "unknown":
                 await db.set_device_type(mac, guessed_type)
