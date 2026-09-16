@@ -2981,6 +2981,14 @@ SETTINGS_TEMPLATE = """
                 </div>
 
                 <div class="panel">
+                    <div class="panel-header">Type-Based Alerts</div>
+                    <div class="panel-body">
+                        <div class="form-hint" style="margin-bottom: 0.5rem;">Alert immediately whenever a device of one of these types is detected, regardless of whether it's been categorized -- e.g. a Flipper Zero nearby is worth knowing about every time it reappears, not just once.</div>
+                        <div id="type-alert-types" style="display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem;">Loading...</div>
+                    </div>
+                </div>
+
+                <div class="panel">
                     <div class="panel-header">Detection Thresholds</div>
                     <div class="panel-body">
                         <div class="form-row">
@@ -3267,6 +3275,16 @@ SETTINGS_TEMPLATE = """
                 document.getElementById('prune_days').value = data.prune_days || 0;
                 document.getElementById('prune_min_sightings').value = data.prune_min_sightings || 0;
                 document.getElementById('web_port').value = data.web_port || '';
+
+                const typesResp = await fetch('/api/device-types');
+                const typesData = await typesResp.json();
+                const selectedTypes = new Set(data.type_alert_types || []);
+                document.getElementById('type-alert-types').innerHTML = typesData.types.map(function(t) {
+                    return '<label class="form-check" style="flex: 0 0 auto;">'
+                        + '<input type="checkbox" class="type-alert-checkbox" value="' + t.value + '"' + (selectedTypes.has(t.value) ? ' checked' : '') + '>'
+                        + '<div><div class="form-check-label">' + t.icon + ' ' + t.label + '</div></div>'
+                        + '</label>';
+                }).join('');
             } catch (error) { showStatus('Error loading configuration', 'error'); }
         }
 
@@ -3275,6 +3293,7 @@ SETTINGS_TEMPLATE = """
                 ntfy_topic: document.getElementById('ntfy_topic').value,
                 ntfy_enabled: document.getElementById('ntfy_enabled').checked,
                 notify_new_device: document.getElementById('notify_new_device').checked,
+                type_alert_types: Array.from(document.querySelectorAll('.type-alert-checkbox:checked')).map(function(el) { return el.value; }),
                 new_device_threshold_minutes: parseInt(document.getElementById('new_device_threshold_minutes').value) || 0,
                 notify_watched_return: document.getElementById('notify_watched_return').checked,
                 notify_watched_leave: document.getElementById('notify_watched_leave').checked,

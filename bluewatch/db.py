@@ -96,6 +96,13 @@ class Settings:
     ntfy_topic: Optional[str] = None
     ntfy_enabled: bool = False
     notify_new_device: bool = False
+    # Device types (classifier.py TYPE_* values) that trigger an immediate
+    # ntfy alert whenever detected -- regardless of categorization, unlike
+    # notify_new_device above, since e.g. a Flipper Zero nearby is worth
+    # flagging every time it reappears, not just the first time it's ever
+    # triaged. Comma-separated string in storage; empty means no type-based
+    # alerts configured.
+    type_alert_types: tuple[str, ...] = ("flipper",)
     notify_watched_return: bool = True
     notify_watched_leave: bool = True
     watched_absence_minutes: int = 30  # Minutes before "left"
@@ -1669,6 +1676,9 @@ async def get_settings() -> Settings:
         ntfy_topic=settings_dict.get("ntfy_topic"),
         ntfy_enabled=settings_dict.get("ntfy_enabled", "0") == "1",
         notify_new_device=settings_dict.get("notify_new_device", "0") == "1",
+        type_alert_types=tuple(
+            t for t in (settings_dict.get("type_alert_types", "flipper") or "").split(",") if t
+        ),
         notify_watched_return=settings_dict.get("notify_watched_return", "1") == "1",
         notify_watched_leave=settings_dict.get("notify_watched_leave", "1") == "1",
         watched_absence_minutes=int(settings_dict.get("watched_absence_minutes", "30")),
@@ -1702,6 +1712,7 @@ async def update_settings(settings: Settings) -> None:
             ("ntfy_topic", settings.ntfy_topic or ""),
             ("ntfy_enabled", "1" if settings.ntfy_enabled else "0"),
             ("notify_new_device", "1" if settings.notify_new_device else "0"),
+            ("type_alert_types", ",".join(settings.type_alert_types)),
             ("notify_watched_return", "1" if settings.notify_watched_return else "0"),
             ("notify_watched_leave", "1" if settings.notify_watched_leave else "0"),
             ("watched_absence_minutes", str(settings.watched_absence_minutes)),
