@@ -54,7 +54,7 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
 from . import config
 from .active_scan import SCAN_IN_PROGRESS
-from .fastpair_models import model_id_from_service_data  # noqa: F401 (re-exported)
+from .fastpair_models import model_id_from_service_data, lookup_fastpair_model  # noqa: F401 (model_id_from_service_data re-exported)
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +64,60 @@ KEY_BASED_PAIRING_CHAR_UUID = "fe2c1234-8366-4814-8eb0-01de32100bea"
 
 VERIFY_TIMEOUT = 12.0
 NOTIFY_WAIT_TIMEOUT = 5.0
+MODEL_ID_READ_TIMEOUT = 12.0
+_INPROGRESS_RETRIES = 4
+_INPROGRESS_RETRY_DELAY = 3.0
+
+
+async def read_fastpair_model_id(mac: str, adapter: Optional[str] = None) -> Optional[dict]:
+    """Connect to a BLE device and read its Fast Pair Model ID directly off
+    the GATT Model ID characteristic (fe2c1233-...) -- a plain, documented,
+    unauthenticated read (no pairing, no crypto challenge, unrelated to
+    verify_fastpair_device() above). This resolves devices whose Model ID
+    isn't visible passively: once a Fast Pair accessory is already paired
+    to its owner's phone, Google's spec has it switch to a "non-
+    discoverable" advertising mode that drops the Model ID from
+    service_data, even though the device still exposes the Fast Pair
+    service and this characteristic over GATT.
+
+    Returns the same shape as fastpair_models.identify_fastpair_device()
+    (plus "model_id"), or None if the device doesn't have the Fast Pair
+    service/characteristic, the read fails, or the Model ID isn't in the
+    bundled registry. Never raises -- this is a best-effort enrichment
+    step, not a required one.
+    """
+    kwargs = {"timeout": MODEL_ID_READ_TIMEOUT}
+    if adapter:
+        kwargs["adapter"] = adapter
+
+    SCAN_IN_PROGRESS.set()
+    try:
+        for attempt in range(1, _INPROGRESS_RETRIES + 1):
+            try:
+                async with BleakClient(mac, **kwargs) as client:
+                    char = client.services.get_characteristic(MODEL_ID_CHAR_UUID)
+                    if not char or "read" not in char.properties:
+                        return None
+                    value = await client.read_gatt_char(char)
+                    if len(value) != 3:
+                        return None
+                    model_id_hex = value.hex()
+                    match = lookup_fastpair_model(model_id_hex)
+                    if not match:
+                        return None
+                    return {**match, "model_id": model_id_hex}
+            except asyncio.TimeoutError:
+                return None
+            except Exception as e:
+                if "InProgress" in str(e) and attempt < _INPROGRESS_RETRIES:
+                    logger.info(f"Fast Pair Model ID read: adapter busy (attempt {attempt}/{_INPROGRESS_RETRIES}), retrying in {_INPROGRESS_RETRY_DELAY}s")
+                    await asyncio.sleep(_INPROGRESS_RETRY_DELAY)
+                    continue
+                logger.debug(f"Fast Pair Model ID read failed for {mac}: {e}")
+                return None
+        return None
+    finally:
+        SCAN_IN_PROGRESS.clear()
 
 
 def resolve_anti_spoofing_key(model_id_hex: str) -> Optional[bytes]:

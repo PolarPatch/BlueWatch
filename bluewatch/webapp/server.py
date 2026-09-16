@@ -796,6 +796,7 @@ class WebServer:
         # beyond generic Device Information reads.
         if bt_type in ("ble", "both"):
             from .. import fastpair
+            from ..fastpair_models import identify_fastpair_device as identify_fastpair_passive
 
             fastpair_enabled = await db.get_fastpair_settings()
             model_id_hex = fastpair.model_id_from_service_data(device.service_data)
@@ -807,6 +808,32 @@ class WebServer:
                         await db.set_device_type(mac, "phone")
             elif model_id_hex and not fastpair_enabled:
                 result["fastpair"] = {"ok": False, "error": "Fast Pair verification is disabled in Config."}
+
+            # Active Fast Pair Model ID read (plain, unauthenticated GATT
+            # characteristic read -- unrelated to the crypto verification
+            # above). Once a Fast Pair accessory is already paired to its
+            # owner's phone it typically stops broadcasting the Model ID
+            # passively, but the GATT characteristic keeps answering it --
+            # only worth attempting when we don't already have it passively
+            # and the device actually advertises the Fast Pair service.
+            fastpair_uuid_present = any("fe2c" in (u or "").lower() for u in (device.service_uuids or []))
+            if not identify_fastpair_passive(device.service_data) and (model_id_hex or fastpair_uuid_present):
+                fp_model = await fastpair.read_fastpair_model_id(mac, adapter=self._adapter)
+                if fp_model:
+                    result["fastpair_model"] = fp_model
+                    applied = result.setdefault("applied", {})
+                    if not device.vendor and fp_model.get("manufacturer"):
+                        await db.set_device_vendor(mac, fp_model["manufacturer"])
+                        applied["vendor"] = fp_model["manufacturer"]
+                    if not device.friendly_name and fp_model.get("name"):
+                        await db.set_friendly_name(mac, fp_model["name"])
+                        applied["identifier"] = fp_model["name"]
+                    if not device.device_type:
+                        from ..classifier import FASTPAIR_DEVICE_TYPE_MAP
+                        guessed_type = FASTPAIR_DEVICE_TYPE_MAP.get(fp_model.get("device_type_raw"))
+                        if guessed_type:
+                            await db.set_device_type(mac, guessed_type)
+                            applied["device_type"] = guessed_type
 
         return web.json_response(result)
 
@@ -1107,6 +1134,7 @@ class WebServer:
             "ntfy_topic": settings.ntfy_topic or "",
             "ntfy_enabled": settings.ntfy_enabled,
             "notify_new_device": settings.notify_new_device,
+            "type_alert_types": list(settings.type_alert_types),
             "new_device_threshold_minutes": settings.new_device_threshold_minutes,
             "notify_watched_return": settings.notify_watched_return,
             "notify_watched_leave": settings.notify_watched_leave,
@@ -1134,6 +1162,7 @@ class WebServer:
                 ntfy_topic=data.get("ntfy_topic"),
                 ntfy_enabled=data.get("ntfy_enabled", False),
                 notify_new_device=data.get("notify_new_device", False),
+                type_alert_types=tuple(data.get("type_alert_types") or []),
                 new_device_threshold_minutes=int(data.get("new_device_threshold_minutes", 0)),
                 notify_watched_return=data.get("notify_watched_return", True),
                 notify_watched_leave=data.get("notify_watched_leave", True),

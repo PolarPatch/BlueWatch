@@ -117,6 +117,31 @@ class NotificationManager:
 
         now = datetime.now()
 
+        # Type-based alert (e.g. "a Flipper Zero is nearby") -- independent
+        # of categorization/watch state below, since the security relevance
+        # of a device *type* showing up doesn't go away once it's been
+        # triaged into a category. Fires on first sighting, and again after
+        # a return-worthy absence gap (device.last_seen here is still the
+        # *previous* sighting's timestamp -- this update hasn't landed yet
+        # -- same technique the watched-arrival check below uses), so it
+        # doesn't spam on every single advertisement of a device that's
+        # continuously present.
+        if device.device_type and device.device_type in self._settings.type_alert_types:
+            should_alert = is_new
+            if not should_alert and device.last_seen:
+                gap_minutes = (now - device.last_seen).total_seconds() / 60
+                should_alert = gap_minutes >= self._settings.watched_return_minutes
+            if should_alert:
+                from .classifier import get_type_label
+                type_label = get_type_label(device.device_type)
+                name = device.friendly_name or device.vendor or device.mac
+                await self._send_notification(
+                    title=f"⚠ {type_label} detected nearby",
+                    message=f"{name} ({device.mac})",
+                    priority=5,
+                    tags=["warning", "bluetooth"],
+                )
+
         arrive_override = db.notify_mode_active(device.notify_arrive, device.notify_arrive_expires_at)
         if arrive_override is not None:
             if arrive_override:
