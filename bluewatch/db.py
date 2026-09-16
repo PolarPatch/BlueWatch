@@ -38,6 +38,10 @@ class Device:
     name_conflict_name: Optional[str] = None  # The conflicting name seen (stored name is left unchanged)
     apple_activity: Optional[dict] = None  # Latest decoded Apple Continuity "Nearby Info" snapshot (screen on/idle/driving) -- overwritten every sighting, not fill-once
     apple_activity_at: Optional[datetime] = None  # When apple_activity was last updated
+    samsung_status: Optional[dict] = None  # Latest decoded Samsung VD power-state snapshot (device_class/power) -- overwritten every sighting, not fill-once
+    samsung_status_at: Optional[datetime] = None  # When samsung_status was last updated
+    fastpair_battery: Optional[dict] = None  # Latest decoded Fast Pair Battery Notification snapshot (left/right/case) -- overwritten every sighting, not fill-once
+    fastpair_battery_at: Optional[datetime] = None  # When fastpair_battery was last updated
     group_id: Optional[int] = None  # Device group (category or subcategory)
     notes: Optional[str] = None  # Operator notes
     new_device_notified: bool = True  # Whether new-device notification has been sent
@@ -348,6 +352,13 @@ async def init_db() -> None:
             # transient state at the moment of that specific advertisement.
             ("apple_activity", "TEXT"),
             ("apple_activity_at", "TIMESTAMP"),
+            # Same overwritten-every-sighting treatment as apple_activity
+            # above, for Samsung VD power state (classifier.decode_samsung_status)
+            # and Fast Pair Battery Notification (fastpair_models.decode_fastpair_battery).
+            ("samsung_status", "TEXT"),
+            ("samsung_status_at", "TIMESTAMP"),
+            ("fastpair_battery", "TEXT"),
+            ("fastpair_battery_at", "TIMESTAMP"),
         ]
 
         for column, column_type in migrations:
@@ -417,6 +428,20 @@ def _parse_device_row(row) -> Device:
         except (json.JSONDecodeError, TypeError):
             pass
 
+    samsung_status = None
+    if "samsung_status" in keys and row["samsung_status"]:
+        try:
+            samsung_status = json.loads(row["samsung_status"])
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    fastpair_battery = None
+    if "fastpair_battery" in keys and row["fastpair_battery"]:
+        try:
+            fastpair_battery = json.loads(row["fastpair_battery"])
+        except (json.JSONDecodeError, TypeError):
+            pass
+
     return Device(
         mac=row["mac"],
         vendor=row["vendor"],
@@ -460,6 +485,16 @@ def _parse_device_row(row) -> Device:
         apple_activity_at=(
             datetime.fromisoformat(row["apple_activity_at"])
             if "apple_activity_at" in keys and row["apple_activity_at"] else None
+        ),
+        samsung_status=samsung_status,
+        samsung_status_at=(
+            datetime.fromisoformat(row["samsung_status_at"])
+            if "samsung_status_at" in keys and row["samsung_status_at"] else None
+        ),
+        fastpair_battery=fastpair_battery,
+        fastpair_battery_at=(
+            datetime.fromisoformat(row["fastpair_battery_at"])
+            if "fastpair_battery_at" in keys and row["fastpair_battery_at"] else None
         ),
     )
 
@@ -927,8 +962,8 @@ async def upsert_device(
 
     Returns tuple of (device, is_new) where is_new indicates first sighting.
     """
-    from .classifier import identify_apple_model, decode_apple_activity
-    from .fastpair_models import identify_fastpair_device
+    from .classifier import identify_apple_model, decode_apple_activity, decode_samsung_status
+    from .fastpair_models import identify_fastpair_device, decode_fastpair_battery
 
     now = datetime.now()
     uuids_json = json.dumps(service_uuids) if service_uuids else None
@@ -967,6 +1002,14 @@ async def upsert_device(
     # rather than clearing it, so it still reflects the last time we did see one.
     apple_activity = decode_apple_activity(manufacturer_data) if manufacturer_data else None
     apple_activity_json = json.dumps(apple_activity) if apple_activity else None
+
+    # Same live/overwritten-every-sighting treatment as apple_activity
+    # above, for Samsung VD power state and Fast Pair battery levels.
+    samsung_status = decode_samsung_status(manufacturer_data) if manufacturer_data else None
+    samsung_status_json = json.dumps(samsung_status) if samsung_status else None
+
+    fastpair_battery = decode_fastpair_battery(service_data) if service_data else None
+    fastpair_battery_json = json.dumps(fastpair_battery) if fastpair_battery else None
 
     # A cryptographic IRK match (if any key is configured and resolves this
     # address) is strictly stronger evidence than the advertised-name
@@ -1098,6 +1141,18 @@ async def upsert_device(
                 updates.append("apple_activity_at = ?")
                 params.append(now.isoformat())
 
+            if samsung_status_json is not None:
+                updates.append("samsung_status = ?")
+                params.append(samsung_status_json)
+                updates.append("samsung_status_at = ?")
+                params.append(now.isoformat())
+
+            if fastpair_battery_json is not None:
+                updates.append("fastpair_battery = ?")
+                params.append(fastpair_battery_json)
+                updates.append("fastpair_battery_at = ?")
+                params.append(now.isoformat())
+
             # An IRK match always wins over whatever identity_id (if any)
             # the device already had -- it's a proof, not a guess.
             existing_identity_id = existing["identity_id"] if "identity_id" in existing.keys() else None
@@ -1126,13 +1181,15 @@ async def upsert_device(
             # Insert new device
             await db.execute(
                 """
-                INSERT INTO devices (mac, vendor, friendly_name, first_seen, last_seen, total_sightings, service_uuids, bt_type, device_class, manufacturer_data, service_data, appearance, new_device_notified, apple_activity, apple_activity_at)
-                VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, 0, ?, ?)
+                INSERT INTO devices (mac, vendor, friendly_name, first_seen, last_seen, total_sightings, service_uuids, bt_type, device_class, manufacturer_data, service_data, appearance, new_device_notified, apple_activity, apple_activity_at, samsung_status, samsung_status_at, fastpair_battery, fastpair_battery_at)
+                VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     mac, insert_vendor, friendly_name, now.isoformat(), now.isoformat(), uuids_json, bt_type,
                     device_class, mfg_json, svc_data_json, appearance,
                     apple_activity_json, now.isoformat() if apple_activity_json else None,
+                    samsung_status_json, now.isoformat() if samsung_status_json else None,
+                    fastpair_battery_json, now.isoformat() if fastpair_battery_json else None,
                 )
             )
 
