@@ -922,7 +922,7 @@ HTML_TEMPLATE = """
                         <span>First seen within</span>
                         <span id="first-seen-slider-value">off</span>
                     </div>
-                    <input type="range" id="first-seen-slider" min="1" max="6" step="1" value="6" oninput="onFirstSeenSliderChange()" style="width: 100%;">
+                    <input type="range" id="first-seen-slider" min="1" max="6" step="1" value="1" oninput="onFirstSeenSliderChange()" style="width: 100%;">
                 </div>
                 <div id="categories-tree" style="padding: 0.5rem;"></div>
                 <div style="padding: 0.5rem; display: flex; gap: 0.4rem;">
@@ -1150,8 +1150,8 @@ HTML_TEMPLATE = """
         // effectively shows everyone); first-seen has no such end since
         // even the loosest window (30d) would hide long-established
         // devices, so it stays off until deliberately touched.
-        const FIRST_SEEN_LEVELS = ['6h', '12h', '24h', '48h', '7d', '30d'];
-        const FIRST_SEEN_LABELS = ['6h', '12h', '24h', '48h', 'this week', 'this month'];
+        const FIRST_SEEN_LEVELS = ['30d', '7d', '48h', '24h', '12h', '6h'];
+        const FIRST_SEEN_LABELS = ['this month', 'this week', '48h', '24h', '12h', '6h'];
         let firstSeenTouched = false;
 
         function onFirstSeenSliderChange() {
@@ -4803,7 +4803,7 @@ LIVE_TEMPLATE = """
                     </label>
                     <div style="display: flex; align-items: center; gap: 0.75rem;">
                         <span class="stat-label">First seen within</span>
-                        <input type="range" id="first-seen-slider" min="1" max="6" step="1" value="6" oninput="onFirstSeenSliderChange()" style="width: 120px;">
+                        <input type="range" id="first-seen-slider" min="1" max="6" step="1" value="1" oninput="onFirstSeenSliderChange()" style="width: 120px;">
                         <span id="first-seen-slider-value" style="font-size: 0.75rem; color: var(--text-primary); min-width: 4rem;">off</span>
                     </div>
                 </div>
@@ -5011,8 +5011,8 @@ LIVE_TEMPLATE = """
         // effectively shows everyone); first-seen has no such end since
         // even the loosest window (30d) would hide long-established
         // devices, so it stays off until deliberately touched.
-        const FIRST_SEEN_LEVELS = ['6h', '12h', '24h', '48h', '7d', '30d'];
-        const FIRST_SEEN_LABELS = ['6h', '12h', '24h', '48h', 'this week', 'this month'];
+        const FIRST_SEEN_LEVELS = ['30d', '7d', '48h', '24h', '12h', '6h'];
+        const FIRST_SEEN_LABELS = ['this month', 'this week', '48h', '24h', '12h', '6h'];
         let firstSeenTouched = false;
 
         function onFirstSeenSliderChange() {
