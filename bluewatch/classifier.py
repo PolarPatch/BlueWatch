@@ -250,6 +250,118 @@ APPLE_FINDMY_TYPE_BYTE = 0x12
 APPLE_PROXIMITY_PAIRING_TYPE_BYTE = 0x07
 APPLE_NEW_AIRTAG_PRODUCT_BYTE = 0x05
 
+# When the Proximity Pairing prefix byte (payload offset 2) is 0x01 rather
+# than the AirTag-setup value above, the next two bytes are a big-endian
+# device-model code identifying the specific AirPods/Beats model -- cross-
+# verified against two independent reverse-engineering sources that agree
+# on both the byte layout and the six known model codes: furiousMAC/
+# continuity (Naval Postgraduate School, GPLv2 Wireshark dissector --
+# github.com/furiousMAC/continuity/blob/master/messages/proximity_pairing.md,
+# value_string table in dissector/4.4.0/packet-bthci_cmd.c) and seemoo-lab/
+# BTLEmap-Framework (github.com/seemoo-lab/BTLEmap-Framework,
+# AirPodsBLEDecoder.swift). These are bare hex-code -> product-name facts,
+# independently reimplemented here in Python, not copied source code.
+APPLE_AIRPODS_PREFIX_BYTE = 0x01
+APPLE_AIRPODS_MODEL_MAP: dict[int, tuple[str, str]] = {
+    0x0220: ("AirPods (1st generation)", TYPE_HEADPHONES),
+    0x0f20: ("AirPods (2nd generation)", TYPE_HEADPHONES),
+    0x0e20: ("AirPods Pro", TYPE_HEADPHONES),
+    0x0320: ("Powerbeats3", TYPE_HEADPHONES),
+    0x0520: ("BeatsX", TYPE_HEADPHONES),
+    0x0620: ("Beats Solo3", TYPE_HEADPHONES),
+}
+
+
+def identify_apple_model(manufacturer_data: Optional[dict]) -> Optional[tuple[str, str]]:
+    """Identify the specific AirPods/Beats model from Apple's Continuity
+    Proximity Pairing message (type 0x07), when present.
+
+    Returns (model_name, device_type) or None if this isn't a recognized
+    AirPods-family Proximity Pairing advertisement.
+    """
+    if not manufacturer_data:
+        return None
+    payload = manufacturer_data.get(COMPANY_ID_APPLE)
+    if not payload or len(payload) < 5 or payload[0] != APPLE_PROXIMITY_PAIRING_TYPE_BYTE:
+        return None
+    if payload[2] != APPLE_AIRPODS_PREFIX_BYTE:
+        return None
+    model_code = (payload[3] << 8) | payload[4]
+    return APPLE_AIRPODS_MODEL_MAP.get(model_code)
+
+
+# Apple Continuity "Nearby Info" message (type 0x10) broadcasts a LIVE
+# activity snapshot on every advertisement -- unlike everything else in
+# this file (which classifies a device's fixed type), this is transient
+# state that changes moment to moment, so it's never folded into
+# device_type. Byte layout and the status/action nibble split verified
+# against two independent sources that agree exactly: furiousMAC/
+# continuity's dissector docs (github.com/furiousMAC/continuity/blob/
+# master/messages/nearby_info.md) and seemoo-lab/BTLEmap-Framework's
+# NearbyDecoder.swift (statusFlags = byte >> 4, actionCode = byte & 0x0F).
+APPLE_NEARBY_INFO_TYPE_BYTE = 0x10
+
+APPLE_ACTION_CODE_LABELS: dict[int, str] = {
+    0x00: "unknown",
+    0x01: "activity reporting disabled",
+    0x03: "idle",
+    0x05: "audio playing (screen locked)",
+    0x07: "active (screen on)",
+    0x09: "screen on, video playing",
+    0x0A: "watch worn & unlocked",
+    0x0B: "recent interaction",
+    0x0D: "driving",
+    0x0E: "phone/FaceTime call",
+}
+# Action codes where the screen is confirmed on vs. confirmed off -- other
+# codes (unknown/disabled/driving/call/watch) don't map cleanly to a
+# screen state either way, left as None rather than guessed.
+_APPLE_SCREEN_ON_CODES = {0x07, 0x09}
+_APPLE_SCREEN_OFF_CODES = {0x03, 0x05}
+
+
+def decode_apple_activity(manufacturer_data: Optional[dict]) -> Optional[dict]:
+    """Decode Apple's Continuity "Nearby Info" message (type 0x10) into a
+    live activity snapshot: whether the screen is on, idle/driving/call
+    state, and a couple of lower-confidence flags. Returns None if this
+    isn't an Apple Nearby Info advertisement.
+
+    Caller should recompute this on every sighting rather than caching it
+    like device_type -- it reflects the device's state at the moment of
+    that specific advertisement, not a fixed property of the device.
+    """
+    if not manufacturer_data:
+        return None
+    payload = manufacturer_data.get(COMPANY_ID_APPLE)
+    if not payload or len(payload) < 4 or payload[0] != APPLE_NEARBY_INFO_TYPE_BYTE:
+        return None
+
+    flags_action = payload[2]
+    status_flags = flags_action >> 4
+    action_code = flags_action & 0x0F
+
+    # Data Flags byte (payload[3]): furiousMAC's docs list individual bits
+    # here (0x04 wifi, 0x20 watch locked, 0x80 auto-unlock enabled), but a
+    # second independent decoder instead treats this whole byte as a
+    # combined iOS-version/WiFi-state signature rather than clean
+    # independent bits -- exposed as best-effort, lower confidence than
+    # the action_code/status_flags nibbles above (which both sources
+    # agree on exactly).
+    data_flags = payload[3]
+
+    return {
+        "action_code": action_code,
+        "activity": APPLE_ACTION_CODE_LABELS.get(action_code, f"unknown (0x{action_code:02x})"),
+        "screen_on": action_code in _APPLE_SCREEN_ON_CODES if (
+            action_code in _APPLE_SCREEN_ON_CODES or action_code in _APPLE_SCREEN_OFF_CODES
+        ) else None,
+        "primary_icloud_device": bool(status_flags & 0x01),
+        "airdrop_receiving": bool(status_flags & 0x04),
+        "wifi_on": bool(data_flags & 0x04),
+        "watch_locked": bool(data_flags & 0x20),
+        "auto_unlock_enabled": bool(data_flags & 0x80),
+    }
+
 # A few more Apple Continuity message types (see nccgroup/Sniffle's
 # advdata/msd_apple.py for the full reference table) that map cleanly
 # to a device type without ambiguity. AirPlay Target/Source (0x09/0x0A)

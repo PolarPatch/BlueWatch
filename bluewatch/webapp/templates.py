@@ -1421,6 +1421,29 @@ HTML_TEMPLATE = """
             return d.innerHTML;
         }
 
+        // Apple Continuity "Nearby Info" live activity snapshot (screen
+        // on/idle/driving, etc.) -- only shown when the device has ever
+        // produced one (Apple devices only) and it's recent enough to
+        // still reflect current state rather than something stale from
+        // long before the device was last even seen.
+        function appleActivityHtml(d) {
+            if (!d.apple_activity || !d.apple_activity_at) return '';
+            const ageMs = Date.now() - new Date(d.apple_activity_at).getTime();
+            if (ageMs > 5 * 60 * 1000) return '';
+            const a = d.apple_activity;
+            let screenLabel = 'unknown';
+            let screenColor = 'var(--text-muted)';
+            if (a.screen_on === true) { screenLabel = 'on'; screenColor = '#16a34a'; }
+            else if (a.screen_on === false) { screenLabel = 'off'; screenColor = '#555'; }
+            let line = 'Screen: <span style="color:' + screenColor + ';">' + screenLabel + '</span> — ' + escapeHtml(a.activity || '');
+            const extras = [];
+            if (a.wifi_on === true) extras.push('WiFi on');
+            if (a.watch_locked === true) extras.push('Watch locked');
+            if (a.airdrop_receiving === true) extras.push('AirDrop on');
+            if (extras.length) line += ' (' + extras.join(', ') + ')';
+            return '<div class="detail-item full"><div class="detail-label">Apple Activity (live)</div><div class="detail-value" style="font-size:0.8rem;">' + line + '</div></div>';
+        }
+
         async function createCategory() {
             const input = document.getElementById('new-category-name');
             const name = (input.value || '').trim();
@@ -2050,6 +2073,7 @@ HTML_TEMPLATE = """
                 '<div class="detail-item"><div class="detail-label">Type</div><select class="form-input" id="device-type" onchange="setDeviceType(\\'' + d.mac + '\\', this.value)" style="font-size: 0.8rem;"></select></div>' +
                 '<div class="detail-item"><div class="detail-label">Vendor OUI</div><input class="form-input" id="device-vendor" value="' + escapeHtml(d.vendor || '') + '" placeholder="Unknown -- set manually" style="font-size: 0.85rem;" onchange="setDeviceVendor(\\'' + d.mac + '\\', this.value)"></div>' +
                 '<div class="detail-item"><div class="detail-label">Proximity</div><div class="detail-value" style="color: ' + proximityColor + '; ">' + proximityZone + '</div></div>' +
+                appleActivityHtml(d) +
                 '<div class="detail-item"><div class="detail-label">First seen</div><div class="detail-value mono">' + (d.first_seen ? new Date(d.first_seen).toLocaleString() : '—') + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">Last seen</div><div class="detail-value mono">' + (d.last_seen ? new Date(d.last_seen).toLocaleString() : '—') + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">Sightings</div><div class="detail-value highlight">' + d.total_sightings + '</div></div>' +
@@ -5231,6 +5255,29 @@ LIVE_TEMPLATE = """
             return d.innerHTML;
         }
 
+        // Apple Continuity "Nearby Info" live activity snapshot (screen
+        // on/idle/driving, etc.) -- only shown when the device has ever
+        // produced one (Apple devices only) and it's recent enough to
+        // still reflect current state rather than something stale from
+        // long before the device was last even seen.
+        function appleActivityHtml(d) {
+            if (!d.apple_activity || !d.apple_activity_at) return '';
+            const ageMs = Date.now() - new Date(d.apple_activity_at).getTime();
+            if (ageMs > 5 * 60 * 1000) return '';
+            const a = d.apple_activity;
+            let screenLabel = 'unknown';
+            let screenColor = 'var(--text-muted)';
+            if (a.screen_on === true) { screenLabel = 'on'; screenColor = '#16a34a'; }
+            else if (a.screen_on === false) { screenLabel = 'off'; screenColor = '#555'; }
+            let line = 'Screen: <span style="color:' + screenColor + ';">' + screenLabel + '</span> — ' + escapeHtml(a.activity || '');
+            const extras = [];
+            if (a.wifi_on === true) extras.push('WiFi on');
+            if (a.watch_locked === true) extras.push('Watch locked');
+            if (a.airdrop_receiving === true) extras.push('AirDrop on');
+            if (extras.length) line += ' (' + extras.join(', ') + ')';
+            return '<div class="detail-item full"><div class="detail-label">Apple Activity (live)</div><div class="detail-value" style="font-size:0.8rem;">' + line + '</div></div>';
+        }
+
         async function createCategory() {
             const input = document.getElementById('new-category-name');
             const name = (input.value || '').trim();
@@ -5863,6 +5910,7 @@ LIVE_TEMPLATE = """
                 '<div class="detail-item"><div class="detail-label">Type</div><select class="form-input" id="device-type" onchange="setDeviceType(\\'' + d.mac + '\\', this.value)" style="font-size: 0.8rem;"></select></div>' +
                 '<div class="detail-item"><div class="detail-label">Vendor OUI</div><input class="form-input" id="device-vendor" value="' + escapeHtml(d.vendor || '') + '" placeholder="Unknown -- set manually" style="font-size: 0.85rem;" onchange="setDeviceVendor(\\'' + d.mac + '\\', this.value)"></div>' +
                 '<div class="detail-item"><div class="detail-label">Proximity</div><div class="detail-value" style="color: ' + proximityColor + '; ">' + proximityZone + '</div></div>' +
+                appleActivityHtml(d) +
                 '<div class="detail-item"><div class="detail-label">First seen</div><div class="detail-value mono">' + (d.first_seen ? new Date(d.first_seen).toLocaleString() : '—') + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">Last seen</div><div class="detail-value mono">' + (d.last_seen ? new Date(d.last_seen).toLocaleString() : '—') + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">Sightings</div><div class="detail-value highlight">' + d.total_sightings + '</div></div>' +
