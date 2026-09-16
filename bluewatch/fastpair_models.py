@@ -96,3 +96,77 @@ def identify_fastpair_device(service_data: Optional[dict]) -> Optional[dict]:
     if not model_id_hex:
         return None
     return lookup_fastpair_model(model_id_hex)
+
+
+def _fe2c_payload(service_data: Optional[dict]) -> Optional[bytes]:
+    """Raw bytes of the 0xFE2C service_data payload, any length -- unlike
+    model_id_from_service_data(), which only matches the bare 3-byte
+    discoverable-Model-ID form."""
+    if not service_data:
+        return None
+    for key, value in service_data.items():
+        if key.lower().replace("-", "").startswith("0000fe2c"):
+            return value
+    return None
+
+
+# Fast Pair's non-discoverable "Account Advertising" payload (already-
+# paired devices continuing to broadcast) can carry an optional Battery
+# Notification extension after the Account Key filter and Salt TLVs.
+# Byte layout verified against Google's own spec
+# (https://developers.google.com/nearby/fast-pair/specifications/extensions/battery-notification)
+# and cross-checked against blesploit/device-library's
+# protocols/fast_pair/observer/adv_decode.lua (enrich_account_adv()),
+# which parses this exact TLV chain byte-for-byte:
+#   byte 0: version/flags (unused here)
+#   byte 1: Account Key filter header -- high nibble = filter length in
+#     octets, low nibble = filter type
+#   next `filter_len` bytes: Account Key filter (bloom filter, ignored)
+#   next byte: Salt TLV header -- high nibble = salt length, low nibble
+#     = salt type
+#   next `salt_len` bytes: salt value (ignored)
+#   next byte (if present): Battery Notification header -- high nibble =
+#     number of battery octets that follow, low nibble = notification type
+#   next N bytes: one octet per component, in order left earbud/right
+#     earbud/case -- each `0bSVVVVVVV`: high bit = charging, low 7 bits =
+#     battery percentage (0-100), 127 = component not present/unknown.
+_FASTPAIR_BATTERY_LABELS = ["left", "right", "case"]
+
+
+def decode_fastpair_battery(service_data: Optional[dict]) -> Optional[dict]:
+    """Decode the optional Battery Notification extension from a Fast
+    Pair Account Advertising payload. Returns e.g.
+    {"left": {"charging": bool, "pct": int|None}, "right": {...}, ...}
+    (only components actually present), or None if there's no 0xFE2C
+    service_data, it's the bare 3-byte Model ID form (no battery data
+    possible), or the payload is too short to carry a battery section.
+
+    Live/transient -- caller should recompute this on every sighting
+    rather than caching it, battery level and charging state change over
+    time."""
+    payload = _fe2c_payload(service_data)
+    if not payload or len(payload) <= 3:
+        return None
+
+    filter_len = (payload[1] >> 4) & 0x0F
+    salt_header_idx = 2 + filter_len
+    if salt_header_idx >= len(payload):
+        return None
+    salt_len = (payload[salt_header_idx] >> 4) & 0x0F
+    battery_header_idx = salt_header_idx + 1 + salt_len
+    if battery_header_idx >= len(payload):
+        return None
+
+    num_components = (payload[battery_header_idx] >> 4) & 0x0F
+    if num_components == 0 or battery_header_idx + num_components >= len(payload):
+        return None
+
+    result = {}
+    for i in range(num_components):
+        octet = payload[battery_header_idx + 1 + i]
+        charging = bool(octet & 0x80)
+        pct = octet & 0x7F
+        label = _FASTPAIR_BATTERY_LABELS[i] if i < len(_FASTPAIR_BATTERY_LABELS) else f"component_{i}"
+        result[label] = {"charging": charging, "pct": None if pct == 127 else pct}
+
+    return result or None

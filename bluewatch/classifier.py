@@ -398,6 +398,71 @@ def decode_apple_activity(manufacturer_data: Optional[dict]) -> Optional[dict]:
         "auto_unlock_enabled": bool(data_flags & 0x80),
     }
 
+# Samsung's manufacturer-data format for its "VD" product line (TVs,
+# AV/soundbar equipment, monitors, and some appliances like fridges) --
+# byte layout verified against blesploit/device-library's
+# vendors/samsung/observer/adv_decode.lua (decode_vd()):
+#   payload[0] = 0x42 (fixed marker), payload[1] = family (0x04 = VD)
+#   payload[2] low nibble = device class, payload[3] = power state
+SAMSUNG_VD_MARKER_BYTE = 0x42
+SAMSUNG_VD_FAMILY_BYTE = 0x04
+
+SAMSUNG_VD_CLASS_MAP: dict[int, tuple[str, str]] = {
+    # class label -> (label, BlueWatch TYPE_*)
+    0x01: ("tv", TYPE_TV),
+    0x03: ("av", TYPE_SPEAKER),        # AV receiver / soundbar
+    0x05: ("refrigerator", TYPE_SMART_HOME),
+    0x06: ("monitor", TYPE_TV),        # "TV/Display" fits a computer monitor too
+}
+
+SAMSUNG_VD_POWER_MAP: dict[int, str] = {
+    0x01: "on",
+    0x40: "standby",
+    0x80: "off",
+}
+
+
+def identify_samsung_type(manufacturer_data: Optional[dict]) -> Optional[str]:
+    """Resolve a device type from Samsung's VD-family manufacturer data,
+    when the device class byte is present and recognized. Static/one-time
+    signal (device category doesn't change), unlike decode_samsung_status()
+    below (live power state)."""
+    if not manufacturer_data:
+        return None
+    payload = manufacturer_data.get(COMPANY_ID_SAMSUNG)
+    if not payload or len(payload) < 3 or payload[0] != SAMSUNG_VD_MARKER_BYTE or payload[1] != SAMSUNG_VD_FAMILY_BYTE:
+        return None
+    class_info = SAMSUNG_VD_CLASS_MAP.get(payload[2] & 0x0F)
+    return class_info[1] if class_info else None
+
+
+def decode_samsung_status(manufacturer_data: Optional[dict]) -> Optional[dict]:
+    """Decode Samsung's VD-family manufacturer data into a live power-state
+    snapshot (on/standby/off). Returns None if this isn't a recognized
+    Samsung VD advertisement or the state byte isn't one of the three
+    known power states (e.g. it's an 0x20 "extension frame" -- metadata
+    continuation, not a state to report).
+
+    Caller should recompute this on every sighting rather than caching it
+    like device_type -- power state changes over time, it's not a fixed
+    property of the device."""
+    if not manufacturer_data:
+        return None
+    payload = manufacturer_data.get(COMPANY_ID_SAMSUNG)
+    if not payload or len(payload) < 4 or payload[0] != SAMSUNG_VD_MARKER_BYTE or payload[1] != SAMSUNG_VD_FAMILY_BYTE:
+        return None
+
+    class_info = SAMSUNG_VD_CLASS_MAP.get(payload[2] & 0x0F)
+    power = SAMSUNG_VD_POWER_MAP.get(payload[3])
+    if power is None:
+        return None
+
+    return {
+        "device_class": class_info[0] if class_info else "unknown",
+        "power": power,
+    }
+
+
 # A few more Apple Continuity message types (see nccgroup/Sniffle's
 # advdata/msd_apple.py for the full reference table) that map cleanly
 # to a device type without ambiguity. AirPlay Target/Source (0x09/0x0A)
@@ -863,6 +928,14 @@ def classify_device(
         fastpair_type = identify_fastpair_type(service_data)
         if fastpair_type:
             return fastpair_type
+
+    # Samsung's VD-family manufacturer data (TVs/AV/monitors/fridges)
+    # names the exact device class -- specific enough to check this early,
+    # same tier as the Fast Pair Model ID check above.
+    if manufacturer_data:
+        samsung_type = identify_samsung_type(manufacturer_data)
+        if samsung_type:
+            return samsung_type
 
     # Tesla's key-fob/phone-key name pattern is checked first -- it would
     # otherwise get shadowed by the generic iBeacon manufacturer-data

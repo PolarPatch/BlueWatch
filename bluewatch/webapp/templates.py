@@ -1444,6 +1444,39 @@ HTML_TEMPLATE = """
             return '<div class="detail-item full"><div class="detail-label">Apple Activity (live)</div><div class="detail-value" style="font-size:0.8rem;">' + line + '</div></div>';
         }
 
+        // Samsung VD-family power state (TV/AV/monitor/fridge) -- same
+        // live/recent-only treatment as appleActivityHtml above.
+        function samsungStatusHtml(d) {
+            if (!d.samsung_status || !d.samsung_status_at) return '';
+            const ageMs = Date.now() - new Date(d.samsung_status_at).getTime();
+            if (ageMs > 5 * 60 * 1000) return '';
+            const s = d.samsung_status;
+            const powerColors = { on: '#16a34a', standby: '#d97706', off: '#555' };
+            const color = powerColors[s.power] || 'var(--text-muted)';
+            const line = escapeHtml(s.device_class || 'device') + ': <span style="color:' + color + ';">' + escapeHtml(s.power || 'unknown') + '</span>';
+            return '<div class="detail-item full"><div class="detail-label">Samsung Status (live)</div><div class="detail-value" style="font-size:0.8rem;">' + line + '</div></div>';
+        }
+
+        // Fast Pair Battery Notification (earbuds/case) -- same
+        // live/recent-only treatment as appleActivityHtml above.
+        function fastpairBatteryHtml(d) {
+            if (!d.fastpair_battery || !d.fastpair_battery_at) return '';
+            const ageMs = Date.now() - new Date(d.fastpair_battery_at).getTime();
+            if (ageMs > 5 * 60 * 1000) return '';
+            const b = d.fastpair_battery;
+            const labels = { left: 'L', right: 'R', case: 'Case' };
+            const parts = [];
+            for (const key of ['left', 'right', 'case']) {
+                const comp = b[key];
+                if (!comp) continue;
+                let seg = labels[key] + ' ' + (comp.pct === null || comp.pct === undefined ? '?' : comp.pct + '%');
+                if (comp.charging) seg += '⚡';
+                parts.push(seg);
+            }
+            if (!parts.length) return '';
+            return '<div class="detail-item full"><div class="detail-label">Battery (live)</div><div class="detail-value" style="font-size:0.8rem;">' + parts.join(' · ') + '</div></div>';
+        }
+
         async function createCategory() {
             const input = document.getElementById('new-category-name');
             const name = (input.value || '').trim();
@@ -2074,6 +2107,8 @@ HTML_TEMPLATE = """
                 '<div class="detail-item"><div class="detail-label">Vendor OUI</div><input class="form-input" id="device-vendor" value="' + escapeHtml(d.vendor || '') + '" placeholder="Unknown -- set manually" style="font-size: 0.85rem;" onchange="setDeviceVendor(\\'' + d.mac + '\\', this.value)"></div>' +
                 '<div class="detail-item"><div class="detail-label">Proximity</div><div class="detail-value" style="color: ' + proximityColor + '; ">' + proximityZone + '</div></div>' +
                 appleActivityHtml(d) +
+                samsungStatusHtml(d) +
+                fastpairBatteryHtml(d) +
                 '<div class="detail-item"><div class="detail-label">First seen</div><div class="detail-value mono">' + (d.first_seen ? new Date(d.first_seen).toLocaleString() : '—') + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">Last seen</div><div class="detail-value mono">' + (d.last_seen ? new Date(d.last_seen).toLocaleString() : '—') + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">Sightings</div><div class="detail-value highlight">' + d.total_sightings + '</div></div>' +
@@ -5278,6 +5313,39 @@ LIVE_TEMPLATE = """
             return '<div class="detail-item full"><div class="detail-label">Apple Activity (live)</div><div class="detail-value" style="font-size:0.8rem;">' + line + '</div></div>';
         }
 
+        // Samsung VD-family power state (TV/AV/monitor/fridge) -- same
+        // live/recent-only treatment as appleActivityHtml above.
+        function samsungStatusHtml(d) {
+            if (!d.samsung_status || !d.samsung_status_at) return '';
+            const ageMs = Date.now() - new Date(d.samsung_status_at).getTime();
+            if (ageMs > 5 * 60 * 1000) return '';
+            const s = d.samsung_status;
+            const powerColors = { on: '#16a34a', standby: '#d97706', off: '#555' };
+            const color = powerColors[s.power] || 'var(--text-muted)';
+            const line = escapeHtml(s.device_class || 'device') + ': <span style="color:' + color + ';">' + escapeHtml(s.power || 'unknown') + '</span>';
+            return '<div class="detail-item full"><div class="detail-label">Samsung Status (live)</div><div class="detail-value" style="font-size:0.8rem;">' + line + '</div></div>';
+        }
+
+        // Fast Pair Battery Notification (earbuds/case) -- same
+        // live/recent-only treatment as appleActivityHtml above.
+        function fastpairBatteryHtml(d) {
+            if (!d.fastpair_battery || !d.fastpair_battery_at) return '';
+            const ageMs = Date.now() - new Date(d.fastpair_battery_at).getTime();
+            if (ageMs > 5 * 60 * 1000) return '';
+            const b = d.fastpair_battery;
+            const labels = { left: 'L', right: 'R', case: 'Case' };
+            const parts = [];
+            for (const key of ['left', 'right', 'case']) {
+                const comp = b[key];
+                if (!comp) continue;
+                let seg = labels[key] + ' ' + (comp.pct === null || comp.pct === undefined ? '?' : comp.pct + '%');
+                if (comp.charging) seg += '⚡';
+                parts.push(seg);
+            }
+            if (!parts.length) return '';
+            return '<div class="detail-item full"><div class="detail-label">Battery (live)</div><div class="detail-value" style="font-size:0.8rem;">' + parts.join(' · ') + '</div></div>';
+        }
+
         async function createCategory() {
             const input = document.getElementById('new-category-name');
             const name = (input.value || '').trim();
@@ -5911,6 +5979,8 @@ LIVE_TEMPLATE = """
                 '<div class="detail-item"><div class="detail-label">Vendor OUI</div><input class="form-input" id="device-vendor" value="' + escapeHtml(d.vendor || '') + '" placeholder="Unknown -- set manually" style="font-size: 0.85rem;" onchange="setDeviceVendor(\\'' + d.mac + '\\', this.value)"></div>' +
                 '<div class="detail-item"><div class="detail-label">Proximity</div><div class="detail-value" style="color: ' + proximityColor + '; ">' + proximityZone + '</div></div>' +
                 appleActivityHtml(d) +
+                samsungStatusHtml(d) +
+                fastpairBatteryHtml(d) +
                 '<div class="detail-item"><div class="detail-label">First seen</div><div class="detail-value mono">' + (d.first_seen ? new Date(d.first_seen).toLocaleString() : '—') + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">Last seen</div><div class="detail-value mono">' + (d.last_seen ? new Date(d.last_seen).toLocaleString() : '—') + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">Sightings</div><div class="detail-value highlight">' + d.total_sightings + '</div></div>' +
