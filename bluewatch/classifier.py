@@ -3,6 +3,8 @@
 import re
 from typing import Optional
 
+from .fastpair_models import identify_fastpair_device
+
 # macOS CoreBluetooth provides UUIDs instead of real MAC addresses for privacy.
 # These are 36-character strings like "460649E9-2306-1FF2-1272-A8D9B9D9143D".
 _MACOS_UUID_RE = re.compile(
@@ -142,6 +144,40 @@ def classify_by_appearance(appearance: Optional[int]) -> Optional[str]:
         return None
     category = appearance >> 6
     return APPEARANCE_CATEGORY_MAP.get(category)
+
+
+# Google Fast Pair's "Device type" category, as it appears in the bundled
+# Model ID registry (see fastpair_models.py), mapped onto BlueWatch's own
+# TYPE_* constants. Most rows use the named enum string; a handful of
+# rarer categories only ever appear as a raw numeric ordinal in the source
+# data (see fastpair_models.py's comment for how those were identified).
+FASTPAIR_DEVICE_TYPE_MAP = {
+    "TRUE_WIRELESS_HEADPHONES": TYPE_HEADPHONES,
+    "HEADPHONES": TYPE_HEADPHONES,
+    "SPEAKER": TYPE_SPEAKER,
+    "WEAR_OS": TYPE_WATCH,
+    "AUTOMOTIVE": TYPE_VEHICLE,
+    "ANDROID_AUTO": TYPE_VEHICLE,
+    "INPUT_DEVICE": TYPE_GAMING,
+    "WEARABLE": TYPE_WEARABLE,
+    "10": TYPE_GLASSES,   # Google Glass Enterprise Edition 2
+    "11": TYPE_TRACKER,   # Tags/finders
+    "12": TYPE_COMPUTER,  # Chromebook/Chromebox/Chromebase
+    "13": TYPE_PHONE,     # Galaxy phones
+    "16": TYPE_PRINTER,   # instax mini Link photo printers
+    "17": TYPE_GAMING,    # Wireless mice (HID)
+}
+
+
+def identify_fastpair_type(service_data: Optional[dict]) -> Optional[str]:
+    """Resolve a device type from a Fast Pair Model ID broadcast in
+    service_data, via the bundled Model ID registry. Returns None if
+    there's no Fast Pair service_data, the Model ID isn't in the
+    registry, or its category doesn't map to a known type."""
+    match = identify_fastpair_device(service_data)
+    if not match or not match.get("device_type_raw"):
+        return None
+    return FASTPAIR_DEVICE_TYPE_MAP.get(match["device_type_raw"])
 
 # Icons for each device type (using simple ASCII for terminal compatibility)
 TYPE_ICONS = {
@@ -809,15 +845,25 @@ def classify_device(
     device_class: Optional[int] = None,
     manufacturer_data: Optional[dict] = None,
     appearance: Optional[int] = None,
+    service_data: Optional[dict] = None,
 ) -> str:
     """
     Classify a device based on its vendor, name, service UUIDs, device
-    class, GAP Appearance, and raw manufacturer data. Returns a device
-    type constant.
+    class, GAP Appearance, Fast Pair service_data, and raw manufacturer
+    data. Returns a device type constant.
 
-    Priority: Manufacturer data > Service UUIDs > GAP Appearance > Name
-    patterns > Device class > Company-ID vendor guess > Vendor patterns
+    Priority: Fast Pair Model ID > Manufacturer data > Service UUIDs >
+    GAP Appearance > Name patterns > Device class > Company-ID vendor
+    guess > Vendor patterns
     """
+    # A resolved Fast Pair Model ID names the exact product (e.g. "Sonos
+    # Ace"), so it's a stronger signal than any generic UUID/company-ID
+    # check below -- checked first.
+    if service_data:
+        fastpair_type = identify_fastpair_type(service_data)
+        if fastpair_type:
+            return fastpair_type
+
     # Tesla's key-fob/phone-key name pattern is checked first -- it would
     # otherwise get shadowed by the generic iBeacon manufacturer-data
     # classification below, since Tesla's BLE key broadcasts in iBeacon

@@ -54,6 +54,7 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
 from . import config
 from .active_scan import SCAN_IN_PROGRESS
+from .fastpair_models import model_id_from_service_data  # noqa: F401 (re-exported)
 
 logger = logging.getLogger(__name__)
 
@@ -249,13 +250,6 @@ async def verify_fastpair_device(mac: str, model_id_hex: str, adapter: Optional[
         SCAN_IN_PROGRESS.clear()
 
 
-def model_id_from_service_data(service_data: dict) -> Optional[str]:
-    """Extract Fast Pair's 3-byte Model ID (hex string) from a device's
-    stored service_data dict, if present under the Fast Pair service UUID."""
-    if not service_data:
-        return None
-    for key, value in service_data.items():
-        normalized = key.lower().replace("-", "")
-        if normalized.startswith("0000fe2c") and len(value) == 3:
-            return value.hex()
-    return None
+# model_id_from_service_data() now lives in fastpair_models.py (re-exported
+# above) since it's also needed by classifier.py's passive Fast Pair Model
+# ID lookup, which can't import this module (pulls in bleak/cryptography).
