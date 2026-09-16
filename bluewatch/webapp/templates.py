@@ -936,6 +936,17 @@ HTML_TEMPLATE = """
                     <input type="text" class="search-input" id="search" placeholder="Search MAC, vendor, or identifier..." style="font-size: 0.75rem;">
                 </div>
             </div>
+
+            <div class="panel">
+                <div class="panel-header">First Seen</div>
+                <select class="form-input" id="first-seen-filter" style="font-size: 0.75rem; width: 100%;" onchange="onFirstSeenFilterChange()">
+                    <option value="">Any time</option>
+                    <option value="1d">New today (last 24h)</option>
+                    <option value="7d">New this week</option>
+                    <option value="30d">New this month</option>
+                    <option value="older_30d">Established (30d+ ago)</option>
+                </select>
+            </div>
         </aside>
 
         <main class="content">
@@ -1127,7 +1138,16 @@ HTML_TEMPLATE = """
             const searchTerm = searchInput ? searchInput.value.trim() : '';
             if (searchTerm) params.set('search', searchTerm);
 
+            const firstSeenSelect = document.getElementById('first-seen-filter');
+            const firstSeenValue = firstSeenSelect ? firstSeenSelect.value : '';
+            if (firstSeenValue) params.set('first_seen', firstSeenValue);
+
             return '/api/devices?' + params.toString();
+        }
+
+        function onFirstSeenFilterChange() {
+            pagination.page = 1;
+            refreshDevices();
         }
 
         function queueDeviceRefresh(resetPage = false) {
@@ -4745,6 +4765,17 @@ LIVE_TEMPLATE = """
                     <input type="text" class="search-input" id="search" placeholder="Search MAC, vendor, or identifier..." style="font-size: 0.75rem;">
                 </div>
             </div>
+
+            <div class="panel">
+                <div class="panel-header">First Seen</div>
+                <select class="form-input" id="first-seen-filter" style="font-size: 0.75rem; width: 100%;" onchange="onFirstSeenFilterChange()">
+                    <option value="">Any time</option>
+                    <option value="1d">New today (last 24h)</option>
+                    <option value="7d">New this week</option>
+                    <option value="30d">New this month</option>
+                    <option value="older_30d">Established (30d+ ago)</option>
+                </select>
+            </div>
         </aside>
 
         <main class="content">
@@ -4958,7 +4989,16 @@ LIVE_TEMPLATE = """
             const searchTerm = searchInput ? searchInput.value.trim() : '';
             if (searchTerm) params.set('search', searchTerm);
 
+            const firstSeenSelect = document.getElementById('first-seen-filter');
+            const firstSeenValue = firstSeenSelect ? firstSeenSelect.value : '';
+            if (firstSeenValue) params.set('first_seen', firstSeenValue);
+
             return '/api/devices?' + params.toString();
+        }
+
+        function onFirstSeenFilterChange() {
+            pagination.page = 1;
+            refreshDevices();
         }
 
         async function loadLiveStats() {
