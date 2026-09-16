@@ -162,6 +162,7 @@ class BlueWatchDaemon:
         await self.scanner.start_continuous_ble()
         asyncio.create_task(self._ble_continuous_manager())
         asyncio.create_task(self._esp32_scanner_manager())
+        asyncio.create_task(self._esp32_ingest_loop())
         await self._scan_loop()
 
     async def _ble_continuous_manager(self) -> None:
@@ -200,6 +201,43 @@ class BlueWatchDaemon:
             except Exception as e:
                 logger.warning(f"ESP32 scanner manager error: {e}")
             await asyncio.sleep(5)
+
+    async def _esp32_ingest_loop(self) -> None:
+        """Upserts whatever the ESP32 second radio has heard, on its own
+        cadence -- deliberately NOT gated by active_scan.SCAN_IN_PROGRESS
+        like _scan_loop is. That gate exists so the built-in adapter is
+        freed up for an operator-triggered Scan Unit poll (BlueZ only
+        allows one connect/discover at a time on it); the ESP32 is a
+        separate USB radio that never contends for it, so pausing this
+        loop too would just silently drop everything it heard for as
+        long as the poll takes with no benefit."""
+        while self.running:
+            try:
+                if self._esp32_scanner is not None and self._esp32_scanner.connected:
+                    devices = await self._esp32_scanner.snapshot()
+                    wigle_candidates = []
+                    for device in devices:
+                        db_device, is_new = await db.upsert_device(
+                            mac=device.mac,
+                            vendor=device.vendor,
+                            friendly_name=device.name,
+                            rssi=device.rssi,
+                            service_uuids=device.service_uuids,
+                            bt_type=device.bt_type,
+                            device_class=device.device_class,
+                            manufacturer_data=device.manufacturer_data,
+                            service_data=device.service_data,
+                            appearance=device.appearance,
+                        )
+                        await self._notifications.on_device_seen(db_device, is_new)
+                        if not db_device.vendor and not is_randomized_mac(db_device.mac):
+                            wigle_candidates.append(db_device.mac)
+                    await self._try_wigle_lookups(wigle_candidates)
+                    if devices:
+                        await self._notify_clients({"event": "scan_complete", "count": len(devices)})
+            except Exception as e:
+                logger.error(f"ESP32 ingest error: {e}")
+            await asyncio.sleep(SCAN_INTERVAL)
 
     async def stop(self) -> None:
         """Stop the daemon."""
@@ -482,8 +520,6 @@ class BlueWatchDaemon:
 
                 start_ts = time.monotonic()
                 devices = await self.scanner.scan()
-                if self._esp32_scanner is not None and self._esp32_scanner.connected:
-                    devices = devices + await self._esp32_scanner.snapshot()
                 duration = time.monotonic() - start_ts
 
                 new_count = 0
