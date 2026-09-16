@@ -118,6 +118,10 @@ class BlueWatchDaemon:
         await db.init_db()
         logger.info(f"Database initialized at {db.DB_PATH}")
 
+        from .classifier import set_custom_types
+        custom_types = await db.get_custom_types()
+        set_custom_types([(t["key"], t["icon"], t["label"]) for t in custom_types])
+
         # Initialize notifications
         await self._notifications.start()
 

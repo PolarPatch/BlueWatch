@@ -176,6 +176,12 @@ CREATE TABLE IF NOT EXISTS wigle_lookup_cache (
     checked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS custom_types (
+    key TEXT PRIMARY KEY,
+    icon TEXT NOT NULL,
+    label TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_sightings_mac_time ON sightings(mac, timestamp);
 CREATE INDEX IF NOT EXISTS idx_sightings_timestamp ON sightings(timestamp);
 CREATE INDEX IF NOT EXISTS idx_identities_name ON identities(name COLLATE NOCASE);
@@ -2164,6 +2170,45 @@ async def set_esp32_scanner_settings(enabled: bool, host: str) -> None:
             "INSERT OR REPLACE INTO settings (key, value) VALUES ('esp32_scanner_host', ?)",
             (host or _ESP32_SCANNER_DEFAULT_HOST,),
         )
+        await db.commit()
+
+
+async def get_custom_types() -> list[dict]:
+    """User-defined device classification types (e.g. "Lawnmower"),
+    added via Config > Classes -- on top of the hardcoded TYPE_*
+    constants in classifier.py."""
+    async with _connect() as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("SELECT key, icon, label FROM custom_types ORDER BY label COLLATE NOCASE") as cursor:
+            rows = await cursor.fetchall()
+    return [{"key": r["key"], "icon": r["icon"], "label": r["label"]} for r in rows]
+
+
+async def add_custom_type(key: str, icon: str, label: str) -> None:
+    async with _connect() as db:
+        await db.execute(
+            "INSERT INTO custom_types (key, icon, label) VALUES (?, ?, ?)",
+            (key, icon, label),
+        )
+        await db.commit()
+
+
+async def update_custom_type(key: str, icon: str, label: str) -> None:
+    async with _connect() as db:
+        await db.execute(
+            "UPDATE custom_types SET icon = ?, label = ? WHERE key = ?",
+            (icon, label, key),
+        )
+        await db.commit()
+
+
+async def delete_custom_type(key: str) -> None:
+    """Removes the custom type definition itself. Devices already
+    classified under this key are left untouched -- they'll just show
+    the generic Unknown icon/label until reassigned, same as a device
+    with any other now-unrecognized type string would."""
+    async with _connect() as db:
+        await db.execute("DELETE FROM custom_types WHERE key = ?", (key,))
         await db.commit()
 
 

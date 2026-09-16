@@ -2913,6 +2913,7 @@ SETTINGS_TEMPLATE = """
         <a href="#alerts" data-tab="alerts" class="active" onclick="switchTab('alerts')">Alerts</a>
         <a href="#operations" data-tab="operations" onclick="switchTab('operations')">Operations</a>
         <a href="#groups" data-tab="groups" onclick="switchTab('groups')">Groups</a>
+        <a href="#classes" data-tab="classes" onclick="switchTab('classes')">Classes</a>
         <a href="#security" data-tab="security" onclick="switchTab('security')">Security</a>
         <a href="#wigle" data-tab="wigle" onclick="switchTab('wigle')">WiGLE</a>
         <a href="#fastpair" data-tab="fastpair" onclick="switchTab('fastpair')">Fast Pair</a>
@@ -2978,6 +2979,14 @@ SETTINGS_TEMPLATE = """
                                 <div class="form-check-desc">Alert when monitored target exits range</div>
                             </div>
                         </label>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <div class="panel-header">Watched Devices</div>
+                    <div class="panel-body">
+                        <div class="form-hint" style="margin-bottom: 0.5rem;">Every device currently marked as a Watched target (Device of Interest) -- these are what trigger the "Watched Target Returns/Departs" alerts above. Remove one here to stop watching it, same as un-watching it from its device detail page.</div>
+                        <div id="watched-devices-list" style="display: flex; flex-direction: column; gap: 0.5rem;">Loading...</div>
                     </div>
                 </div>
 
@@ -3091,6 +3100,27 @@ SETTINGS_TEMPLATE = """
             </div>
         </div>
 
+        <!-- Classes Tab -->
+        <div class="config-tab" id="tab-classes">
+            <div class="page-header">
+                <div class="page-title">System Configuration</div>
+                <h1 class="page-heading">Device Classes</h1>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">Custom Classes</div>
+                <div class="panel-body">
+                    <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 1rem;">BlueWatch ships with a set of built-in device classes (Phone, Watch, Camera, etc.) that the automatic classifier assigns. Add your own here for anything that doesn't fit -- e.g. a "Lawnmower" class for a robotic mower -- and it becomes selectable in every device's Type dropdown, same as a built-in one. Built-in classes can't be edited or removed here.</p>
+                    <div id="custom-types-list" style="display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1rem;">Loading...</div>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <input type="text" class="form-input" id="new-type-icon" placeholder="[MOW]" style="width: 90px;" maxlength="12">
+                        <input type="text" class="form-input" id="new-type-label" placeholder="New class name, e.g. Lawnmower" style="flex: 1;">
+                        <button type="button" class="btn btn-primary" onclick="createCustomType()">Add Class</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Security Tab -->
         <div class="config-tab" id="tab-security">
             <div class="page-header">
@@ -3172,14 +3202,15 @@ SETTINGS_TEMPLATE = """
             <div class="panel">
                 <div class="panel-header">Fast Pair Anti-Spoof Verification</div>
                 <div class="panel-body">
-                    <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 1rem;">When enabled, "Scan Unit" can run a Google Fast Pair Key-based Pairing challenge against a device to check whether it holds the genuine Anti-Spoofing Private Key for its advertised Model ID -- a real device answers correctly, a spoofed/cloned advertisement can't. This requires the device's Anti-Spoofing Public Key on file locally first (Google does not publish a self-service API for looking this up automatically -- see below).</p>
+                    <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.75rem;">Fast Pair is Google's Bluetooth pairing protocol, used by many earbuds, speakers, and Android accessories to announce what they are. BlueWatch already identifies Fast Pair devices for free, automatically, with no setup -- it looks up the Model ID each device broadcasts in a bundled offline database of ~2,900 known devices.</p>
+                    <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 1rem;">The toggle below is a separate, optional extra: a genuine Fast Pair device holds a secret key proving it really is the Model ID it claims to be. When enabled, "Scan Unit" can challenge a device to prove this, catching a spoofed or cloned advertisement pretending to be a device it isn't. This check only works for Model IDs you've manually added a verification key for (see below) -- it changes nothing about the free identification above, which keeps working regardless.</p>
                     <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;">
                         <input type="checkbox" id="fastpair-enabled" onchange="saveFastpairSettings()">
-                        <label for="fastpair-enabled" style="font-size: 0.85rem;">Enable Fast Pair verification in Scan Unit</label>
+                        <label for="fastpair-enabled" style="font-size: 0.85rem;">Enable the extra spoof-check challenge in Scan Unit</label>
                     </div>
                     <details style="font-size: 0.75rem; color: var(--text-muted);">
-                        <summary style="cursor: pointer;">How do Anti-Spoofing keys get added?</summary>
-                        <p style="margin-top: 0.5rem;">Google does not publish a self-service API for looking up a device model's Anti-Spoofing Public Key -- verification only works for models you've added by hand to the local key file on the BlueWatch host (<code>fastpair_keys.json</code> under its data directory), mapping a 3-byte Model ID to its 64-byte public key from a source you trust.</p>
+                        <summary style="cursor: pointer;">How do I add a verification key for a device?</summary>
+                        <p style="margin-top: 0.5rem;">Google does not publish a self-service API for looking up a device model's Anti-Spoofing Public Key -- this spoof-check only works for models you've added by hand to the local key file on the BlueWatch host (<code>fastpair_keys.json</code> under its data directory), mapping a 3-byte Model ID to its 64-byte public key from a source you trust. Without an entry there for a given device, BlueWatch simply skips the check for it (the free name/manufacturer identification still applies).</p>
                     </details>
                 </div>
             </div>
@@ -3244,7 +3275,7 @@ SETTINGS_TEMPLATE = """
                         BlueWatch passively detects Bluetooth devices (BLE and Classic) in your area and helps you tell them apart from the noise: categorize the devices you already know, and BlueWatch surfaces the moment something new enters range instead of burying it under dozens of familiar devices.
                     </p>
                     <p style="font-size: 0.85rem; line-height: 1.6; color: var(--text-secondary); max-width: 560px; margin: 0 auto 1.5rem;">
-                        Started from <a href="https://github.com/dannymcc/bluehood" target="_blank" rel="noopener" style="color: var(--accent-blue);">bluehood</a> by Danny McClelland (MIT licensed), since grown into its own project.
+                        Forked from <a href="https://github.com/dannymcc/bluehood" target="_blank" rel="noopener" style="color: var(--accent-blue);">bluehood</a> by Danny McClelland (MIT licensed), since grown into its own project.
                     </p>
                     <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 1.25rem;">
                         Questions or interest? <a href="mailto:p0larpatch@proton.me" style="color: var(--accent-blue);">p0larpatch@proton.me</a>
@@ -3310,6 +3341,42 @@ SETTINGS_TEMPLATE = """
                         + '</label>';
                 }).join('');
             } catch (error) { showStatus('Error loading configuration', 'error'); }
+        }
+
+        async function loadWatchedDevices() {
+            const el = document.getElementById('watched-devices-list');
+            if (!el) return;
+            try {
+                const response = await fetch('/api/devices?filter=watched&page_size=250&sort=last_seen&direction=desc');
+                const data = await response.json();
+                const devices = data.devices || [];
+                if (devices.length === 0) {
+                    el.innerHTML = '<div class="form-hint">No devices are currently watched.</div>';
+                    return;
+                }
+                el.innerHTML = devices.map(function(d) {
+                    const name = d.friendly_name || d.vendor || d.mac;
+                    return '<div style="display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.4rem 0.6rem; background: var(--bg-secondary); border-radius: 6px;">'
+                        + '<div style="min-width: 0;">'
+                        + '<div style="font-size: 0.85rem; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">' + (d.type_icon || '') + ' ' + name + '</div>'
+                        + '<div style="font-size: 0.7rem; color: var(--text-muted);">' + d.mac + '</div>'
+                        + '</div>'
+                        + '<button type="button" class="btn" onclick="unwatchDevice(\\'' + d.mac + '\\')" style="flex: 0 0 auto;">Remove</button>'
+                        + '</div>';
+                }).join('');
+            } catch (error) { el.innerHTML = '<div class="form-hint">Error loading watched devices.</div>'; }
+        }
+
+        async function unwatchDevice(mac) {
+            try {
+                const response = await fetch('/api/device/' + encodeURIComponent(mac) + '/watch', { method: 'POST' });
+                if (response.ok) {
+                    showStatus('Removed from watched devices', 'success');
+                    loadWatchedDevices();
+                } else {
+                    showStatus('Error removing watched device', 'error');
+                }
+            } catch (error) { showStatus('Error removing watched device', 'error'); }
         }
 
         function gatherAllSettings() {
@@ -3479,6 +3546,99 @@ SETTINGS_TEMPLATE = """
             } catch (error) { showStatus('Error creating group', 'error'); }
         }
 
+        async function loadCustomTypes() {
+            try {
+                const response = await fetch('/api/custom-types');
+                const data = await response.json();
+                const container = document.getElementById('custom-types-list');
+                if (!container) return;
+                container.textContent = '';
+                if (!data.types || data.types.length === 0) {
+                    var empty = document.createElement('div');
+                    empty.style.cssText = 'color: var(--text-muted); font-size: 0.75rem; text-align: center; padding: 1rem;';
+                    empty.textContent = 'No custom classes yet';
+                    container.appendChild(empty);
+                    return;
+                }
+                data.types.forEach(function(t) {
+                    var row = document.createElement('div');
+                    row.style.cssText = 'display: flex; align-items: center; gap: 0.75rem; padding: 0.6rem; background: var(--bg-tertiary); border-radius: 3px;';
+                    var icon = document.createElement('span');
+                    icon.style.cssText = 'font-family: monospace; font-size: 0.8rem; color: var(--text-muted); min-width: 3rem;';
+                    icon.textContent = t.icon;
+                    var label = document.createElement('span');
+                    label.style.cssText = 'flex: 1; font-size: 0.85rem;';
+                    label.textContent = t.label;
+                    var renameBtn = document.createElement('button');
+                    renameBtn.className = 'btn';
+                    renameBtn.style.cssText = 'padding: 0.25rem 0.5rem; font-size: 0.7rem;';
+                    renameBtn.textContent = 'Edit';
+                    renameBtn.addEventListener('click', function() { editCustomType(t); });
+                    var delBtn = document.createElement('button');
+                    delBtn.className = 'btn';
+                    delBtn.style.cssText = 'padding: 0.25rem 0.5rem; font-size: 0.7rem;';
+                    delBtn.textContent = 'Delete';
+                    delBtn.addEventListener('click', function() { deleteCustomType(t.key); });
+                    row.appendChild(icon);
+                    row.appendChild(label);
+                    row.appendChild(renameBtn);
+                    row.appendChild(delBtn);
+                    container.appendChild(row);
+                });
+            } catch (error) { console.error('Error loading custom classes'); }
+        }
+
+        async function createCustomType() {
+            const icon = document.getElementById('new-type-icon').value.trim() || '[???]';
+            const label = document.getElementById('new-type-label').value.trim();
+            if (!label) { showStatus('Class name required', 'error'); return; }
+
+            try {
+                const response = await fetch('/api/custom-types', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ icon: icon, label: label })
+                });
+                if (response.ok) {
+                    document.getElementById('new-type-icon').value = '';
+                    document.getElementById('new-type-label').value = '';
+                    loadCustomTypes();
+                    showStatus('Class created', 'success');
+                } else {
+                    const err = await response.json().catch(() => ({}));
+                    showStatus(err.error || 'Error creating class', 'error');
+                }
+            } catch (error) { showStatus('Error creating class', 'error'); }
+        }
+
+        async function editCustomType(t) {
+            const newLabel = prompt('Class name', t.label);
+            if (newLabel === null) return;
+            const trimmedLabel = newLabel.trim();
+            if (!trimmedLabel) return;
+            const newIcon = prompt('Icon', t.icon);
+            if (newIcon === null) return;
+            const trimmedIcon = newIcon.trim() || '[???]';
+            try {
+                const response = await fetch('/api/custom-types/' + encodeURIComponent(t.key), {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ icon: trimmedIcon, label: trimmedLabel })
+                });
+                if (response.ok) { loadCustomTypes(); showStatus('Class updated', 'success'); }
+                else { showStatus('Error updating class', 'error'); }
+            } catch (error) { showStatus('Error updating class', 'error'); }
+        }
+
+        async function deleteCustomType(key) {
+            if (!confirm('Delete this class? Devices already set to it keep the raw value but show as Unknown until reassigned.')) return;
+            try {
+                const response = await fetch('/api/custom-types/' + encodeURIComponent(key), { method: 'DELETE' });
+                if (response.ok) { loadCustomTypes(); showStatus('Class deleted', 'success'); }
+                else { showStatus('Error deleting class', 'error'); }
+            } catch (error) { showStatus('Error deleting class', 'error'); }
+        }
+
         async function loadIrkKeys() {
             try {
                 const response = await fetch('/api/irk-keys');
@@ -3584,6 +3744,7 @@ SETTINGS_TEMPLATE = """
                     loadWigleSettings();
         loadFastpairSettings();
         loadEsp32Settings();
+        loadWatchedDevices();
                     showStatus('WiGLE credentials saved', 'success');
                 } else {
                     const err = await response.json().catch(() => ({}));
@@ -3726,15 +3887,17 @@ SETTINGS_TEMPLATE = """
 
         // Tab routing: read hash on load, default to alerts
         var hash = window.location.hash.replace('#', '') || 'alerts';
-        switchTab(['alerts', 'operations', 'groups', 'security', 'wigle', 'fastpair', 'export', 'about'].indexOf(hash) !== -1 ? hash : 'alerts');
+        switchTab(['alerts', 'operations', 'groups', 'classes', 'security', 'wigle', 'fastpair', 'esp32', 'export', 'about'].indexOf(hash) !== -1 ? hash : 'alerts');
 
         loadSettings();
         loadAuthStatus();
         loadGroups();
+        loadCustomTypes();
         loadIrkKeys();
         loadWigleSettings();
         loadFastpairSettings();
         loadEsp32Settings();
+        loadWatchedDevices();
     </script>
 </body>
 </html>
