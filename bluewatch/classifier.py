@@ -422,18 +422,33 @@ SAMSUNG_VD_POWER_MAP: dict[int, str] = {
 }
 
 
-def identify_samsung_type(manufacturer_data: Optional[dict]) -> Optional[str]:
+# Samsung devices are also matchable via this service_data UUID -- a
+# second, independent signal alongside the VD-family manufacturer-data
+# check above (source: blesploit device-library's samsung manifest.json).
+# Unlike the manufacturer-data path, this alone doesn't reveal a specific
+# device class (tv/fridge/etc.), just "this is a Samsung device" -- so
+# it's a weaker fallback, checked only when the manufacturer-data path
+# didn't resolve one.
+SAMSUNG_SERVICE_DATA_UUID_PREFIX = "0000fd69"
+
+
+def identify_samsung_type(manufacturer_data: Optional[dict], service_data: Optional[dict] = None) -> Optional[str]:
     """Resolve a device type from Samsung's VD-family manufacturer data,
     when the device class byte is present and recognized. Static/one-time
     signal (device category doesn't change), unlike decode_samsung_status()
     below (live power state)."""
-    if not manufacturer_data:
-        return None
-    payload = manufacturer_data.get(COMPANY_ID_SAMSUNG)
-    if not payload or len(payload) < 3 or payload[0] != SAMSUNG_VD_MARKER_BYTE or payload[1] != SAMSUNG_VD_FAMILY_BYTE:
-        return None
-    class_info = SAMSUNG_VD_CLASS_MAP.get(payload[2] & 0x0F)
-    return class_info[1] if class_info else None
+    payload = (manufacturer_data or {}).get(COMPANY_ID_SAMSUNG)
+    if payload and len(payload) >= 3 and payload[0] == SAMSUNG_VD_MARKER_BYTE and payload[1] == SAMSUNG_VD_FAMILY_BYTE:
+        class_info = SAMSUNG_VD_CLASS_MAP.get(payload[2] & 0x0F)
+        if class_info:
+            return class_info[1]
+
+    if service_data:
+        for key in service_data:
+            if key.lower().replace("-", "").startswith(SAMSUNG_SERVICE_DATA_UUID_PREFIX):
+                return TYPE_PHONE
+
+    return None
 
 
 def decode_samsung_status(manufacturer_data: Optional[dict]) -> Optional[dict]:
@@ -932,8 +947,8 @@ def classify_device(
     # Samsung's VD-family manufacturer data (TVs/AV/monitors/fridges)
     # names the exact device class -- specific enough to check this early,
     # same tier as the Fast Pair Model ID check above.
-    if manufacturer_data:
-        samsung_type = identify_samsung_type(manufacturer_data)
+    if manufacturer_data or service_data:
+        samsung_type = identify_samsung_type(manufacturer_data, service_data)
         if samsung_type:
             return samsung_type
 
