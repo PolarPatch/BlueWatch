@@ -922,7 +922,7 @@ HTML_TEMPLATE = """
                         <span>First seen within</span>
                         <span id="first-seen-slider-value">off</span>
                     </div>
-                    <input type="range" id="first-seen-slider" min="1" max="6" step="1" value="1" oninput="onFirstSeenSliderChange()" style="width: 100%;">
+                    <input type="range" id="first-seen-slider" min="1" max="7" step="1" value="1" oninput="onFirstSeenSliderChange()" style="width: 100%;">
                 </div>
                 <div id="categories-tree" style="padding: 0.5rem;"></div>
                 <div style="padding: 0.5rem; display: flex; gap: 0.4rem;">
@@ -1135,8 +1135,9 @@ HTML_TEMPLATE = """
             const searchTerm = searchInput ? searchInput.value.trim() : '';
             if (searchTerm) params.set('search', searchTerm);
 
-            if (firstSeenTouched) {
-                params.set('first_seen', FIRST_SEEN_LEVELS[parseInt(document.getElementById('first-seen-slider').value, 10) - 1]);
+            const firstSeenLevel = parseInt(document.getElementById('first-seen-slider').value, 10);
+            if (firstSeenLevel > 1) {
+                params.set('first_seen', FIRST_SEEN_LEVELS[firstSeenLevel - 2]);
             }
 
             return '/api/devices?' + params.toString();
@@ -1150,12 +1151,10 @@ HTML_TEMPLATE = """
         // effectively shows everyone); first-seen has no such end since
         // even the loosest window (30d) would hide long-established
         // devices, so it stays off until deliberately touched.
-        const FIRST_SEEN_LEVELS = ['30d', '7d', '48h', '24h', '12h', '6h'];
-        const FIRST_SEEN_LABELS = ['this month', 'this week', '48h', '24h', '12h', '6h'];
-        let firstSeenTouched = false;
+        const FIRST_SEEN_LEVELS = ['6h', '12h', '24h', '48h', '7d', '30d'];
+        const FIRST_SEEN_LABELS = ['off', '6h', '12h', '24h', '48h', 'this week', 'this month'];
 
         function onFirstSeenSliderChange() {
-            firstSeenTouched = true;
             const level = parseInt(document.getElementById('first-seen-slider').value, 10);
             document.getElementById('first-seen-slider-value').textContent = FIRST_SEEN_LABELS[level - 1];
             pagination.page = 1;
@@ -4803,7 +4802,7 @@ LIVE_TEMPLATE = """
                     </label>
                     <div style="display: flex; align-items: center; gap: 0.75rem;">
                         <span class="stat-label">First seen within</span>
-                        <input type="range" id="first-seen-slider" min="1" max="6" step="1" value="1" oninput="onFirstSeenSliderChange()" style="width: 120px;">
+                        <input type="range" id="first-seen-slider" min="1" max="7" step="1" value="1" oninput="onFirstSeenSliderChange()" style="width: 120px;">
                         <span id="first-seen-slider-value" style="font-size: 0.75rem; color: var(--text-primary); min-width: 4rem;">off</span>
                     </div>
                 </div>
@@ -4996,8 +4995,9 @@ LIVE_TEMPLATE = """
             const searchTerm = searchInput ? searchInput.value.trim() : '';
             if (searchTerm) params.set('search', searchTerm);
 
-            if (firstSeenTouched) {
-                params.set('first_seen', FIRST_SEEN_LEVELS[parseInt(document.getElementById('first-seen-slider').value, 10) - 1]);
+            const firstSeenLevel = parseInt(document.getElementById('first-seen-slider').value, 10);
+            if (firstSeenLevel > 1) {
+                params.set('first_seen', FIRST_SEEN_LEVELS[firstSeenLevel - 2]);
             }
 
             return '/api/devices?' + params.toString();
@@ -5011,12 +5011,10 @@ LIVE_TEMPLATE = """
         // effectively shows everyone); first-seen has no such end since
         // even the loosest window (30d) would hide long-established
         // devices, so it stays off until deliberately touched.
-        const FIRST_SEEN_LEVELS = ['30d', '7d', '48h', '24h', '12h', '6h'];
-        const FIRST_SEEN_LABELS = ['this month', 'this week', '48h', '24h', '12h', '6h'];
-        let firstSeenTouched = false;
+        const FIRST_SEEN_LEVELS = ['6h', '12h', '24h', '48h', '7d', '30d'];
+        const FIRST_SEEN_LABELS = ['off', '6h', '12h', '24h', '48h', 'this week', 'this month'];
 
         function onFirstSeenSliderChange() {
-            firstSeenTouched = true;
             const level = parseInt(document.getElementById('first-seen-slider').value, 10);
             document.getElementById('first-seen-slider-value').textContent = FIRST_SEEN_LABELS[level - 1];
             pagination.page = 1;
