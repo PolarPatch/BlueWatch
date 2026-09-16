@@ -227,7 +227,7 @@ class WebServer:
         only_uncategorized = request.query.get("only_uncategorized") == "1"
 
         first_seen_filter = request.query.get("first_seen") or None
-        if first_seen_filter not in ("1d", "7d", "30d", "older_30d"):
+        if first_seen_filter not in ("6h", "12h", "24h", "48h", "7d", "30d"):
             first_seen_filter = None
 
         active_within_seconds = None

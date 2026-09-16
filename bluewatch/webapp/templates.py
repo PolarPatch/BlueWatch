@@ -917,6 +917,13 @@ HTML_TEMPLATE = """
                     <input type="checkbox" id="hide-categorized-toggle" onchange="toggleHideCategorized()">
                     Hide categorized devices
                 </label>
+                <div style="padding: 0 0.75rem 0.5rem;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.25rem;">
+                        <span>First seen within</span>
+                        <span id="first-seen-slider-value">off</span>
+                    </div>
+                    <input type="range" id="first-seen-slider" min="1" max="6" step="1" value="6" oninput="onFirstSeenSliderChange()" style="width: 100%;">
+                </div>
                 <div id="categories-tree" style="padding: 0.5rem;"></div>
                 <div style="padding: 0.5rem; display: flex; gap: 0.4rem;">
                     <input type="text" class="search-input" id="new-category-name" placeholder="New category name" style="font-size: 0.75rem; flex: 1;">
@@ -937,16 +944,6 @@ HTML_TEMPLATE = """
                 </div>
             </div>
 
-            <div class="panel">
-                <div class="panel-header">First Seen</div>
-                <select class="form-input" id="first-seen-filter" style="font-size: 0.75rem; width: 100%;" onchange="onFirstSeenFilterChange()">
-                    <option value="">Any time</option>
-                    <option value="1d">New today (last 24h)</option>
-                    <option value="7d">New this week</option>
-                    <option value="30d">New this month</option>
-                    <option value="older_30d">Established (30d+ ago)</option>
-                </select>
-            </div>
         </aside>
 
         <main class="content">
@@ -1138,14 +1135,29 @@ HTML_TEMPLATE = """
             const searchTerm = searchInput ? searchInput.value.trim() : '';
             if (searchTerm) params.set('search', searchTerm);
 
-            const firstSeenSelect = document.getElementById('first-seen-filter');
-            const firstSeenValue = firstSeenSelect ? firstSeenSelect.value : '';
-            if (firstSeenValue) params.set('first_seen', firstSeenValue);
+            if (firstSeenTouched) {
+                params.set('first_seen', FIRST_SEEN_LEVELS[parseInt(document.getElementById('first-seen-slider').value, 10) - 1]);
+            }
 
             return '/api/devices?' + params.toString();
         }
 
-        function onFirstSeenFilterChange() {
+        // Levels 1-6 on the "First seen within" slider. Untouched (the
+        // default) applies no filter at all -- only once the operator
+        // actually drags it does it start narrowing to "first seen within
+        // this window", same spirit as the Sightings/RSSI sliders but
+        // those have a naturally permissive end (1 sighting / -100 dBm
+        // effectively shows everyone); first-seen has no such end since
+        // even the loosest window (30d) would hide long-established
+        // devices, so it stays off until deliberately touched.
+        const FIRST_SEEN_LEVELS = ['6h', '12h', '24h', '48h', '7d', '30d'];
+        const FIRST_SEEN_LABELS = ['6h', '12h', '24h', '48h', 'this week', 'this month'];
+        let firstSeenTouched = false;
+
+        function onFirstSeenSliderChange() {
+            firstSeenTouched = true;
+            const level = parseInt(document.getElementById('first-seen-slider').value, 10);
+            document.getElementById('first-seen-slider-value').textContent = FIRST_SEEN_LABELS[level - 1];
             pagination.page = 1;
             refreshDevices();
         }
@@ -4766,16 +4778,6 @@ LIVE_TEMPLATE = """
                 </div>
             </div>
 
-            <div class="panel">
-                <div class="panel-header">First Seen</div>
-                <select class="form-input" id="first-seen-filter" style="font-size: 0.75rem; width: 100%;" onchange="onFirstSeenFilterChange()">
-                    <option value="">Any time</option>
-                    <option value="1d">New today (last 24h)</option>
-                    <option value="7d">New this week</option>
-                    <option value="30d">New this month</option>
-                    <option value="older_30d">Established (30d+ ago)</option>
-                </select>
-            </div>
         </aside>
 
         <main class="content">
@@ -4799,6 +4801,11 @@ LIVE_TEMPLATE = """
                         <input type="checkbox" id="hide-categorized-toggle" onchange="toggleHideCategorized()">
                         Hide categorized devices
                     </label>
+                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                        <span class="stat-label">First seen within</span>
+                        <input type="range" id="first-seen-slider" min="1" max="6" step="1" value="6" oninput="onFirstSeenSliderChange()" style="width: 120px;">
+                        <span id="first-seen-slider-value" style="font-size: 0.75rem; color: var(--text-primary); min-width: 4rem;">off</span>
+                    </div>
                 </div>
                 <div style="display: flex; align-items: center; gap: 1.25rem; flex-wrap: wrap;">
                     <div style="display: flex; align-items: center; gap: 0.75rem;">
@@ -4989,14 +4996,29 @@ LIVE_TEMPLATE = """
             const searchTerm = searchInput ? searchInput.value.trim() : '';
             if (searchTerm) params.set('search', searchTerm);
 
-            const firstSeenSelect = document.getElementById('first-seen-filter');
-            const firstSeenValue = firstSeenSelect ? firstSeenSelect.value : '';
-            if (firstSeenValue) params.set('first_seen', firstSeenValue);
+            if (firstSeenTouched) {
+                params.set('first_seen', FIRST_SEEN_LEVELS[parseInt(document.getElementById('first-seen-slider').value, 10) - 1]);
+            }
 
             return '/api/devices?' + params.toString();
         }
 
-        function onFirstSeenFilterChange() {
+        // Levels 1-6 on the "First seen within" slider. Untouched (the
+        // default) applies no filter at all -- only once the operator
+        // actually drags it does it start narrowing to "first seen within
+        // this window", same spirit as the Sightings/RSSI sliders but
+        // those have a naturally permissive end (1 sighting / -100 dBm
+        // effectively shows everyone); first-seen has no such end since
+        // even the loosest window (30d) would hide long-established
+        // devices, so it stays off until deliberately touched.
+        const FIRST_SEEN_LEVELS = ['6h', '12h', '24h', '48h', '7d', '30d'];
+        const FIRST_SEEN_LABELS = ['6h', '12h', '24h', '48h', 'this week', 'this month'];
+        let firstSeenTouched = false;
+
+        function onFirstSeenSliderChange() {
+            firstSeenTouched = true;
+            const level = parseInt(document.getElementById('first-seen-slider').value, 10);
+            document.getElementById('first-seen-slider-value').textContent = FIRST_SEEN_LABELS[level - 1];
             pagination.page = 1;
             refreshDevices();
         }

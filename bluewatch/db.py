@@ -548,7 +548,7 @@ def _randomized_mac_sql(column: str) -> str:
     )
 
 
-_FIRST_SEEN_FILTER_DAYS = {"1d": 1, "7d": 7, "30d": 30}
+_FIRST_SEEN_FILTER_HOURS = {"6h": 6, "12h": 12, "24h": 24, "48h": 48, "7d": 7 * 24, "30d": 30 * 24}
 
 
 def _build_device_query_filters(
@@ -564,15 +564,13 @@ def _build_device_query_filters(
 ) -> tuple[str, list]:
     """Build WHERE clause and parameters for device list queries.
 
-    first_seen_filter narrows by how long ago a device was first seen --
-    "1d"/"7d"/"30d" keep only devices first seen within that many days
-    (surfaces genuinely new devices), "older_30d" keeps only devices
-    first seen more than 30 days ago (the inverse -- established devices,
-    useful for filtering out one-off randomized-MAC noise when triaging
-    a long "Unknown" queue). Unrecognized/absent values apply no filter.
-    Cutoffs are computed in Python (like active_within_seconds below)
-    rather than via SQL datetime('now'), which is UTC and would drift
-    against first_seen's local-time-formatted values.
+    first_seen_filter narrows to devices first seen within a given
+    window -- "6h"/"12h"/"24h"/"48h"/"7d"/"30d" (the "First seen within"
+    slider's 6 levels), surfacing genuinely new devices. Unrecognized/
+    absent values apply no filter. Cutoffs are computed in Python (like
+    active_within_seconds below) rather than via SQL datetime('now'),
+    which is UTC and would drift against first_seen's local-time-
+    formatted values.
 
     active_within_seconds, when given, restricts to devices last seen in
     that window (the "live/nearby now" view) and implies show_all -- a
@@ -631,12 +629,8 @@ def _build_device_query_filters(
         conditions.append("d.last_seen >= ?")
         params.append(cutoff)
 
-    if first_seen_filter == "older_30d":
-        cutoff = (datetime.now() - timedelta(days=30)).isoformat()
-        conditions.append("COALESCE(d.first_seen, '') != '' AND d.first_seen < ?")
-        params.append(cutoff)
-    elif first_seen_filter in _FIRST_SEEN_FILTER_DAYS:
-        cutoff = (datetime.now() - timedelta(days=_FIRST_SEEN_FILTER_DAYS[first_seen_filter])).isoformat()
+    if first_seen_filter in _FIRST_SEEN_FILTER_HOURS:
+        cutoff = (datetime.now() - timedelta(hours=_FIRST_SEEN_FILTER_HOURS[first_seen_filter])).isoformat()
         conditions.append("d.first_seen >= ?")
         params.append(cutoff)
 
