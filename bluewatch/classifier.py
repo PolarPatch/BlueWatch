@@ -1210,19 +1210,59 @@ def classify_device(
     return TYPE_UNKNOWN
 
 
+
+# User-defined types (e.g. a "Lawnmower" category for a robotic mower),
+# managed via the Config > Classes UI and stored in the `custom_types` DB
+# table. Kept as an in-process cache rather than a DB round-trip per
+# lookup, since get_type_icon()/get_type_label() are plain sync functions
+# called once per device in tight list-rendering loops (see server.py).
+# The daemon and web server share one process/event loop, so a single
+# in-memory dict here is visible to both -- db.py's custom-type CRUD
+# functions call set_custom_types() after every mutation to resync it.
+_CUSTOM_TYPE_ICONS: dict = {}
+_CUSTOM_TYPE_LABELS: dict = {}
+
+
+def set_custom_types(types: list) -> None:
+    """Replace the in-process custom-type cache wholesale. `types` is an
+    iterable of (key, icon, label) tuples -- called at startup (loaded
+    from the DB) and after any Config > Classes add/edit/delete."""
+    _CUSTOM_TYPE_ICONS.clear()
+    _CUSTOM_TYPE_LABELS.clear()
+    for key, icon, label in types:
+        _CUSTOM_TYPE_ICONS[key] = icon
+        _CUSTOM_TYPE_LABELS[key] = label
+
+
+def is_builtin_type(device_type: str) -> bool:
+    """True if `device_type` is one of the hardcoded TYPE_* constants
+    above, as opposed to a user-defined custom type -- used to keep a
+    new custom type's key from colliding with a built-in one."""
+    return device_type in TYPE_LABELS
+
+
 def get_type_icon(device_type: str) -> str:
-    """Get the icon for a device type."""
-    return TYPE_ICONS.get(device_type, TYPE_ICONS[TYPE_UNKNOWN])
+    """Get the icon for a device type (built-in or user-defined)."""
+    if device_type in TYPE_ICONS:
+        return TYPE_ICONS[device_type]
+    return _CUSTOM_TYPE_ICONS.get(device_type, TYPE_ICONS[TYPE_UNKNOWN])
 
 
 def get_type_label(device_type: str) -> str:
-    """Get the human-readable label for a device type."""
-    return TYPE_LABELS.get(device_type, TYPE_LABELS[TYPE_UNKNOWN])
+    """Get the human-readable label for a device type (built-in or user-defined)."""
+    if device_type in TYPE_LABELS:
+        return TYPE_LABELS[device_type]
+    return _CUSTOM_TYPE_LABELS.get(device_type, TYPE_LABELS[TYPE_UNKNOWN])
 
 
 def get_all_types() -> list[tuple[str, str, str]]:
-    """Get all device types with their icons and labels."""
-    return [
+    """Get all device types (built-in and user-defined) with their icons and labels."""
+    types = [
         (dtype, TYPE_ICONS[dtype], TYPE_LABELS[dtype])
         for dtype in TYPE_LABELS.keys()
     ]
+    types.extend(
+        (key, _CUSTOM_TYPE_ICONS[key], _CUSTOM_TYPE_LABELS[key])
+        for key in _CUSTOM_TYPE_LABELS.keys()
+    )
+    return types

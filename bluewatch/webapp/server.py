@@ -6,6 +6,7 @@ import io
 import json
 import logging
 import math
+import re
 import secrets
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -111,6 +112,10 @@ class WebServer:
         self.app.router.add_put("/api/groups/{group_id}", self.api_update_group)
         self.app.router.add_post("/api/groups/{group_id}/reparent", self.api_reparent_group)
         self.app.router.add_delete("/api/groups/{group_id}", self.api_delete_group)
+        self.app.router.add_get("/api/custom-types", self.api_get_custom_types)
+        self.app.router.add_post("/api/custom-types", self.api_create_custom_type)
+        self.app.router.add_put("/api/custom-types/{key}", self.api_update_custom_type)
+        self.app.router.add_delete("/api/custom-types/{key}", self.api_delete_custom_type)
 
         self.app.router.add_get("/api/irk-keys", self.api_get_irk_keys)
         self.app.router.add_post("/api/irk-keys", self.api_add_irk_key)
@@ -1284,6 +1289,72 @@ class WebServer:
         try:
             group_id = int(request.match_info["group_id"])
             await db.delete_group(group_id)
+            return web.json_response({"status": "ok"})
+        except Exception as e:
+            return web.json_response({"error": str(e)}, status=400)
+
+    async def _resync_custom_types(self) -> None:
+        """Reloads classifier.py's in-process custom-type cache after any
+        Config > Classes mutation, so get_type_icon()/get_type_label()/
+        classify_device() see the change immediately (same process as
+        the daemon -- no restart needed)."""
+        from ..classifier import set_custom_types
+        custom_types = await db.get_custom_types()
+        set_custom_types([(t["key"], t["icon"], t["label"]) for t in custom_types])
+
+    async def api_get_custom_types(self, request: web.Request) -> web.Response:
+        """User-defined device classification types (Config > Classes),
+        e.g. a "Lawnmower" category for a robotic mower -- on top of the
+        built-in types classify_device() already knows about."""
+        custom_types = await db.get_custom_types()
+        return web.json_response({"types": custom_types})
+
+    async def api_create_custom_type(self, request: web.Request) -> web.Response:
+        try:
+            data = await request.json()
+            label = (data.get("label") or "").strip()
+            icon = (data.get("icon") or "").strip() or "[???]"
+            if not label:
+                return web.json_response({"error": "Label is required"}, status=400)
+
+            slug = re.sub(r"[^a-z0-9]+", "_", label.lower()).strip("_")
+            if not slug:
+                return web.json_response({"error": "Label must contain at least one letter or digit"}, status=400)
+
+            valid_types = {t for t, _, _ in get_all_types()}
+            if slug in valid_types:
+                return web.json_response({"error": f'A type "{slug}" already exists'}, status=400)
+
+            await db.add_custom_type(slug, icon, label)
+            await self._resync_custom_types()
+            return web.json_response({"key": slug, "icon": icon, "label": label})
+        except Exception as e:
+            return web.json_response({"error": str(e)}, status=400)
+
+    async def api_update_custom_type(self, request: web.Request) -> web.Response:
+        try:
+            key = request.match_info["key"]
+            existing = {t["key"] for t in await db.get_custom_types()}
+            if key not in existing:
+                return web.json_response({"error": "Class not found"}, status=404)
+
+            data = await request.json()
+            label = (data.get("label") or "").strip()
+            icon = (data.get("icon") or "").strip() or "[???]"
+            if not label:
+                return web.json_response({"error": "Label is required"}, status=400)
+
+            await db.update_custom_type(key, icon, label)
+            await self._resync_custom_types()
+            return web.json_response({"key": key, "icon": icon, "label": label})
+        except Exception as e:
+            return web.json_response({"error": str(e)}, status=400)
+
+    async def api_delete_custom_type(self, request: web.Request) -> web.Response:
+        try:
+            key = request.match_info["key"]
+            await db.delete_custom_type(key)
+            await self._resync_custom_types()
             return web.json_response({"status": "ok"})
         except Exception as e:
             return web.json_response({"error": str(e)}, status=400)
