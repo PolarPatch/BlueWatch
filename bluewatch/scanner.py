@@ -91,6 +91,7 @@ class ScannedDevice:
     device_class: Optional[int] = None  # Classic Bluetooth device class
     manufacturer_data: dict = None  # company_id (int) -> raw payload bytes
     service_data: dict = None  # service UUID (str) -> raw payload bytes -- e.g. Fast Pair's 3-byte Model ID under 0xFE2C
+    appearance: Optional[int] = None  # GAP Appearance (AD type 0x19) -- a standardized Bluetooth SIG device-category code
 
     def __post_init__(self):
         if self.service_uuids is None:
@@ -99,6 +100,25 @@ class ScannedDevice:
             self.manufacturer_data = {}
         if self.service_data is None:
             self.service_data = {}
+
+
+def _extract_appearance(adv_data) -> Optional[int]:
+    """Pull the GAP Appearance value (a standardized Bluetooth SIG 16-bit
+    device-category code, e.g. "Watch" or "Heart Rate Sensor") out of
+    bleak's AdvertisementData. bleak doesn't parse this into a normal
+    field -- on the BlueZ backend it's only reachable via the raw D-Bus
+    properties dict in `platform_data` (BlueZ's Device1.Appearance
+    property), and only present at all if the peripheral chose to
+    include AD type 0x19 in its advertisement. Source: noticing
+    blesploit's device_type_meta manifest uses exactly this field for a
+    generic vendor-independent device-type guess, which BlueWatch wasn't
+    using at all."""
+    try:
+        _, props = adv_data.platform_data
+        appearance = props.get("Appearance")
+        return int(appearance) if appearance is not None else None
+    except (AttributeError, TypeError, ValueError):
+        return None
 
 
 def parse_device_class(device_class: int) -> tuple[str, Optional[str]]:
@@ -545,6 +565,7 @@ class BluetoothScanner:
                 bt_type="ble",
                 manufacturer_data=manufacturer_data,
                 service_data=service_data,
+                appearance=_extract_appearance(adv_data),
             ))
         return devices
 
@@ -595,6 +616,7 @@ class BluetoothScanner:
                     bt_type="ble",
                     manufacturer_data=manufacturer_data,
                     service_data=service_data,
+                    appearance=_extract_appearance(adv_data),
                 ))
 
             logger.debug(f"BLE scan: found {len(devices)} devices")
