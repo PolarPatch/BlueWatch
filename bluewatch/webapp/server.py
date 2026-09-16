@@ -226,6 +226,10 @@ class WebServer:
 
         only_uncategorized = request.query.get("only_uncategorized") == "1"
 
+        first_seen_filter = request.query.get("first_seen") or None
+        if first_seen_filter not in ("1d", "7d", "30d", "older_30d"):
+            first_seen_filter = None
+
         active_within_seconds = None
         raw_active_within = request.query.get("active_within")
         if raw_active_within:
@@ -253,6 +257,7 @@ class WebServer:
             group_ids=group_ids,
             only_uncategorized=only_uncategorized,
             active_within_seconds=active_within_seconds,
+            first_seen_filter=first_seen_filter,
         )
         stats = await db.get_dashboard_stats(include_ignored=True)
 
@@ -272,6 +277,7 @@ class WebServer:
                 only_uncategorized=only_uncategorized,
                 active_within_seconds=active_within_seconds,
                 exclude_randomized=exclude_randomized,
+                first_seen_filter=first_seen_filter,
             )
 
         device_list = []

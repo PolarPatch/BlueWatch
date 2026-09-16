@@ -548,6 +548,9 @@ def _randomized_mac_sql(column: str) -> str:
     )
 
 
+_FIRST_SEEN_FILTER_DAYS = {"1d": 1, "7d": 7, "30d": 30}
+
+
 def _build_device_query_filters(
     include_ignored: bool,
     device_filter: str,
@@ -557,8 +560,19 @@ def _build_device_query_filters(
     show_all: bool = False,
     only_uncategorized: bool = False,
     active_within_seconds: Optional[int] = None,
+    first_seen_filter: Optional[str] = None,
 ) -> tuple[str, list]:
     """Build WHERE clause and parameters for device list queries.
+
+    first_seen_filter narrows by how long ago a device was first seen --
+    "1d"/"7d"/"30d" keep only devices first seen within that many days
+    (surfaces genuinely new devices), "older_30d" keeps only devices
+    first seen more than 30 days ago (the inverse -- established devices,
+    useful for filtering out one-off randomized-MAC noise when triaging
+    a long "Unknown" queue). Unrecognized/absent values apply no filter.
+    Cutoffs are computed in Python (like active_within_seconds below)
+    rather than via SQL datetime('now'), which is UTC and would drift
+    against first_seen's local-time-formatted values.
 
     active_within_seconds, when given, restricts to devices last seen in
     that window (the "live/nearby now" view) and implies show_all -- a
@@ -617,6 +631,15 @@ def _build_device_query_filters(
         conditions.append("d.last_seen >= ?")
         params.append(cutoff)
 
+    if first_seen_filter == "older_30d":
+        cutoff = (datetime.now() - timedelta(days=30)).isoformat()
+        conditions.append("COALESCE(d.first_seen, '') != '' AND d.first_seen < ?")
+        params.append(cutoff)
+    elif first_seen_filter in _FIRST_SEEN_FILTER_DAYS:
+        cutoff = (datetime.now() - timedelta(days=_FIRST_SEEN_FILTER_DAYS[first_seen_filter])).isoformat()
+        conditions.append("d.first_seen >= ?")
+        params.append(cutoff)
+
     # Collapse identity-clustered MAC-rotation siblings to a single
     # representative row (the most recently seen MAC in the group) --
     # devices with no identity_id are unaffected.
@@ -644,6 +667,7 @@ _DEVICE_SORT_MAP = {
     "identifier": "COALESCE(d.friendly_name, '')",
     "sightings": "d.total_sightings",
     "last_seen": "COALESCE(d.last_seen, '')",
+    "first_seen": "COALESCE(d.first_seen, '')",
     "rssi": "(SELECT s.rssi FROM sightings s WHERE s.mac = d.mac ORDER BY s.timestamp DESC LIMIT 1)",
     "group": "COALESCE(g.name, '')",
 }
@@ -662,6 +686,7 @@ async def get_devices_page(
     show_all: bool = False,
     only_uncategorized: bool = False,
     active_within_seconds: Optional[int] = None,
+    first_seen_filter: Optional[str] = None,
 ) -> tuple[list[Device], int]:
     """Get a single page of devices and total count for the current query."""
     safe_page = max(1, page)
@@ -680,6 +705,7 @@ async def get_devices_page(
         show_all=show_all,
         active_within_seconds=active_within_seconds,
         only_uncategorized=only_uncategorized,
+        first_seen_filter=first_seen_filter,
     )
 
     base_query = "FROM devices d LEFT JOIN device_groups g ON g.id = d.group_id"
