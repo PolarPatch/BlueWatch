@@ -3326,21 +3326,45 @@ SETTINGS_TEMPLATE = """
                 const response = await fetch('/api/devices?filter=watched&page_size=250&sort=last_seen&direction=desc');
                 const data = await response.json();
                 const devices = data.devices || [];
+                el.textContent = '';
                 if (devices.length === 0) {
-                    el.innerHTML = '<div class="form-hint">No devices are currently watched.</div>';
+                    var empty = document.createElement('div');
+                    empty.className = 'form-hint';
+                    empty.textContent = 'No devices are currently watched.';
+                    el.appendChild(empty);
                     return;
                 }
-                el.innerHTML = devices.map(function(d) {
+                devices.forEach(function(d) {
                     const name = d.friendly_name || d.vendor || d.mac;
-                    return '<div style="display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.4rem 0.6rem; background: var(--bg-secondary); border-radius: 6px;">'
-                        + '<div style="min-width: 0;">'
-                        + '<div style="font-size: 0.85rem; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">' + (d.type_icon || '') + ' ' + name + '</div>'
-                        + '<div style="font-size: 0.7rem; color: var(--text-muted);">' + d.mac + '</div>'
-                        + '</div>'
-                        + '<button type="button" class="btn" onclick="unwatchDevice(\\'' + d.mac + '\\')" style="flex: 0 0 auto;">Remove</button>'
-                        + '</div>';
-                }).join('');
-            } catch (error) { el.innerHTML = '<div class="form-hint">Error loading watched devices.</div>'; }
+                    var row = document.createElement('div');
+                    row.style.cssText = 'display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.4rem 0.6rem; background: var(--bg-secondary); border-radius: 6px;';
+                    var info = document.createElement('div');
+                    info.style.cssText = 'min-width: 0;';
+                    var nameLine = document.createElement('div');
+                    nameLine.style.cssText = 'font-size: 0.85rem; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;';
+                    nameLine.textContent = (d.type_icon || '') + ' ' + name;
+                    var macLine = document.createElement('div');
+                    macLine.style.cssText = 'font-size: 0.7rem; color: var(--text-muted);';
+                    macLine.textContent = d.mac;
+                    info.appendChild(nameLine);
+                    info.appendChild(macLine);
+                    var removeBtn = document.createElement('button');
+                    removeBtn.type = 'button';
+                    removeBtn.className = 'btn';
+                    removeBtn.style.cssText = 'flex: 0 0 auto;';
+                    removeBtn.textContent = 'Remove';
+                    removeBtn.addEventListener('click', function() { unwatchDevice(d.mac); });
+                    row.appendChild(info);
+                    row.appendChild(removeBtn);
+                    el.appendChild(row);
+                });
+            } catch (error) {
+                el.textContent = '';
+                var errEl = document.createElement('div');
+                errEl.className = 'form-hint';
+                errEl.textContent = 'Error loading watched devices.';
+                el.appendChild(errEl);
+            }
         }
 
         async function unwatchDevice(mac) {
