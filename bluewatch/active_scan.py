@@ -28,6 +28,20 @@ CLASSIC_TIMEOUT = 15.0
 # sweep, which just picks back up on its own once this clears.
 SCAN_IN_PROGRESS = asyncio.Event()
 
+# The daemon registers its live ESP32Scanner instance here (see
+# daemon.py's _esp32_scanner_manager) whenever the optional ESP32-S3
+# second radio is enabled and connected, and clears it back to None when
+# disabled/disconnected -- this module has no other way to reach that
+# instance. When set, Scan Unit routes BLE polls through it instead of
+# the onboard adapter, which needs no SCAN_IN_PROGRESS pause at all
+# since the ESP32 is a fully independent USB radio.
+_esp32_scanner_ref = None
+
+
+def set_esp32_scanner(scanner) -> None:
+    global _esp32_scanner_ref
+    _esp32_scanner_ref = scanner
+
 # Device Information Service (0x180A) and its standard readable
 # characteristics -- the BLE analogue of an SDP service record, often
 # exposing manufacturer/model/serial/firmware in plain text.
@@ -66,7 +80,26 @@ async def poll_ble_device(mac: str, adapter: Optional[str] = None) -> dict:
     characteristics}), and `device_info` (readable Device Information
     Service values, if the device exposes one) -- or `ok: False` and an
     `error` message on failure/timeout.
+
+    If an ESP32-S3 second radio is enabled and connected, the connection
+    is made through it instead of the onboard adapter -- it's a fully
+    independent USB radio, so it never needs the SCAN_IN_PROGRESS pause
+    below at all (the passive continuous scan loop keeps running on the
+    onboard adapter the whole time). Falls straight through to the
+    onboard-adapter path (same priority-pause behavior as always) if no
+    ESP32 is registered right now -- an operator without the extra
+    hardware (or a temporarily disconnected one) sees no difference from
+    before.
     """
+    if _esp32_scanner_ref is not None and _esp32_scanner_ref.connected:
+        result = await _esp32_scanner_ref.connect_and_read(mac)
+        if not result.get("esp32_unreachable"):
+            # The ESP32 answered -- whether a successful read or a genuine
+            # "this device wouldn't connect" failure, that's the final
+            # answer; don't also spend an onboard-adapter attempt on it.
+            return result
+        logger.info(f"ESP32 scanner unreachable for Scan Unit ({result.get('error')}), falling back to onboard adapter")
+
     kwargs = {"timeout": BLE_TIMEOUT}
     if adapter:
         kwargs["adapter"] = adapter

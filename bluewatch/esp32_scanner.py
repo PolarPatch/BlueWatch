@@ -2,22 +2,29 @@
 https://github.com/blesploit/esp32-firmware, MIT licensed) reached over its
 USB-CDC-Ethernet link and its WebSocket observer API.
 
-The firmware only relays raw advertisement bytes -- it does no
-identification of its own -- so this module's job is (1) speak the
-WebSocket protocol to get those bytes, and (2) parse the standard BLE
-AD-structure envelope (length + type + data, repeated) into the same
-manufacturer_data / service_uuids / service_data / local_name / appearance
-shape bleak already hands the rest of BlueWatch, so `db.upsert_device()`
-and `classify_device()` don't need to know the data came from a second
-radio at all.
+Two independent things live here:
 
-Purely observational: this only ever starts/stops the firmware's scanner
-and reads what it reports. It never uses the firmware's `central` or
-`peripheral` capabilities (device connection, cloning/simulation), which
-are out of scope for BlueWatch.
+1. Passive background scanning (ESP32Scanner) -- the firmware only relays
+   raw advertisement bytes for this, so this module parses the standard
+   BLE AD-structure envelope (length + type + data, repeated) into the
+   same manufacturer_data / service_uuids / service_data / local_name /
+   appearance shape bleak already hands the rest of BlueWatch, so
+   `db.upsert_device()` and `classify_device()` don't need to know the
+   data came from a second radio at all.
+
+2. On-demand "Scan Unit" GATT reads (poll_ble_device_via_esp32) -- the
+   same one-shot, read-only service/characteristic enumeration
+   active_scan.py already does against the onboard adapter via bleak,
+   just issued through the ESP32's `scanner`/`connect` command instead.
+   This is the *only* connection-forming operation used here, and it
+   mirrors an existing BlueWatch feature exactly (identification only,
+   one operator-triggered device at a time, no persistent link kept
+   afterward) -- the firmware's `central` library-session and
+   `peripheral` simulation capabilities are still never touched.
 """
 
 import asyncio
+import json
 import logging
 import time
 from typing import Callable, Optional
@@ -30,6 +37,7 @@ logger = logging.getLogger(__name__)
 
 _RECONNECT_DELAY = 10  # seconds between reconnect attempts when the ESP32 is unreachable
 _STALE_AFTER = 300  # seconds -- drop devices from the snapshot if not re-seen this long
+_CONNECT_TIMEOUT = 25.0  # overall wait for a Scan Unit scan_discovery_result / failure
 
 
 def _base_uuid_from_16bit(value: int) -> str:
@@ -144,6 +152,16 @@ class ESP32Scanner:
         self._task: Optional[asyncio.Task] = None
         self._running = False
         self.connected = False
+        self._ws = None  # the active ClientWebSocketResponse, set only while connected
+        # A Scan Unit "connect and read GATT" request in flight on this
+        # SAME connection -- the firmware only accepts one WebSocket
+        # client at a time (confirmed live: a second connection gets
+        # closed immediately), so Scan Unit has to share this persistent
+        # link rather than opening its own. Only one such request can be
+        # in flight at once anyway (matches active_scan.py's existing
+        # one-at-a-time design), so a single pending future is enough --
+        # no request-id bookkeeping needed.
+        self._pending_connect: Optional[asyncio.Future] = None
 
     def start(self) -> None:
         if self._task is not None:
@@ -191,23 +209,88 @@ class ESP32Scanner:
                 session.ws_connect(url, heartbeat=30), timeout=10,
             ) as ws:
                 self.connected = True
+                self._ws = ws
                 logger.info(f"ESP32 scanner connected ({url})")
                 await ws.send_json({"type": "scanner", "action": "start"})
-                async for msg in ws:
-                    if not self._running:
-                        break
-                    if msg.type == aiohttp.WSMsgType.TEXT:
-                        self._handle_message(msg.data)
-                    elif msg.type in (aiohttp.WSMsgType.ERROR, aiohttp.WSMsgType.CLOSED):
-                        break
+                try:
+                    async for msg in ws:
+                        if not self._running:
+                            break
+                        if msg.type == aiohttp.WSMsgType.TEXT:
+                            self._handle_message(msg.data)
+                        elif msg.type in (aiohttp.WSMsgType.ERROR, aiohttp.WSMsgType.CLOSED):
+                            break
+                finally:
+                    self._ws = None
+                    if self._pending_connect is not None and not self._pending_connect.done():
+                        self._pending_connect.set_result(
+                            {"ok": False, "error": "ESP32 connection closed unexpectedly.", "esp32_unreachable": True}
+                        )
+
+    async def connect_and_read(self, mac: str, timeout: float = _CONNECT_TIMEOUT) -> dict:
+        """Scan Unit entry point: connect to `mac` through this ESP32 and
+        enumerate its GATT services/characteristics, on the SAME
+        persistent connection background scanning uses (see the
+        firmware single-client note above). Mirrors
+        active_scan.poll_ble_device()'s bleak-based result shape
+        exactly, so callers don't need to know which radio answered."""
+        if not self.connected or self._ws is None:
+            return {"ok": False, "error": "ESP32 scanner not connected", "esp32_unreachable": True}
+        if self._pending_connect is not None and not self._pending_connect.done():
+            return {"ok": False, "error": "ESP32 is already busy with another Scan Unit request"}
+
+        loop = asyncio.get_event_loop()
+        future: asyncio.Future = loop.create_future()
+        self._pending_connect = future
+        try:
+            # Stop-before-connect: the ESP32's single BLE radio can't
+            # service a GATT connect while its own scanner is running
+            # (confirmed live -- a connect attempt during an active scan
+            # never got a reply). Scanning resumes in the finally block
+            # below; ESP32Scanner's normal message loop above just picks
+            # scan_device advertisements back up automatically, no
+            # reconnect needed.
+            await self._ws.send_json({"type": "scanner", "action": "stop"})
+            await self._ws.send_json({"type": "scanner", "action": "connect", "addr": mac, "read_values": True})
+            try:
+                return await asyncio.wait_for(future, timeout=timeout)
+            except asyncio.TimeoutError:
+                return {"ok": False, "error": "Timed out waiting for the ESP32 to finish connecting."}
+        except (OSError, aiohttp.ClientError) as e:
+            return {"ok": False, "error": f"Could not reach the ESP32 scanner: {e}", "esp32_unreachable": True}
+        finally:
+            self._pending_connect = None
+            if self.connected and self._ws is not None:
+                try:
+                    await self._ws.send_json({"type": "scanner", "action": "start"})
+                except Exception:
+                    pass
 
     def _handle_message(self, raw: str) -> None:
-        import json
         try:
             data = json.loads(raw)
         except json.JSONDecodeError:
             return
-        if data.get("type") != "scan_device":
+
+        msg_type = data.get("type")
+        if self._pending_connect is not None and not self._pending_connect.done():
+            if msg_type == "scan_discovery_result":
+                self._pending_connect.set_result(_parse_discovery_result(data))
+                return
+            if msg_type == "connection_progress":
+                status = (data.get("status") or "").lower()
+                if any(word in status for word in ("fail", "error", "timeout", "timed out")):
+                    self._pending_connect.set_result(
+                        {"ok": False, "error": data.get("detail") or f"Connection {data.get('status')}"}
+                    )
+                    return
+            elif msg_type == "smp" and str(data.get("status")).lower() == "failed":
+                self._pending_connect.set_result(
+                    {"ok": False, "error": data.get("detail") or "Pairing/authentication failed"}
+                )
+                return
+
+        if msg_type != "scan_device":
             return
 
         addr = data.get("addr")
@@ -257,3 +340,81 @@ class ESP32Scanner:
                 appearance=merged["appearance"],
             ))
         return devices
+
+
+# ---------------------------------------------------------------------------
+# Shared helpers for parsing the ESP32's `scan_discovery_result` (used by
+# ESP32Scanner.connect_and_read() above, over its persistent connection --
+# see the firmware single-client note there for why this isn't a separate
+# one-shot connection). See
+# https://github.com/blesploit/esp32-firmware/blob/main/docs/API.md
+# ("Client -> server (by type)" / `scanner` `connect`, and
+# `scan_discovery_result`), verified against the live device.
+
+_BLE_PROPERTY_BITS = [
+    (0x01, "broadcast"),
+    (0x02, "read"),
+    (0x04, "write-without-response"),
+    (0x08, "write"),
+    (0x10, "notify"),
+    (0x20, "indicate"),
+    (0x40, "authenticated-signed-writes"),
+    (0x80, "extended-properties"),
+]
+
+
+def _decode_properties(bitmask) -> list:
+    if not isinstance(bitmask, int):
+        return []
+    return [name for bit, name in _BLE_PROPERTY_BITS if bitmask & bit]
+
+
+def _expand_uuid(short: str) -> str:
+    """The ESP32 reports 16-/32-bit UUIDs as bare hex ("180a", "2a29")
+    rather than the full 128-bit base-UUID string form the rest of
+    BlueWatch (and bleak) uses -- expand so lookups against
+    DEVICE_INFO_CHARACTERISTICS and friends still match. A already-full
+    (128-bit, has dashes) UUID is returned unchanged."""
+    s = (short or "").strip().lower()
+    if len(s) == 4:
+        return f"0000{s}-0000-1000-8000-00805f9b34fb"
+    if len(s) == 8 and "-" not in s:
+        return f"{s}-0000-1000-8000-00805f9b34fb"
+    return s
+
+
+def _parse_discovery_result(data: dict) -> dict:
+    """Reshape a `scan_discovery_result` message into the exact
+    {ok, services, device_info} shape active_scan.poll_ble_device()
+    already returns from the bleak-based path, so callers don't need to
+    know which radio actually answered."""
+    rc = data.get("rc")
+    if rc not in (0, None) or data.get("viable") is False:
+        return {"ok": False, "error": f"Device connection failed (rc={rc})"}
+
+    from .active_scan import DEVICE_INFO_CHARACTERISTICS
+
+    services = []
+    device_info = {}
+    for svc in data.get("services", []):
+        svc_uuid = _expand_uuid(svc.get("uuid", ""))
+        chars = []
+        for c in svc.get("characteristics", []):
+            value_obj = c.get("value") or {}
+            char_uuid = _expand_uuid(value_obj.get("uuid") or c.get("uuid", ""))
+            entry = {"uuid": char_uuid, "properties": _decode_properties(c.get("properties"))}
+            hex_data = value_obj.get("data")
+            if hex_data:
+                entry["value"] = hex_data
+                readable_name = DEVICE_INFO_CHARACTERISTICS.get(char_uuid)
+                if readable_name:
+                    try:
+                        device_info[readable_name] = bytes.fromhex(hex_data).decode("utf-8").strip("\x00")
+                    except (UnicodeDecodeError, ValueError):
+                        device_info[readable_name] = hex_data
+            chars.append(entry)
+        services.append({"uuid": svc_uuid, "description": None, "characteristics": chars})
+
+    return {"ok": True, "services": services, "device_info": device_info}
+
+

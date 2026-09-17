@@ -239,9 +239,11 @@ class BlueWatchDaemon:
                     if self._esp32_scanner is not None:
                         await self._esp32_scanner.stop()
                         self._esp32_scanner = None
+                        active_scan.set_esp32_scanner(None)
                     if enabled:
                         self._esp32_scanner = ESP32Scanner(host=host, vendor_lookup=self.scanner._get_vendor)
                         self._esp32_scanner.start()
+                        active_scan.set_esp32_scanner(self._esp32_scanner)
                     self._esp32_config = current
             except Exception as e:
                 logger.warning(f"ESP32 scanner manager error: {e}")
@@ -313,6 +315,7 @@ class BlueWatchDaemon:
         if self._esp32_scanner is not None:
             await self._esp32_scanner.stop()
             self._esp32_scanner = None
+            active_scan.set_esp32_scanner(None)
 
         # Close HTTP session
         if self._http_session:
