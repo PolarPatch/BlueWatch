@@ -205,6 +205,7 @@ class BluetoothScanner:
         self._vendors_updated = False
         self._vendor_update_task: Optional[asyncio.Task] = None
         self._ble_stuck = False
+        self._recovery_cooldown_until = 0.0  # monotonic time; see _recover_and_exit()
         # maclookup.app CSV: prefix (no colons, uppercase hex, variable
         # length -- 6/7/9 hex chars for MA-L/MA-M/MA-S) -> vendor name.
         self._maclookup_table: dict[str, str] = {}
@@ -479,17 +480,26 @@ class BluetoothScanner:
         rfkill clears BlueZ state; exit clears leaked FDs.
 
         Crash-loop prevention: if uptime < 3 min, the previous restart
-        didn't help — sleep 5 min instead of exiting again.
+        didn't help — back off 5 min instead of exiting again. This
+        method runs inline in the async scan loop (called synchronously
+        from scan_ble(), not awaited), so the backoff can't be a blocking
+        time.sleep() -- that would freeze the *entire* event loop for 5
+        minutes: the web server, every other scan path (classic, ESP32),
+        and the systemd watchdog ping alike. Confirmed live: it did
+        exactly that, and the watchdog correctly killed the wedged
+        process once it stopped responding. Recorded as a cooldown
+        deadline instead -- scan_ble() checks it up front and returns
+        early (no-op) without blocking anything else.
         """
         uptime = time.monotonic() - _PROCESS_START
 
         if uptime < _MIN_UPTIME_FOR_EXIT:
             logger.warning(
                 f"BLE stuck right after start (uptime {uptime:.0f}s). "
-                f"Sleeping {_BACKOFF_SLEEP}s before retrying."
+                f"Backing off {_BACKOFF_SLEEP}s before retrying."
             )
             self._ble_stuck = False
-            time.sleep(_BACKOFF_SLEEP)
+            self._recovery_cooldown_until = time.monotonic() + _BACKOFF_SLEEP
             return
 
         logger.critical(
@@ -580,8 +590,12 @@ class BluetoothScanner:
 
         devices: list[ScannedDevice] = []
 
+        if time.monotonic() < self._recovery_cooldown_until:
+            return devices
+
         if self._ble_stuck:
             self._recover_and_exit()
+            return devices
 
         try:
             kwargs = {
