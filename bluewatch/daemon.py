@@ -23,6 +23,29 @@ from .esp32_scanner import ESP32Scanner
 from .web import WebServer
 from .notifications import NotificationManager
 
+def _sd_notify(message: str) -> None:
+    """Send a message to systemd over the $NOTIFY_SOCKET datagram socket
+    (sd_notify, e.g. "WATCHDOG=1") -- a no-op outside systemd (no env
+    var set) or on any error, so this is always safe to call. Talks to
+    the socket directly rather than pulling in the `sdnotify` package,
+    since the protocol is a single UDP-style datagram write."""
+    addr = os.environ.get("NOTIFY_SOCKET")
+    if not addr:
+        return
+    if addr.startswith("@"):
+        addr = "\0" + addr[1:]
+    try:
+        import socket
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+        try:
+            sock.connect(addr)
+            sock.sendall(message.encode())
+        finally:
+            sock.close()
+    except OSError:
+        pass
+
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
@@ -48,6 +71,7 @@ class BlueWatchDaemon:
         self._start_time = time.monotonic()
         self._esp32_scanner: ESP32Scanner | None = None
         self._esp32_config: tuple[bool, str] | None = None
+        self._last_scan_cycle = time.monotonic()
 
     @staticmethod
     async def _wait_for_bluetooth(max_wait: int = 120, interval: int = 5) -> None:
@@ -159,6 +183,7 @@ class BlueWatchDaemon:
         self.running = True
         self._http_session = aiohttp.ClientSession()
         asyncio.create_task(self._absence_check_loop())
+        asyncio.create_task(self._systemd_watchdog_loop())
         if self._metrics:
             asyncio.create_task(self._metrics_update_loop())
         asyncio.create_task(self._heartbeat_loop())
@@ -184,6 +209,22 @@ class BlueWatchDaemon:
                 await self.scanner.start_continuous_ble()
                 paused_for_scan_unit = False
             await asyncio.sleep(0.5)
+
+    async def _systemd_watchdog_loop(self) -> None:
+        """Pings systemd's watchdog (WatchdogSec in bluewatch.service)
+        only while _scan_loop is actually still cycling -- if the BLE
+        stack wedges on a D-Bus call that never raises or times out (so
+        neither an exception nor a process exit ever happens), this
+        simply stops pinging, and systemd kills and restarts the unit
+        once WatchdogSec elapses instead of leaving a hung process
+        serving a stale dashboard indefinitely. A no-op if the service
+        isn't running under systemd (NOTIFY_SOCKET unset) or has no
+        WatchdogSec configured."""
+        interval = 15
+        while self.running:
+            if time.monotonic() - self._last_scan_cycle < interval * 2:
+                _sd_notify("WATCHDOG=1")
+            await asyncio.sleep(interval)
 
     async def _esp32_scanner_manager(self) -> None:
         """Starts, stops, or reconfigures the optional ESP32-S3 second BLE
@@ -355,8 +396,8 @@ class BlueWatchDaemon:
                     "friendly_name": d.friendly_name,
                     "device_type": device_type,
                     "ignored": d.ignored,
-                    "first_seen": (d.first_seen.isoformat() + "Z") if d.first_seen else None,
-                    "last_seen": (d.last_seen.isoformat() + "Z") if d.last_seen else None,
+                    "first_seen": (d.first_seen.isoformat()) if d.first_seen else None,
+                    "last_seen": (d.last_seen.isoformat()) if d.last_seen else None,
                     "total_sightings": d.total_sightings,
                 })
 
@@ -403,7 +444,7 @@ class BlueWatchDaemon:
                     "status": "ok",
                     "sightings": [
                         {
-                            "timestamp": s.timestamp.isoformat() + "Z",
+                            "timestamp": s.timestamp.isoformat(),
                             "rssi": s.rssi,
                         }
                         for s in sightings
@@ -512,6 +553,13 @@ class BlueWatchDaemon:
         logger.info(f"Starting scan loop (interval: {SCAN_INTERVAL}s)")
 
         while self.running:
+            # Proves the loop itself is still executing each cycle (paused
+            # for a Scan Unit poll counts too) -- consumed by
+            # _systemd_watchdog_loop() below to tell "the process exists"
+            # apart from "the scan loop is actually alive", since a BLE
+            # D-Bus call hanging forever wouldn't raise or exit and so
+            # wouldn't trigger Restart=always on its own.
+            self._last_scan_cycle = time.monotonic()
             try:
                 # An operator-triggered Scan Unit poll gets priority over
                 # the background sweep -- skip starting a new passive
