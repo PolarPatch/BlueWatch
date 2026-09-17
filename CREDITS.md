@@ -92,3 +92,17 @@ tire-pressure sensor) is matched by advertised name only rather than
 its catalog company ID, since that ID resolves in the SIG registry to
 a shared chipset supplier (Salutica Allied Solutions) rather than FOBO
 itself.
+
+The new Smart Lock type (`TYPE_LOCK` in `bluewatch/classifier.py`,
+ASSA ABLOY/HID Global/Yale/SALTO/August/Allegion-Schlage company IDs),
+Flipper Zero's second, independent MAC-OUI signal (`0C:FA:22`), the
+UniFi Protect BLE setup-mode name pattern, and the cheap-BLE-serial-
+module skimmer patterns (HM-10, JDY-08/10/16/31, BT05, etc.) were also
+identified from OffGridPete/Fieldwatch's `DefaultCatalog.kt` -- the
+smart-lock company IDs were independently cross-verified against the
+Bluetooth SIG registry (all exact matches) and Flipper's OUI against
+IEEE's own MA-L registry and Wireshark's manuf database before being
+trusted. Fieldwatch's own bare `"ESP32"`/`"ESP32-*"` rule was
+deliberately left out of the skimmer patterns -- it's the default
+advertised name on countless unrelated hobbyist ESP32 projects, far
+too generic to flag without a high false-positive rate.

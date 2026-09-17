@@ -85,6 +85,7 @@ TYPE_BEACON = "beacon"
 TYPE_MESH = "mesh"
 TYPE_SKIMMER = "skimmer"
 TYPE_DRONE = "drone"
+TYPE_LOCK = "lock"
 TYPE_UNKNOWN = "unknown"
 
 # GAP Appearance (advertising AD type 0x19) is a Bluetooth SIG-standardized
@@ -204,6 +205,7 @@ TYPE_ICONS = {
     TYPE_MESH: "[MSH]",
     TYPE_SKIMMER: "[SKM]",
     TYPE_DRONE: "[UAS]",
+    TYPE_LOCK: "[LCK]",
     TYPE_UNKNOWN: "[---]",
 }
 
@@ -231,6 +233,7 @@ TYPE_LABELS = {
     TYPE_MESH: "Mesh Radio",
     TYPE_SKIMMER: "Possible Skimmer",
     TYPE_DRONE: "Drone (Remote ID)",
+    TYPE_LOCK: "Smart Lock",
     TYPE_UNKNOWN: "Unknown",
 }
 
@@ -239,8 +242,40 @@ TYPE_LABELS = {
 # see https://bitbucket.org/bluetooth-SIG/public/raw/main/assigned_numbers/company_identifiers/company_identifiers.yaml
 COMPANY_ID_APPLE = 0x004C
 COMPANY_ID_FLIPPER = 0x0E29
+# Flipper Devices' own IEEE MAC-OUI, independent of the company ID above --
+# some firmware/advert modes carry a fixed vendor MAC without the company-ID
+# manufacturer-data field, so this is checked as a second, unrelated signal
+# for the same device. Verified directly against IEEE's own MA-L registry
+# (standards-oui.ieee.org/oui/oui.csv) and Wireshark's manuf database.
+# Source: OffGridPete/Fieldwatch (MIT licensed).
+FLIPPER_MAC_OUI = "0C:FA:22"
 # Swapfiets e-bike lock (source: blesploit device-library)
 COMPANY_ID_SWAPFIETS = 0x020F
+# Smart-lock company IDs -- each names a lock maker specifically enough to
+# classify without a name/UUID check (unlike the generic vendor-company-ID
+# fallback map further down, these only ever mean "this is a smart lock").
+# Source: OffGridPete/Fieldwatch (MIT licensed), cross-verified against the
+# Bluetooth SIG's own company_identifiers registry (see URL above):
+#   0x012E -> "ASSA ABLOY" (exact match)
+#   0x0124 -> "HID Global" (exact match -- ASSA ABLOY subsidiary)
+#   0x0BDE -> "Yale" (exact match -- ASSA ABLOY brand)
+#   0x0199 -> "SALTO SYSTEMS S.L." (exact match)
+#   0x01D1 -> "August Home, Inc" (exact match)
+#   0x013B -> "Allegion" (exact match -- Schlage's parent company)
+COMPANY_ID_ASSA_ABLOY = 0x012E
+COMPANY_ID_HID_GLOBAL = 0x0124
+COMPANY_ID_YALE = 0x0BDE
+COMPANY_ID_SALTO = 0x0199
+COMPANY_ID_AUGUST = 0x01D1
+COMPANY_ID_ALLEGION = 0x013B
+SMART_LOCK_COMPANY_IDS = frozenset({
+    COMPANY_ID_ASSA_ABLOY,
+    COMPANY_ID_HID_GLOBAL,
+    COMPANY_ID_YALE,
+    COMPANY_ID_SALTO,
+    COMPANY_ID_AUGUST,
+    COMPANY_ID_ALLEGION,
+})
 COMPANY_ID_META_PLATFORMS = 0x01AB
 COMPANY_ID_META_PLATFORMS_TECH = 0x058E
 # Dedicated smart-glasses makers only -- deliberately not including
@@ -836,6 +871,11 @@ def classify_by_manufacturer_data(manufacturer_data: Optional[dict]) -> Optional
             or COMPANY_ID_EVEN_REALITIES in manufacturer_data or COMPANY_ID_VUZIX in manufacturer_data):
         return TYPE_GLASSES
 
+    # Smart-lock makers (source: OffGridPete/Fieldwatch -- see
+    # SMART_LOCK_COMPANY_IDS' comment above).
+    if SMART_LOCK_COMPANY_IDS.intersection(manufacturer_data.keys()):
+        return TYPE_LOCK
+
     ms_payload = manufacturer_data.get(COMPANY_ID_MICROSOFT)
     if ms_payload and len(ms_payload) >= 2 and ms_payload[0] == MS_SWIFT_PAIR_SCENARIO_TYPE:
         device_type_nibble = ms_payload[1] & 0x1F
@@ -1405,6 +1445,13 @@ def classify_device(
     if name and "huawei" in name.lower() and manufacturer_data and COMPANY_ID_HUAWEI in manufacturer_data:
         return TYPE_PHONE
 
+    # Flipper Devices' own MAC-OUI -- an independent signal from the
+    # company-ID check inside classify_by_manufacturer_data() below (some
+    # firmware/advert modes carry a fixed vendor MAC with no manufacturer-
+    # data field at all). See FLIPPER_MAC_OUI's comment above.
+    if mac and mac.upper().replace("-", ":").startswith(FLIPPER_MAC_OUI):
+        return TYPE_FLIPPER
+
     # Manufacturer-data fingerprints (AirTag/Find My, Flipper Zero, Meta
     # glasses) are the most specific signal available -- check first.
     if manufacturer_data:
@@ -1438,9 +1485,28 @@ def classify_device(
         if name in ("HC-03", "HC-05", "HC-06"):
             return TYPE_SKIMMER
 
+        # Cheap BLE (not Classic) serial-bridge modules -- the BLE-side
+        # equivalent of HC-03/05/06 above, same "worth a second look"
+        # reasoning: these are common in DIY skimmer builds, but are
+        # also completely mundane in countless hobbyist/IoT projects, so
+        # flagged the same way rather than assumed malicious. Excludes
+        # Fieldwatch's own bare "ESP32"/"ESP32-*" rule deliberately --
+        # far too generic (the default name on virtually every ESP32
+        # hobby project) to be worth the false-positive rate. Source:
+        # OffGridPete/Fieldwatch (MIT licensed).
+        if name in ("HM-10", "HMSoft", "CC41-A", "AT-09", "BT05", "MLT-BT05") or re.match(r'^JDY-(08|10|16|31)$', name):
+            return TYPE_SKIMMER
+
         # Off-grid mesh radio firmware (source: jbohack/nyanBOX detectors)
         if name.startswith("MeshCore-") or "meshtastic" in name_lower:
             return TYPE_MESH
+
+        # UniFi Protect cameras broadcast a real BLE setup-mode name
+        # ("UVC G3/G4/G6 Instant") -- a genuinely BLE-observable signal,
+        # unlike most wired/PoE surveillance cameras (source:
+        # OffGridPete/Fieldwatch, MIT licensed).
+        if name.startswith("UVC G") and "Instant" in name:
+            return TYPE_CAMERA
 
         # Plejd (Swedish smart-home switches/dimmers/relays) -- every
         # device in a Plejd BLE mesh advertises this exact generic name
