@@ -1508,6 +1508,33 @@ HTML_TEMPLATE = """
             return '<div class="detail-item full"><div class="detail-label">Battery (live)</div><div class="detail-value" style="font-size:0.8rem;">' + parts.join(' · ') + '</div></div>';
         }
 
+        // ASTM F3411/OpenDroneID Remote ID -- same live/recent-only
+        // treatment as appleActivityHtml above. Only one ASTM message
+        // type arrives per advertisement (Basic ID, Location, Self ID,
+        // System, or Operator ID), so this renders whatever the most
+        // recent sighting happened to carry, not an accumulated picture.
+        function droneStateHtml(d) {
+            if (!d.drone_state || !d.drone_state_at) return '';
+            const ageMs = Date.now() - new Date(d.drone_state_at).getTime();
+            if (ageMs > 5 * 60 * 1000) return '';
+            const s = d.drone_state;
+            const parts = [];
+            if (s.uas_id) parts.push('UAS ID ' + escapeHtml(s.uas_id) + (s.ua_type ? ' (' + escapeHtml(s.ua_type) + ')' : ''));
+            if (s.latitude !== undefined && s.longitude !== undefined) {
+                let pos = 'Position ' + s.latitude + ', ' + s.longitude;
+                if (s.altitude_m !== undefined) pos += ' @ ' + s.altitude_m + 'm';
+                parts.push(pos);
+            }
+            if (s.status) parts.push('Status: ' + escapeHtml(s.status));
+            if (s.self_id) parts.push('"' + escapeHtml(s.self_id) + '"');
+            if (s.operator_latitude !== undefined && s.operator_longitude !== undefined) {
+                parts.push('Operator @ ' + s.operator_latitude + ', ' + s.operator_longitude);
+            }
+            if (s.operator_id) parts.push('Operator ID ' + escapeHtml(s.operator_id));
+            if (!parts.length) return '';
+            return '<div class="detail-item full"><div class="detail-label">Drone Remote ID (live)</div><div class="detail-value" style="font-size:0.8rem;">' + parts.join(' · ') + '</div></div>';
+        }
+
         async function createCategory() {
             const input = document.getElementById('new-category-name');
             const name = (input.value || '').trim();
@@ -2141,6 +2168,7 @@ HTML_TEMPLATE = """
                 appleActivityHtml(d) +
                 samsungStatusHtml(d) +
                 fastpairBatteryHtml(d) +
+                droneStateHtml(d) +
                 '<div class="detail-item"' + (d.identity_mac_count > 1 && d.identity_first_seen ? ' title="Earliest sighting across all ' + d.identity_mac_count + ' rotated addresses clustered under this identity"' : '') + '><div class="detail-label">First seen</div><div class="detail-value mono">' + (d.identity_mac_count > 1 && d.identity_first_seen ? new Date(d.identity_first_seen).toLocaleString() : (d.first_seen ? new Date(d.first_seen).toLocaleString() : '—')) + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">Last seen</div><div class="detail-value mono">' + (d.last_seen ? new Date(d.last_seen).toLocaleString() : '—') + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">Signal Strength</div><div class="detail-value">' + rssiDisplay + '</div></div>' +
@@ -5779,6 +5807,33 @@ LIVE_TEMPLATE = """
             return '<div class="detail-item full"><div class="detail-label">Battery (live)</div><div class="detail-value" style="font-size:0.8rem;">' + parts.join(' · ') + '</div></div>';
         }
 
+        // ASTM F3411/OpenDroneID Remote ID -- same live/recent-only
+        // treatment as appleActivityHtml above. Only one ASTM message
+        // type arrives per advertisement (Basic ID, Location, Self ID,
+        // System, or Operator ID), so this renders whatever the most
+        // recent sighting happened to carry, not an accumulated picture.
+        function droneStateHtml(d) {
+            if (!d.drone_state || !d.drone_state_at) return '';
+            const ageMs = Date.now() - new Date(d.drone_state_at).getTime();
+            if (ageMs > 5 * 60 * 1000) return '';
+            const s = d.drone_state;
+            const parts = [];
+            if (s.uas_id) parts.push('UAS ID ' + escapeHtml(s.uas_id) + (s.ua_type ? ' (' + escapeHtml(s.ua_type) + ')' : ''));
+            if (s.latitude !== undefined && s.longitude !== undefined) {
+                let pos = 'Position ' + s.latitude + ', ' + s.longitude;
+                if (s.altitude_m !== undefined) pos += ' @ ' + s.altitude_m + 'm';
+                parts.push(pos);
+            }
+            if (s.status) parts.push('Status: ' + escapeHtml(s.status));
+            if (s.self_id) parts.push('"' + escapeHtml(s.self_id) + '"');
+            if (s.operator_latitude !== undefined && s.operator_longitude !== undefined) {
+                parts.push('Operator @ ' + s.operator_latitude + ', ' + s.operator_longitude);
+            }
+            if (s.operator_id) parts.push('Operator ID ' + escapeHtml(s.operator_id));
+            if (!parts.length) return '';
+            return '<div class="detail-item full"><div class="detail-label">Drone Remote ID (live)</div><div class="detail-value" style="font-size:0.8rem;">' + parts.join(' · ') + '</div></div>';
+        }
+
         async function createCategory() {
             const input = document.getElementById('new-category-name');
             const name = (input.value || '').trim();
@@ -6415,6 +6470,7 @@ LIVE_TEMPLATE = """
                 appleActivityHtml(d) +
                 samsungStatusHtml(d) +
                 fastpairBatteryHtml(d) +
+                droneStateHtml(d) +
                 '<div class="detail-item"' + (d.identity_mac_count > 1 && d.identity_first_seen ? ' title="Earliest sighting across all ' + d.identity_mac_count + ' rotated addresses clustered under this identity"' : '') + '><div class="detail-label">First seen</div><div class="detail-value mono">' + (d.identity_mac_count > 1 && d.identity_first_seen ? new Date(d.identity_first_seen).toLocaleString() : (d.first_seen ? new Date(d.first_seen).toLocaleString() : '—')) + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">Last seen</div><div class="detail-value mono">' + (d.last_seen ? new Date(d.last_seen).toLocaleString() : '—') + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">Signal Strength</div><div class="detail-value">' + rssiDisplay + '</div></div>' +

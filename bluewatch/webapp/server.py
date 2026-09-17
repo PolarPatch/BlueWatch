@@ -630,6 +630,8 @@ class WebServer:
                 "samsung_status_at": (device.samsung_status_at.isoformat()) if device.samsung_status_at else None,
                 "fastpair_battery": device.fastpair_battery,
                 "fastpair_battery_at": (device.fastpair_battery_at.isoformat()) if device.fastpair_battery_at else None,
+                "drone_state": device.drone_state,
+                "drone_state_at": (device.drone_state_at.isoformat()) if device.drone_state_at else None,
             },
             "type_label": get_type_label(device_type),
             "uuid_names": get_uuid_names(device.service_uuids),

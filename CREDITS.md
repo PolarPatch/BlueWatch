@@ -75,3 +75,20 @@ pyplejd resolves that from Plejd's cloud API tied to the owner's
 account, and even its legacy local-lookup table required first
 authenticating into the encrypted mesh, both out of scope for
 BlueWatch's passive/unauthenticated identification model.
+
+Vehicle OEM phone-as-key/infotainment company IDs (Ford, Honda,
+Hyundai, Toyota, Nissan, Subaru, BMW, Volkswagen, Porsche, Jaguar Land
+Rover, and BYD, plus BLE-based TPMS tire sensors from Goodyear,
+Schrader, and Pacific Industrial) in `bluewatch/classifier.py` were
+identified from [OffGridPete/Fieldwatch](https://github.com/OffGridPete/Fieldwatch)
+(MIT licensed, an Android BLE/WiFi signal-identification app formerly
+named Spectre-APK), specifically its `DefaultCatalog.kt` fleet
+definitions -- every company ID ported was independently
+cross-verified against the Bluetooth SIG's own registry (see above)
+before being trusted; one entry from that catalog ("Huf" tire/access
+sensors) was left out because its claimed company ID does not appear
+in the current SIG registry snapshot at all, and another (FOBO's
+tire-pressure sensor) is matched by advertised name only rather than
+its catalog company ID, since that ID resolves in the SIG registry to
+a shared chipset supplier (Salutica Allied Solutions) rather than FOBO
+itself.

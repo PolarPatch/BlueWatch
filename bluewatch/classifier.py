@@ -84,6 +84,7 @@ TYPE_GLASSES = "glasses"
 TYPE_BEACON = "beacon"
 TYPE_MESH = "mesh"
 TYPE_SKIMMER = "skimmer"
+TYPE_DRONE = "drone"
 TYPE_UNKNOWN = "unknown"
 
 # GAP Appearance (advertising AD type 0x19) is a Bluetooth SIG-standardized
@@ -202,6 +203,7 @@ TYPE_ICONS = {
     TYPE_BEACON: "[BCN]",
     TYPE_MESH: "[MSH]",
     TYPE_SKIMMER: "[SKM]",
+    TYPE_DRONE: "[UAS]",
     TYPE_UNKNOWN: "[---]",
 }
 
@@ -228,6 +230,7 @@ TYPE_LABELS = {
     TYPE_BEACON: "Beacon (iBeacon)",
     TYPE_MESH: "Mesh Radio",
     TYPE_SKIMMER: "Possible Skimmer",
+    TYPE_DRONE: "Drone (Remote ID)",
     TYPE_UNKNOWN: "Unknown",
 }
 
@@ -264,6 +267,90 @@ COMPANY_ID_LG = 0x00C4
 # HPE Aruba access points (enterprise WiFi infra, not a personal device --
 # useful to flag distinctly as Network rather than Unknown/generic beacon).
 COMPANY_ID_ARUBA = 0x011B
+
+# Vehicle OEM phone-as-key / infotainment company IDs -- each covers a
+# manufacturer's whole BLE product line (phone-as-key systems, in-car
+# infotainment units), same "vendor-strength" tier as the block above.
+# Source: OffGridPete/Fieldwatch (MIT licensed, https://github.com/OffGridPete/Fieldwatch,
+# formerly Spectre-APK), an Android BLE/WiFi signal-identification app --
+# its DefaultCatalog.kt oemVehicle() fleet definitions. Cross-checked
+# every ID below against the Bluetooth SIG's own company_identifiers.yaml
+# registry (see URL above) and confirmed each resolves to the expected
+# automaker. Tesla already has a much more specific detector (its key
+# fob's iBeacon proximity UUID, see TESLA_IBEACON_UUID below) so isn't
+# duplicated here as a bare company-ID match.
+COMPANY_ID_FORD = 0x0723
+COMPANY_ID_HONDA = 0x0915
+COMPANY_ID_HYUNDAI = 0x0826
+COMPANY_ID_TOYOTA = 0x0977
+COMPANY_ID_NISSAN = 0x0BA6
+COMPANY_ID_SUBARU = 0x0A10
+COMPANY_ID_BMW = 0x05EB
+COMPANY_ID_VOLKSWAGEN = 0x011F
+COMPANY_ID_PORSCHE = 0x0120
+COMPANY_ID_JAGUAR_LAND_ROVER = 0x020B
+COMPANY_ID_BYD = 0x0C34
+
+VEHICLE_OEM_COMPANY_IDS = frozenset({
+    COMPANY_ID_FORD,
+    COMPANY_ID_HONDA,
+    COMPANY_ID_HYUNDAI,
+    COMPANY_ID_TOYOTA,
+    COMPANY_ID_NISSAN,
+    COMPANY_ID_SUBARU,
+    COMPANY_ID_BMW,
+    COMPANY_ID_VOLKSWAGEN,
+    COMPANY_ID_PORSCHE,
+    COMPANY_ID_JAGUAR_LAND_ROVER,
+    COMPANY_ID_BYD,
+})
+
+# Same OEMs' phone-as-key/infotainment advertised local-name substrings
+# (case-insensitive) -- a fallback for scanners that don't surface
+# manufacturer data (e.g. iOS, same limitation noted for Tesla's
+# iOS-fallback name check elsewhere in this file). Source: same
+# Fieldwatch catalog, its bleName() (name-contains) rules for these OEMs.
+VEHICLE_OEM_NAME_PATTERNS = (
+    "ford", "lincoln", "honda", "acura", "hyundai", "genesis",
+    "toyota", "lexus", "nissan", "infiniti", "subaru", "bmw",
+    "volkswagen", "porsche", "jaguar", "land rover", "range rover", "byd",
+)
+
+# BLE tire-pressure sensors (TPMS) -- a genuinely separate thing from the
+# phone-as-key/infotainment OEM patterns above, and from the vast
+# majority of TPMS in the wild: most factory-fitted valve-stem TPMS is a
+# proprietary 315/433 MHz RF protocol (not Bluetooth at all -- would need
+# an SDR, not BLE hardware BlueWatch has, same dead-end conclusion as
+# this session's earlier Zigbee/butterfly research). These specific
+# aftermarket/specialty sensors are confirmed genuinely BLE. Source:
+# OffGridPete/Fieldwatch (MIT licensed), its goodyearTpms()/
+# schraderTpms()/pacificTpms()/teslaTstpms() fleet definitions --
+# company IDs cross-checked against the Bluetooth SIG registry (see URL
+# above):
+#   0x0B99 -> "The Goodyear Tire & Rubber Company" (exact match)
+#   0x0601 -> "Schrader Electronics" (exact match) -- their aftermarket
+#             BLE TPMS (AirCheck, trailer, RV), not factory valve stems
+#   0x0E32 -> "PACIFIC INDUSTRIAL CO., LTD." (exact match) -- OEM tire
+#             electronics used as BLE TPMS on some newer vehicles
+# Fieldwatch's "Huf" entry (company ID 0x070A) is NOT included here --
+# that ID doesn't appear anywhere in the current Bluetooth SIG registry
+# snapshot, and an unverifiable ID isn't worth the false-positive risk.
+# Its FOBO entry (aftermarket BLE tire-pressure sensor) is also skipped
+# as a company-ID match: Fieldwatch's own 0x0127 resolves in the SIG
+# registry to "Salutica Allied Solutions", a BLE module/chipset OEM --
+# i.e. that ID identifies FOBO's chip *supplier*, not FOBO exclusively,
+# so trusting it alone risks misclassifying other Salutica-chipset
+# products (earbuds, health devices, etc.) as vehicle TPMS. FOBO and
+# Tesla's own tsTPMS sensor are instead only matched by their advertised
+# name below, which is specific enough alone.
+VEHICLE_TPMS_COMPANY_IDS = frozenset({
+    0x0B99,  # Goodyear intelligent-tire BLE
+    0x0601,  # Schrader aftermarket BLE TPMS
+    0x0E32,  # Pacific Industrial OEM tire electronics
+})
+# Tesla's tire sensor ("tsTPMS...") and FOBO's aftermarket sensor line
+# both self-identify clearly enough in the advertised name alone.
+VEHICLE_TPMS_NAME_PREFIXES = ("tsTPMS", "FOBO")
 
 # Apple's Continuity/manufacturer-data "type" byte (first byte of the
 # payload after the company ID) that identifies an offline-finding /
@@ -543,6 +630,163 @@ def decode_samsung_status(manufacturer_data: Optional[dict]) -> Optional[dict]:
     }
 
 
+# ASTM F3411 / OpenDroneID "Remote ID" -- a regulatory broadcast standard
+# (FAA Remote ID rule and equivalents elsewhere) that drones are legally
+# required to transmit, specifically DESIGNED to be publicly readable by
+# anyone nearby for airspace safety/transparency -- unlike every other
+# decoder in this file, there's no privacy question here at all, this
+# data is meant to be listened to. Broadcast over BLE as Service Data
+# under UUID 0xFFFA, an AD Application Code byte (0x0D = "Open Drone ID",
+# the only code this decoder recognizes), a message counter byte, then a
+# 25-byte ASTM message (byte 0 = [MessageType:4][ProtocolVersion:4]).
+#
+# Byte layout verified against two independent primary sources:
+# opendroneid/opendroneid-core-c's opendroneid.h (Apache-2.0, the
+# reference C implementation's packed wire structs -- ODID_BasicID_encoded/
+# ODID_Location_encoded/ODID_SelfID_encoded/ODID_System_encoded/
+# ODID_OperatorID_encoded) for the message-internal offsets, and
+# opendroneid/receiver-android's BluetoothScanner.java (Apache-2.0) for
+# the outer AD Application Code (0x0D) and service UUID. Cross-checked
+# against OffGridPete/Fieldwatch's CatalogDecodes.kt (MIT), an Android app
+# that flagged this as a passively-decodable signal worth surfacing --
+# its own offsets agree with the two Apache-2.0 sources above once
+# adjusted for its 2-byte (app-code + counter) header prefix.
+DRONE_REMOTE_ID_SERVICE_DATA_UUID = "0000fffa-0000-1000-8000-00805f9b34fb"
+DRONE_REMOTE_ID_AD_APP_CODE = 0x0D
+
+_DRONE_MSG_TYPE_BASIC_ID = 0x0
+_DRONE_MSG_TYPE_LOCATION = 0x1
+_DRONE_MSG_TYPE_SELF_ID = 0x3
+_DRONE_MSG_TYPE_SYSTEM = 0x4
+_DRONE_MSG_TYPE_OPERATOR_ID = 0x5
+
+_DRONE_UA_TYPE_LABELS = {
+    0x0: "none",
+    0x1: "aeroplane",
+    0x2: "helicopter/multirotor",
+    0x3: "gyroplane",
+    0x4: "hybrid lift",
+    0x6: "glider",
+    0xA: "airship",
+    0xF: "other",
+}
+
+_DRONE_STATUS_LABELS = {
+    0x0: "undeclared",
+    0x1: "ground",
+    0x2: "airborne",
+    0x3: "emergency",
+    0x4: "remote ID system failure",
+}
+
+
+def _drone_remote_id_payload(service_data):
+    """Raw Remote ID service_data bytes (the full payload after the
+    0xFFFA UUID key, i.e. AD Application Code onward), or None if this
+    device isn't broadcasting Remote ID at all, or the leading byte isn't
+    the Open Drone ID application code this decoder understands."""
+    if not service_data:
+        return None
+    for key, value in service_data.items():
+        if key.lower().replace("-", "") == DRONE_REMOTE_ID_SERVICE_DATA_UUID.replace("-", ""):
+            if value and value[0] == DRONE_REMOTE_ID_AD_APP_CODE:
+                return value
+    return None
+
+
+def is_drone_remote_id(service_data) -> bool:
+    """True if this advertisement carries an ASTM F3411/OpenDroneID
+    Remote ID broadcast -- checked as its own, unambiguous device-type
+    signal (see classify_device())."""
+    return _drone_remote_id_payload(service_data) is not None
+
+
+def decode_drone_remote_id(service_data):
+    """Decode whatever ASTM F3411 message is present in this
+    advertisement's Remote ID broadcast into a live-state snapshot --
+    UAS ID/type from a Basic ID message, position/altitude/status from a
+    Location message, self-description text, or operator position/ID
+    from System/Operator ID messages. Only one message type is broadcast
+    per advertisement in legacy (non-extended) BLE, so a device's full
+    picture builds up across several sightings -- this returns only what
+    THIS specific advertisement carries, not an accumulated history.
+
+    Caller should recompute this on every sighting rather than caching it
+    like device_type -- a drone's position changes continuously, it's not
+    a fixed property of the device. Returns None if the payload isn't
+    present or isn't long enough to contain a message body.
+    """
+    payload = _drone_remote_id_payload(service_data)
+    if not payload or len(payload) < 3:
+        return None
+
+    # payload[0] = AD Application Code, payload[1] = message counter,
+    # payload[2:] = the 25-byte ASTM message (byte 0 of the message here
+    # is payload[2]: [MessageType:hi-nibble][ProtocolVersion:lo-nibble]).
+    message = payload[2:]
+    if not message:
+        return None
+
+    msg_type = (message[0] >> 4) & 0x0F
+    result = {"message_type": msg_type}
+
+    if msg_type == _DRONE_MSG_TYPE_BASIC_ID and len(message) >= 22:
+        id_type = (message[1] >> 4) & 0x0F
+        ua_type = message[1] & 0x0F
+        uas_id = message[2:22].split(b"\x00", 1)[0].decode("ascii", errors="replace").strip()
+        result["uas_id"] = uas_id
+        result["ua_type"] = _DRONE_UA_TYPE_LABELS.get(ua_type, f"unknown (0x{ua_type:x})")
+        result["id_type"] = id_type
+
+    elif msg_type == _DRONE_MSG_TYPE_LOCATION and len(message) >= 19:
+        status = (message[1] >> 4) & 0x0F
+        latitude = int.from_bytes(message[5:9], "little", signed=True) * 1e-7
+        longitude = int.from_bytes(message[9:13], "little", signed=True) * 1e-7
+        alt_geo_raw = int.from_bytes(message[15:17], "little", signed=False)
+        height_raw = int.from_bytes(message[17:19], "little", signed=False)
+        result["status"] = _DRONE_STATUS_LABELS.get(status, f"unknown (0x{status:x})")
+        # A drone with no GPS fix yet broadcasts the ASTM "unknown" sentinel
+        # (both lat and lon exactly 0) rather than omitting the message --
+        # not a real position, so leave it out instead of reporting (0, 0).
+        if not (latitude == 0.0 and longitude == 0.0):
+            result["latitude"] = round(latitude, 7)
+            result["longitude"] = round(longitude, 7)
+        # 0xFFFF is the ASTM "unknown/not populated" sentinel for both
+        # altitude fields -- excluded rather than decoded into a bogus
+        # value via the scale/offset formula below.
+        if alt_geo_raw != 0xFFFF:
+            result["altitude_m"] = round(alt_geo_raw * 0.5 - 1000, 1)
+        if height_raw != 0xFFFF:
+            result["height_m"] = round(height_raw * 0.5 - 1000, 1)
+
+    elif msg_type == _DRONE_MSG_TYPE_SELF_ID and len(message) >= 25:
+        result["self_id"] = message[2:25].split(b"\x00", 1)[0].decode("ascii", errors="replace").strip()
+
+    elif msg_type == _DRONE_MSG_TYPE_SYSTEM and len(message) >= 10:
+        # OperatorLatitude/Longitude sit at message bytes 2-9 (right after
+        # the header byte and the OperatorLocationType/Classification byte)
+        # -- NOT the same offset as the Location message's own lat/lon
+        # above, which has three single-byte fields (Direction/Speed*) in
+        # between its header and position fields that System doesn't have.
+        op_lat = int.from_bytes(message[2:6], "little", signed=True) * 1e-7
+        op_lon = int.from_bytes(message[6:10], "little", signed=True) * 1e-7
+        if not (op_lat == 0.0 and op_lon == 0.0):
+            result["operator_latitude"] = round(op_lat, 7)
+            result["operator_longitude"] = round(op_lon, 7)
+
+    elif msg_type == _DRONE_MSG_TYPE_OPERATOR_ID and len(message) >= 22:
+        result["operator_id"] = message[2:22].split(b"\x00", 1)[0].decode("ascii", errors="replace").strip()
+
+    else:
+        # A recognized message-type nibble with too short a payload to
+        # safely index, or a type this decoder doesn't have fields for
+        # yet (Auth) -- still worth reporting that Remote ID was seen at
+        # all, just with nothing further decoded this sighting.
+        pass
+
+    return result
+
+
 # A few more Apple Continuity message types (see nccgroup/Sniffle's
 # advdata/msd_apple.py for the full reference table) that map cleanly
 # to a device type without ambiguity. AirPlay Target/Source (0x09/0x0A)
@@ -632,6 +876,16 @@ def classify_by_manufacturer_data(manufacturer_data: Optional[dict]) -> Optional
     aruba_payload = manufacturer_data.get(COMPANY_ID_ARUBA)
     if aruba_payload and aruba_payload[:1] == b"\x08":
         return TYPE_NETWORK
+
+    # Vehicle OEM phone-as-key/infotainment (source: OffGridPete/Fieldwatch --
+    # see VEHICLE_OEM_COMPANY_IDS' comment above).
+    if VEHICLE_OEM_COMPANY_IDS.intersection(manufacturer_data.keys()):
+        return TYPE_VEHICLE
+
+    # BLE TPMS tire sensors (source: OffGridPete/Fieldwatch -- see
+    # VEHICLE_TPMS_COMPANY_IDS' comment above).
+    if VEHICLE_TPMS_COMPANY_IDS.intersection(manufacturer_data.keys()):
+        return TYPE_VEHICLE
 
     return None
 
@@ -1082,11 +1336,23 @@ def classify_device(
         if samsung_type:
             return samsung_type
 
+    # ASTM F3411/OpenDroneID Remote ID (service_data UUID 0xFFFA) is an
+    # unambiguous, purpose-built broadcast -- same tier as the two checks
+    # above, no risk of a false positive against anything else.
+    if service_data and is_drone_remote_id(service_data):
+        return TYPE_DRONE
+
     # Tesla's key-fob/phone-key name pattern is checked first -- it would
     # otherwise get shadowed by the generic iBeacon manufacturer-data
     # classification below, since Tesla's BLE key broadcasts in iBeacon
     # format.
     if name and _TESLA_KEY_RE.match(name):
+        return TYPE_VEHICLE
+
+    # BLE TPMS tire sensors that self-identify by name alone (Tesla's
+    # tsTPMS, FOBO's aftermarket line) -- see VEHICLE_TPMS_NAME_PREFIXES'
+    # comment above for why these aren't matched by company ID instead.
+    if name and name.startswith(VEHICLE_TPMS_NAME_PREFIXES):
         return TYPE_VEHICLE
 
     # Insta360's GO 3S action camera supports Apple's third-party Find My
@@ -1204,7 +1470,7 @@ def classify_device(
             return TYPE_SPEAKER
         if any(x in name_lower for x in ["tv", "roku", "firestick", "chromecast"]):
             return TYPE_TV
-        if any(x in name_lower for x in ["car", "vehicle", "model 3", "model y", "model s"]):
+        if any(x in name_lower for x in ("car", "vehicle", "model 3", "model y", "model s") + VEHICLE_OEM_NAME_PATTERNS):
             return TYPE_VEHICLE
 
     # Try Classic BT device class (more reliable than vendor guessing)

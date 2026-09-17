@@ -42,6 +42,8 @@ class Device:
     samsung_status_at: Optional[datetime] = None  # When samsung_status was last updated
     fastpair_battery: Optional[dict] = None  # Latest decoded Fast Pair Battery Notification snapshot (left/right/case) -- overwritten every sighting, not fill-once
     fastpair_battery_at: Optional[datetime] = None  # When fastpair_battery was last updated
+    drone_state: Optional[dict] = None  # Latest decoded ASTM F3411/OpenDroneID Remote ID snapshot (position/altitude/status/UAS ID/operator info) -- overwritten every sighting, not fill-once
+    drone_state_at: Optional[datetime] = None  # When drone_state was last updated
     group_id: Optional[int] = None  # Device group (category or subcategory)
     notes: Optional[str] = None  # Operator notes
     new_device_notified: bool = True  # Whether new-device notification has been sent
@@ -381,6 +383,10 @@ async def init_db() -> None:
             ("samsung_status_at", "TIMESTAMP"),
             ("fastpair_battery", "TEXT"),
             ("fastpair_battery_at", "TIMESTAMP"),
+            # Same overwritten-every-sighting treatment, for ASTM F3411/
+            # OpenDroneID Remote ID (classifier.decode_drone_remote_id).
+            ("drone_state", "TEXT"),
+            ("drone_state_at", "TIMESTAMP"),
         ]
 
         for column, column_type in migrations:
@@ -464,6 +470,13 @@ def _parse_device_row(row) -> Device:
         except (json.JSONDecodeError, TypeError):
             pass
 
+    drone_state = None
+    if "drone_state" in keys and row["drone_state"]:
+        try:
+            drone_state = json.loads(row["drone_state"])
+        except (json.JSONDecodeError, TypeError):
+            pass
+
     return Device(
         mac=row["mac"],
         vendor=row["vendor"],
@@ -517,6 +530,11 @@ def _parse_device_row(row) -> Device:
         fastpair_battery_at=(
             datetime.fromisoformat(row["fastpair_battery_at"])
             if "fastpair_battery_at" in keys and row["fastpair_battery_at"] else None
+        ),
+        drone_state=drone_state,
+        drone_state_at=(
+            datetime.fromisoformat(row["drone_state_at"])
+            if "drone_state_at" in keys and row["drone_state_at"] else None
         ),
     )
 
@@ -1022,7 +1040,7 @@ async def upsert_device(
 
     Returns tuple of (device, is_new) where is_new indicates first sighting.
     """
-    from .classifier import identify_apple_model, decode_apple_activity, decode_samsung_status, identify_apple_unknown_label
+    from .classifier import identify_apple_model, decode_apple_activity, decode_samsung_status, identify_apple_unknown_label, decode_drone_remote_id
     from .fastpair_models import identify_fastpair_device, decode_fastpair_battery
     from . import company_identifiers
 
@@ -1089,6 +1107,9 @@ async def upsert_device(
 
     fastpair_battery = decode_fastpair_battery(service_data) if service_data else None
     fastpair_battery_json = json.dumps(fastpair_battery) if fastpair_battery else None
+
+    drone_state = decode_drone_remote_id(service_data) if service_data else None
+    drone_state_json = json.dumps(drone_state) if drone_state else None
 
     # A cryptographic IRK match (if any key is configured and resolves this
     # address) is strictly stronger evidence than the advertised-name
@@ -1247,6 +1268,12 @@ async def upsert_device(
                 updates.append("fastpair_battery_at = ?")
                 params.append(now.isoformat())
 
+            if drone_state_json is not None:
+                updates.append("drone_state = ?")
+                params.append(drone_state_json)
+                updates.append("drone_state_at = ?")
+                params.append(now.isoformat())
+
             # An IRK match always wins over whatever identity_id (if any)
             # the device already had -- it's a proof, not a guess.
             existing_identity_id = existing["identity_id"] if "identity_id" in existing.keys() else None
@@ -1281,8 +1308,8 @@ async def upsert_device(
             # Insert new device
             await db.execute(
                 """
-                INSERT INTO devices (mac, vendor, friendly_name, first_seen, last_seen, total_sightings, service_uuids, bt_type, device_class, manufacturer_data, service_data, appearance, new_device_notified, apple_activity, apple_activity_at, samsung_status, samsung_status_at, fastpair_battery, fastpair_battery_at)
-                VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)
+                INSERT INTO devices (mac, vendor, friendly_name, first_seen, last_seen, total_sightings, service_uuids, bt_type, device_class, manufacturer_data, service_data, appearance, new_device_notified, apple_activity, apple_activity_at, samsung_status, samsung_status_at, fastpair_battery, fastpair_battery_at, drone_state, drone_state_at)
+                VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     mac, insert_vendor, friendly_name, now.isoformat(), now.isoformat(), uuids_json, bt_type,
@@ -1290,6 +1317,7 @@ async def upsert_device(
                     apple_activity_json, now.isoformat() if apple_activity_json else None,
                     samsung_status_json, now.isoformat() if samsung_status_json else None,
                     fastpair_battery_json, now.isoformat() if fastpair_battery_json else None,
+                    drone_state_json, now.isoformat() if drone_state_json else None,
                 )
             )
 
