@@ -280,8 +280,9 @@ class ESP32Scanner:
             if msg_type == "connection_progress":
                 status = (data.get("status") or "").lower()
                 if any(word in status for word in ("fail", "error", "timeout", "timed out")):
+                    detail = data.get("detail") or data.get("status") or "unknown reason"
                     self._pending_connect.set_result(
-                        {"ok": False, "error": data.get("detail") or f"Connection {data.get('status')}"}
+                        {"ok": False, "error": _friendly_connect_error(detail)}
                     )
                     return
             elif msg_type == "smp" and str(data.get("status")).lower() == "failed":
@@ -383,6 +384,16 @@ def _expand_uuid(short: str) -> str:
     return s
 
 
+def _friendly_connect_error(detail) -> str:
+    """The ESP32 reports connection failures as a raw NimBLE status code
+    plus internal phase number (e.g. "error: 7 (phase=1)") -- meaningful
+    for debugging, but opaque to an operator reading it in the Scan Unit
+    result. Phrase it the same way active_scan.py's bleak-based path
+    already does for the equivalent failure, keeping the raw detail
+    alongside for anyone who wants it."""
+    return f"Could not connect to the device ({detail}) -- it may be out of range, not connectable, or already connected elsewhere."
+
+
 def _parse_discovery_result(data: dict) -> dict:
     """Reshape a `scan_discovery_result` message into the exact
     {ok, services, device_info} shape active_scan.poll_ble_device()
@@ -390,7 +401,7 @@ def _parse_discovery_result(data: dict) -> dict:
     know which radio actually answered."""
     rc = data.get("rc")
     if rc not in (0, None) or data.get("viable") is False:
-        return {"ok": False, "error": f"Device connection failed (rc={rc})"}
+        return {"ok": False, "error": _friendly_connect_error(f"rc={rc}")}
 
     from .active_scan import DEVICE_INFO_CHARACTERISTICS
 
