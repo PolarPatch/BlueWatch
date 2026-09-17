@@ -32,3 +32,6 @@ bluewatch.db
 # Claude Code
 CLAUDE.md
 .DS_Store
+
+# Private developer notes -- never commit, never push
+DEVELOPER.md
