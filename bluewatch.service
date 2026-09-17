@@ -6,7 +6,7 @@ Wants=bluetooth.target
 [Service]
 Type=simple
 ExecStart=/usr/bin/python3 -m bluewatch.daemon
-Restart=on-failure
+Restart=always
 RestartSec=10
 Environment=BLUEWATCH_DATA_DIR=/var/lib/bluewatch
 
