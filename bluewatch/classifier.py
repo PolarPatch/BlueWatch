@@ -1310,6 +1310,7 @@ def classify_device(
     manufacturer_data: Optional[dict] = None,
     appearance: Optional[int] = None,
     service_data: Optional[dict] = None,
+    mac: Optional[str] = None,
 ) -> str:
     """
     Classify a device based on its vendor, name, service UUIDs, device
@@ -1319,6 +1320,14 @@ def classify_device(
     Priority: Fast Pair Model ID > Manufacturer data > Service UUIDs >
     GAP Appearance > Name patterns > Device class > Company-ID vendor
     guess > Vendor patterns
+
+    `mac`, if given, gates the generic "apple" -> Phone vendor-pattern
+    guess below (see its comment) -- pass it whenever available so a
+    device whose vendor came from company_identifiers.py's broad,
+    randomized-MAC-only fallback (see db.py's upsert_device()) doesn't
+    get guessed as "Phone" on no stronger evidence than "some Apple
+    product broadcast this". Omitting it preserves the old, less
+    cautious behavior for call sites that don't have a MAC handy.
     """
     # A resolved Fast Pair Model ID names the exact product (e.g. "Sonos
     # Ace"), so it's a stronger signal than any generic UUID/company-ID
@@ -1493,6 +1502,22 @@ def classify_device(
         vendor_lower = vendor.lower()
         for pattern, device_type in VENDOR_PATTERNS:
             if pattern in vendor_lower:
+                # "apple" -> Phone is a pure guess -- Apple makes phones,
+                # tablets, laptops, watches, AirPods, and more, all under
+                # this one vendor string, so it only means anything when
+                # vendor came from a real MAC-OUI match (a fixed address
+                # actually manufactured/registered by Apple). For a
+                # randomized (privacy) MAC, vendor here almost certainly
+                # came from company_identifiers.py's broad company-ID
+                # fallback instead -- which only proves "some Apple
+                # product's radio chip", not "this is a phone". Skip the
+                # guess in that case and let the device stay Unknown
+                # (with its real vendor name still shown) rather than
+                # confidently mislabeling e.g. an AirTag or Apple Watch
+                # that none of the more specific Apple Continuity
+                # decoders above happened to positively identify.
+                if pattern == "apple" and device_type == TYPE_PHONE and mac and is_randomized_mac(mac):
+                    continue
                 return device_type
 
     return TYPE_UNKNOWN

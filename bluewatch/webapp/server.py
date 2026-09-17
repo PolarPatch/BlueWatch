@@ -304,6 +304,7 @@ class WebServer:
                 d.manufacturer_data,
                 appearance=d.appearance,
                 service_data=d.service_data,
+                mac=d.mac,
             )
             group = group_lookup.get(d.group_id) if d.group_id else None
 
@@ -489,7 +490,7 @@ class WebServer:
             for d in subset:
                 device_type = d.device_type or classify_device(
                     d.vendor, d.friendly_name, d.service_uuids, d.device_class, d.manufacturer_data,
-                    appearance=d.appearance, service_data=d.service_data,
+                    appearance=d.appearance, service_data=d.service_data, mac=d.mac,
                 )
                 group = group_lookup.get(d.group_id) if d.group_id else None
                 uuids = "; ".join(d.service_uuids) if d.service_uuids else ""
@@ -593,7 +594,7 @@ class WebServer:
         daily = await db.get_daily_distribution(mac, 30)
         sightings = await db.get_sightings(mac, 30)
         daily_timeline = await db.get_daily_sightings(mac, 30)
-        device_type = device.device_type or classify_device(device.vendor, device.friendly_name, device.service_uuids, device.device_class, device.manufacturer_data, appearance=device.appearance, service_data=device.service_data)
+        device_type = device.device_type or classify_device(device.vendor, device.friendly_name, device.service_uuids, device.device_class, device.manufacturer_data, appearance=device.appearance, service_data=device.service_data, mac=device.mac)
 
         # Calculate pattern summary
         pattern = self._analyze_pattern(hourly, daily, len(sightings))
@@ -1005,6 +1006,7 @@ class WebServer:
                 device.device_class,
                 device.manufacturer_data,
                 service_data=device.service_data,
+                mac=mac,
             )
             if guessed_type and guessed_type != "unknown":
                 await db.set_device_type(mac, guessed_type)
@@ -1200,7 +1202,7 @@ class WebServer:
 
         device_list = []
         for r in results:
-            device_type = r.get("device_type") or classify_device(r.get("vendor"), r.get("friendly_name"), device_class=r.get("device_class"))
+            device_type = r.get("device_type") or classify_device(r.get("vendor"), r.get("friendly_name"), device_class=r.get("device_class"), mac=r.get("mac"))
             device_list.append({
                 "mac": r["mac"],
                 "vendor": r.get("vendor"),
