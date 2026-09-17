@@ -614,6 +614,7 @@ class WebServer:
                 "notes": device.notes,
                 "group_id": device.group_id,
                 "identity_mac_count": device.identity_mac_count,
+                "identity_first_seen": (device.identity_first_seen.isoformat()) if device.identity_first_seen else None,
                 "name_conflict_at": (device.name_conflict_at.isoformat()) if device.name_conflict_at else None,
                 "name_conflict_name": device.name_conflict_name,
                 "apple_activity": device.apple_activity,

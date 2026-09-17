@@ -2137,12 +2137,12 @@ HTML_TEMPLATE = """
                 '<div class="detail-item"><div class="detail-label">Type</div><select class="form-input" id="device-type" onchange="setDeviceType(\\'' + d.mac + '\\', this.value)" style="font-size: 0.8rem;"></select></div>' +
                 '<div class="detail-item"><div class="detail-label">Vendor OUI</div><input class="form-input" id="device-vendor" value="' + escapeHtml(d.vendor || '') + '" placeholder="Unknown -- set manually" style="font-size: 0.85rem;" onchange="setDeviceVendor(\\'' + d.mac + '\\', this.value)"></div>' +
                 '<div class="detail-item"><div class="detail-label">Proximity</div><div class="detail-value" style="color: ' + proximityColor + '; ">' + proximityZone + '</div></div>' +
+                '<div class="detail-item"><div class="detail-label">Sightings</div><div class="detail-value highlight">' + d.total_sightings + '</div></div>' +
                 appleActivityHtml(d) +
                 samsungStatusHtml(d) +
                 fastpairBatteryHtml(d) +
-                '<div class="detail-item"><div class="detail-label">First seen</div><div class="detail-value mono">' + (d.first_seen ? new Date(d.first_seen).toLocaleString() : '—') + '</div></div>' +
+                '<div class="detail-item"' + (d.identity_mac_count > 1 && d.identity_first_seen ? ' title="Earliest sighting across all ' + d.identity_mac_count + ' rotated addresses clustered under this identity"' : '') + '><div class="detail-label">First seen</div><div class="detail-value mono">' + (d.identity_mac_count > 1 && d.identity_first_seen ? new Date(d.identity_first_seen).toLocaleString() : (d.first_seen ? new Date(d.first_seen).toLocaleString() : '—')) + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">Last seen</div><div class="detail-value mono">' + (d.last_seen ? new Date(d.last_seen).toLocaleString() : '—') + '</div></div>' +
-                '<div class="detail-item"><div class="detail-label">Sightings</div><div class="detail-value highlight">' + d.total_sightings + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">Signal Strength</div><div class="detail-value">' + rssiDisplay + '</div></div>' +
                 '<div class="detail-item full"><div class="detail-label">Activity Pattern</div><div class="detail-value">' + (data.pattern || 'Insufficient data') + '</div></div>' +
                 '<div class="detail-item full"><div class="detail-label">BLE Services</div><div class="detail-value mono" style="font-size:0.75rem;">' + (data.uuid_names && data.uuid_names.length > 0 ? data.uuid_names.join(', ') : '—') + '</div></div>' +
@@ -6299,12 +6299,12 @@ LIVE_TEMPLATE = """
                 '<div class="detail-item"><div class="detail-label">Type</div><select class="form-input" id="device-type" onchange="setDeviceType(\\'' + d.mac + '\\', this.value)" style="font-size: 0.8rem;"></select></div>' +
                 '<div class="detail-item"><div class="detail-label">Vendor OUI</div><input class="form-input" id="device-vendor" value="' + escapeHtml(d.vendor || '') + '" placeholder="Unknown -- set manually" style="font-size: 0.85rem;" onchange="setDeviceVendor(\\'' + d.mac + '\\', this.value)"></div>' +
                 '<div class="detail-item"><div class="detail-label">Proximity</div><div class="detail-value" style="color: ' + proximityColor + '; ">' + proximityZone + '</div></div>' +
+                '<div class="detail-item"><div class="detail-label">Sightings</div><div class="detail-value highlight">' + d.total_sightings + '</div></div>' +
                 appleActivityHtml(d) +
                 samsungStatusHtml(d) +
                 fastpairBatteryHtml(d) +
-                '<div class="detail-item"><div class="detail-label">First seen</div><div class="detail-value mono">' + (d.first_seen ? new Date(d.first_seen).toLocaleString() : '—') + '</div></div>' +
+                '<div class="detail-item"' + (d.identity_mac_count > 1 && d.identity_first_seen ? ' title="Earliest sighting across all ' + d.identity_mac_count + ' rotated addresses clustered under this identity"' : '') + '><div class="detail-label">First seen</div><div class="detail-value mono">' + (d.identity_mac_count > 1 && d.identity_first_seen ? new Date(d.identity_first_seen).toLocaleString() : (d.first_seen ? new Date(d.first_seen).toLocaleString() : '—')) + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">Last seen</div><div class="detail-value mono">' + (d.last_seen ? new Date(d.last_seen).toLocaleString() : '—') + '</div></div>' +
-                '<div class="detail-item"><div class="detail-label">Sightings</div><div class="detail-value highlight">' + d.total_sightings + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">Signal Strength</div><div class="detail-value">' + rssiDisplay + '</div></div>' +
                 '<div class="detail-item full"><div class="detail-label">Activity Pattern</div><div class="detail-value">' + (data.pattern || 'Insufficient data') + '</div></div>' +
                 '<div class="detail-item full"><div class="detail-label">BLE Services</div><div class="detail-value mono" style="font-size:0.75rem;">' + (data.uuid_names && data.uuid_names.length > 0 ? data.uuid_names.join(', ') : '—') + '</div></div>' +

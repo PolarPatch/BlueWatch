@@ -687,7 +687,13 @@ def identify_apple_unknown_label(manufacturer_data: Optional[dict]) -> Optional[
     messages = _walk_apple_tlvs(payload)
     if not messages or any(msg_type in _APPLE_KNOWN_MESSAGE_TYPES for msg_type, _ in messages):
         return None
-    return f"Apple device (type 0x{messages[0][0]:02x})"
+    # The raw TLV type byte used to be included here (e.g. "Apple device
+    # (type 0x16)") -- dropped from the label itself at the operator's
+    # request for a cleaner Identifier field, since it can't be resolved
+    # to a specific product without an active/authenticated query anyway
+    # (see fastpair.py-adjacent research notes) and the field is freely
+    # editable by hand once a device is identified some other way.
+    return "Apple device"
 
 
 # Broad "this company made it, subtype unknown" company IDs -- much

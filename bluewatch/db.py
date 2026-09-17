@@ -527,7 +527,9 @@ async def get_device(mac: str) -> Optional[Device]:
         db.row_factory = aiosqlite.Row
         async with db.execute(
             """SELECT d.*,
-                (SELECT COUNT(*) FROM devices d2 WHERE d2.identity_id = d.identity_id) AS identity_mac_count
+                (SELECT COUNT(*) FROM devices d2 WHERE d2.identity_id = d.identity_id) AS identity_mac_count,
+                (SELECT SUM(d2.total_sightings) FROM devices d2 WHERE d2.identity_id = d.identity_id) AS identity_total_sightings,
+                (SELECT MIN(d2.first_seen) FROM devices d2 WHERE d2.identity_id = d.identity_id) AS identity_first_seen
                 FROM devices d WHERE d.mac = ?""",
             (mac,)
         ) as cursor:
