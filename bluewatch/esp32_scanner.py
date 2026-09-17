@@ -179,7 +179,17 @@ class ESP32Scanner:
     async def _connect_and_scan(self) -> None:
         url = f"ws://{self.host}/ws"
         async with aiohttp.ClientSession() as session:
-            async with session.ws_connect(url, timeout=10, heartbeat=30) as ws:
+            # ws_connect's own `timeout` kwarg is not a reliable hard
+            # deadline on an unroutable/dark address (e.g. the ESP32
+            # enabled in Config but physically unplugged) -- confirmed by
+            # testing against a blackholed IP, where it hung well past
+            # its stated 10s. Wrapping in wait_for() guarantees this
+            # reconnect attempt gives up and retries instead of stalling
+            # the loop for however long the OS's own TCP SYN retries take
+            # (which can be minutes).
+            async with await asyncio.wait_for(
+                session.ws_connect(url, heartbeat=30), timeout=10,
+            ) as ws:
                 self.connected = True
                 logger.info(f"ESP32 scanner connected ({url})")
                 await ws.send_json({"type": "scanner", "action": "start"})
