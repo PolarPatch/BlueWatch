@@ -34,6 +34,13 @@ is from the [WhisperPair](https://github.com/KULeuven-COSIC/WhisperPair)
 research project (KU Leuven COSIC), licensed
 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
 
+`bluewatch/data/company_identifiers.csv` (used by
+`bluewatch/company_identifiers.py` as a vendor-name fallback for devices
+whose MAC address gives no real OUI to look up, e.g. a randomized
+privacy address) is converted from the Bluetooth SIG's own public
+[assigned-numbers registry](https://bitbucket.org/bluetooth-SIG/public/src/main/assigned_numbers/company_identifiers/company_identifiers.yaml),
+the official source for BLE manufacturer company IDs.
+
 Several BLE fingerprints in `bluewatch/classifier.py` (Flipper Zero's
 extra service UUIDs, Tesla's key-fob iBeacon UUID and iOS-fallback
 advert, Lime/Swapfiets, Aruba access points, various vendor company

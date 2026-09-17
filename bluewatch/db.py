@@ -1024,6 +1024,7 @@ async def upsert_device(
     """
     from .classifier import identify_apple_model, decode_apple_activity, decode_samsung_status, identify_apple_unknown_label
     from .fastpair_models import identify_fastpair_device, decode_fastpair_battery
+    from . import company_identifiers
 
     now = datetime.now()
     uuids_json = json.dumps(service_uuids) if service_uuids else None
@@ -1137,6 +1138,7 @@ async def upsert_device(
                 # set_device_vendor() (e.g. "P mesh" -> "Plejd"), so every
                 # device sharing that name gets labeled automatically.
                 lookup_name = friendly_name or existing["friendly_name"]
+                mapped_vendor = None
                 if lookup_name:
                     async with db.execute(
                         "SELECT vendor FROM name_vendor_map WHERE name = ? COLLATE NOCASE",
@@ -1144,8 +1146,22 @@ async def upsert_device(
                     ) as cursor:
                         mapped = await cursor.fetchone()
                     if mapped:
+                        mapped_vendor = mapped["vendor"]
+                if mapped_vendor:
+                    updates.append("vendor = ?")
+                    params.append(mapped_vendor)
+                elif manufacturer_data:
+                    # Last resort: the Bluetooth SIG company ID leading
+                    # every manufacturer-data blob names who made the
+                    # radio chip/stack -- a weak signal (covers a
+                    # vendor's whole product line, not a specific
+                    # device), but a real one straight from the device's
+                    # own broadcast, unlike OUI lookup which has nothing
+                    # to go on for a randomized MAC.
+                    sig_vendor = company_identifiers.vendor_from_manufacturer_data(manufacturer_data)
+                    if sig_vendor:
                         updates.append("vendor = ?")
-                        params.append(mapped["vendor"])
+                        params.append(sig_vendor)
 
             # Update/merge service_uuids if we have new ones
             if service_uuids:
@@ -1255,6 +1271,12 @@ async def upsert_device(
                     mapped = await cursor.fetchone()
                 if mapped:
                     insert_vendor = mapped["vendor"]
+            if not insert_vendor and manufacturer_data:
+                # Last resort: Bluetooth SIG company ID from the device's
+                # own manufacturer-data broadcast -- see the matching
+                # comment on the UPDATE path above for why this is a
+                # weak-but-real fallback for a randomized MAC.
+                insert_vendor = company_identifiers.vendor_from_manufacturer_data(manufacturer_data)
 
             # Insert new device
             await db.execute(
