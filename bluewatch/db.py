@@ -185,6 +185,15 @@ CREATE TABLE IF NOT EXISTS custom_types (
 CREATE INDEX IF NOT EXISTS idx_sightings_mac_time ON sightings(mac, timestamp);
 CREATE INDEX IF NOT EXISTS idx_sightings_timestamp ON sightings(timestamp);
 CREATE INDEX IF NOT EXISTS idx_identities_name ON identities(name COLLATE NOCASE);
+
+-- Matches _DEVICE_SORT_MAP["last_seen"]'s exact expression -- without
+-- this, the default (and most common) device list view has to build a
+-- temp b-tree to sort the whole devices table on every request instead
+-- of scanning this index in order. Measured ~20k devices taking
+-- multiple seconds per request on a Pi before this was added.
+CREATE INDEX IF NOT EXISTS idx_devices_last_seen_sort ON devices(COALESCE(last_seen, ''));
+-- Supports the "First seen within" filter's `d.first_seen >= ?` range scan.
+CREATE INDEX IF NOT EXISTS idx_devices_first_seen ON devices(first_seen);
 """
 
 _CANONICAL_MAC_GLOB = (
@@ -829,23 +838,35 @@ async def get_dashboard_stats(include_ignored: bool = True) -> dict:
     one_hour_ago = now - timedelta(hours=1)
 
     randomized_sql = _randomized_mac_sql("d.mac")
-    non_randomized_sql = f"NOT {randomized_sql}"
     where_clause = "" if include_ignored else "WHERE d.ignored = 0"
 
+    # The randomized-MAC check is a GLOB + substr/lower expression SQLite
+    # can't index -- it has to be evaluated once per row regardless (this
+    # aggregate touches the whole devices table), but the original query
+    # recomputed it in *every one* of these 10 SUM(CASE...) branches. The
+    # `flagged` CTE computes it exactly once per row instead; MATERIALIZED
+    # stops the query planner from flattening it back into the original
+    # per-branch re-evaluation. Measured ~4-6x faster on a ~20k-device
+    # table on a Raspberry Pi.
     query = f"""
+        WITH flagged AS MATERIALIZED (
+            SELECT d.last_seen, d.first_seen, d.watched, d.device_type,
+                   {randomized_sql} AS is_randomized
+            FROM devices d
+            {where_clause}
+        )
         SELECT
-            SUM(CASE WHEN {non_randomized_sql} THEN 1 ELSE 0 END) AS total,
-            SUM(CASE WHEN {randomized_sql} THEN 1 ELSE 0 END) AS randomized_count,
-            SUM(CASE WHEN {non_randomized_sql} AND d.last_seen >= ? THEN 1 ELSE 0 END) AS active_today,
-            SUM(CASE WHEN {non_randomized_sql} AND d.first_seen >= ? THEN 1 ELSE 0 END) AS new_past_hour,
-            SUM(CASE WHEN {non_randomized_sql} AND d.watched = 1 THEN 1 ELSE 0 END) AS watched_count,
-            SUM(CASE WHEN {non_randomized_sql} AND COALESCE(d.device_type, 'unknown') = 'phone' THEN 1 ELSE 0 END) AS phone_count,
-            SUM(CASE WHEN {non_randomized_sql} AND COALESCE(d.device_type, 'unknown') IN ('laptop', 'computer') THEN 1 ELSE 0 END) AS laptop_count,
-            SUM(CASE WHEN {non_randomized_sql} AND COALESCE(d.device_type, 'unknown') IN ('audio', 'speaker') THEN 1 ELSE 0 END) AS audio_count,
-            SUM(CASE WHEN {non_randomized_sql} AND COALESCE(d.device_type, 'unknown') = 'smart' THEN 1 ELSE 0 END) AS smart_count,
-            SUM(CASE WHEN {non_randomized_sql} AND COALESCE(d.device_type, 'unknown') = 'unknown' THEN 1 ELSE 0 END) AS unknown_count
-        FROM devices d
-        {where_clause}
+            SUM(CASE WHEN NOT is_randomized THEN 1 ELSE 0 END) AS total,
+            SUM(CASE WHEN is_randomized THEN 1 ELSE 0 END) AS randomized_count,
+            SUM(CASE WHEN NOT is_randomized AND last_seen >= ? THEN 1 ELSE 0 END) AS active_today,
+            SUM(CASE WHEN NOT is_randomized AND first_seen >= ? THEN 1 ELSE 0 END) AS new_past_hour,
+            SUM(CASE WHEN NOT is_randomized AND watched = 1 THEN 1 ELSE 0 END) AS watched_count,
+            SUM(CASE WHEN NOT is_randomized AND COALESCE(device_type, 'unknown') = 'phone' THEN 1 ELSE 0 END) AS phone_count,
+            SUM(CASE WHEN NOT is_randomized AND COALESCE(device_type, 'unknown') IN ('laptop', 'computer') THEN 1 ELSE 0 END) AS laptop_count,
+            SUM(CASE WHEN NOT is_randomized AND COALESCE(device_type, 'unknown') IN ('audio', 'speaker') THEN 1 ELSE 0 END) AS audio_count,
+            SUM(CASE WHEN NOT is_randomized AND COALESCE(device_type, 'unknown') = 'smart' THEN 1 ELSE 0 END) AS smart_count,
+            SUM(CASE WHEN NOT is_randomized AND COALESCE(device_type, 'unknown') = 'unknown' THEN 1 ELSE 0 END) AS unknown_count
+        FROM flagged
     """
 
     async with _connect() as db:
@@ -2641,22 +2662,42 @@ async def get_rotation_candidates(
         # target's exact advertised name is admitted even when its RSSI falls
         # outside the tolerance — the name is reason enough to evaluate it, and
         # the handoff/non-overlap checks below still gate it on rotation shape.
+        #
+        # The randomized-MAC check is a GLOB + substr/lower expression that
+        # SQLite can't index -- evaluating it against every JOINed sightings
+        # row (hundreds of thousands within the window) rather than once per
+        # device measured at ~11s on a Pi with a large sightings table. The
+        # `candidates` CTE below applies it to the ~20k *devices* rows only
+        # (cheap), then the sightings scan is restricted to that pre-filtered
+        # MAC set and can use idx_sightings_mac_time properly.
+        #
+        # CROSS JOIN (not JOIN) is deliberate: it tells SQLite to keep the
+        # written join order (iterate the small `candidates` set, then seek
+        # into `sightings` per candidate mac+timestamp via
+        # idx_sightings_mac_time) instead of letting the query planner
+        # choose based on its own row-count estimates. Those estimates
+        # went wrong for a wide RSSI tolerance match (a device with ~1400
+        # candidates): the planner instead scanned the *entire* sightings
+        # table and probed each row against the candidate set, measured at
+        # 6-9s versus 0.003s for the forced order -- both correct results,
+        # wildly different cost depending on how selective this particular
+        # device's candidate pool happens to be.
         randomized = _randomized_mac_sql("d.mac")
         params = [mac, f"-{days} days", min_sightings, t_mean, rssi_tolerance]
         name_having = ""
         if target_name:
-            name_having = " OR lower(d.friendly_name) = lower(?)"
+            name_having = " OR lower(c.friendly_name) = lower(?)"
             params.append(target_name)
         async with db.execute(
             f"""
+            WITH candidates AS MATERIALIZED (
+                SELECT mac, friendly_name FROM devices d
+                WHERE d.mac != ? AND d.ignored = 0 AND {randomized}
+            )
             SELECT s.mac AS mac, AVG(s.rssi) AS mean_rssi, COUNT(*) AS cnt
-            FROM sightings s
-            JOIN devices d ON d.mac = s.mac
-            WHERE s.mac != ?
-              AND s.rssi IS NOT NULL
+            FROM candidates c CROSS JOIN sightings s ON s.mac = c.mac
+            WHERE s.rssi IS NOT NULL
               AND s.timestamp > datetime('now', ?)
-              AND d.ignored = 0
-              AND {randomized}
             GROUP BY s.mac
             HAVING cnt >= ? AND (ABS(AVG(s.rssi) - ?) <= ?{name_having})
             """,
