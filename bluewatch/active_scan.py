@@ -73,13 +73,21 @@ _INPROGRESS_RETRIES = 4
 _INPROGRESS_RETRY_DELAY = 3.0
 
 
-async def poll_ble_device(mac: str, adapter: Optional[str] = None) -> dict:
+async def poll_ble_device(mac: str, adapter: Optional[str] = None, timeout: float = BLE_TIMEOUT) -> dict:
     """Connect to a BLE device and enumerate its GATT services/characteristics.
 
     Returns a dict with `ok`, `services` (list of {uuid, description,
     characteristics}), and `device_info` (readable Device Information
     Service values, if the device exposes one) -- or `ok: False` and an
     `error` message on failure/timeout.
+
+    `timeout` overrides the default connect deadline -- the batch Scan
+    Unit run (server.py's api_scan_batch_start) passes a much shorter
+    one, since a batch is expected to hit plenty of non-responders (an
+    iPhone ignoring the connection attempt, or a device that's since
+    gone out of range) and the whole point is to burn as little time as
+    possible on each one before moving to the next, rather than a single
+    manually-triggered poll's more patient default.
 
     If an ESP32-S3 second radio is enabled and connected, the connection
     is made through it instead of the onboard adapter -- it's a fully
@@ -92,7 +100,7 @@ async def poll_ble_device(mac: str, adapter: Optional[str] = None) -> dict:
     before.
     """
     if _esp32_scanner_ref is not None and _esp32_scanner_ref.connected:
-        result = await _esp32_scanner_ref.connect_and_read(mac)
+        result = await _esp32_scanner_ref.connect_and_read(mac, timeout=timeout)
         if not result.get("esp32_unreachable"):
             # The ESP32 answered -- whether a successful read or a genuine
             # "this device wouldn't connect" failure, that's the final
@@ -100,14 +108,19 @@ async def poll_ble_device(mac: str, adapter: Optional[str] = None) -> dict:
             return result
         logger.info(f"ESP32 scanner unreachable for Scan Unit ({result.get('error')}), falling back to onboard adapter")
 
-    kwargs = {"timeout": BLE_TIMEOUT}
+    kwargs = {"timeout": timeout}
     if adapter:
         kwargs["adapter"] = adapter
+
+    # A shortened (batch) timeout also skips the patient adapter-busy
+    # retry loop -- each retry adds a fixed _INPROGRESS_RETRY_DELAY on
+    # top, which would undo the whole point of asking for a fast timeout.
+    max_retries = _INPROGRESS_RETRIES if timeout >= BLE_TIMEOUT else 1
 
     SCAN_IN_PROGRESS.set()
     try:
         last_error = None
-        for attempt in range(1, _INPROGRESS_RETRIES + 1):
+        for attempt in range(1, max_retries + 1):
             try:
                 async with BleakClient(mac, **kwargs) as client:
                     services = []
@@ -139,8 +152,8 @@ async def poll_ble_device(mac: str, adapter: Optional[str] = None) -> dict:
                 return {"ok": False, "error": "Timed out connecting -- device may be out of range or not connectable."}
             except Exception as e:
                 last_error = e
-                if "InProgress" in str(e) and attempt < _INPROGRESS_RETRIES:
-                    logger.info(f"Scan Unit: adapter busy (attempt {attempt}/{_INPROGRESS_RETRIES}), retrying in {_INPROGRESS_RETRY_DELAY}s")
+                if "InProgress" in str(e) and attempt < max_retries:
+                    logger.info(f"Scan Unit: adapter busy (attempt {attempt}/{max_retries}), retrying in {_INPROGRESS_RETRY_DELAY}s")
                     await asyncio.sleep(_INPROGRESS_RETRY_DELAY)
                     continue
                 return {"ok": False, "error": str(e)}
@@ -153,12 +166,14 @@ async def poll_ble_device(mac: str, adapter: Optional[str] = None) -> dict:
 _SDP_FIELD_RE = re.compile(r'^(Service Name|Service Description|Service Provider):\s*(.+)$', re.MULTILINE)
 
 
-async def poll_classic_device(mac: str) -> dict:
+async def poll_classic_device(mac: str, timeout: float = CLASSIC_TIMEOUT) -> dict:
     """Browse SDP service records on a Classic (BR/EDR) device via sdptool.
 
     Returns `ok: True` with a list of parsed service records (name/
     description/provider, where advertised), plus the raw sdptool output,
-    or `ok: False` with an error message.
+    or `ok: False` with an error message. `timeout` overrides the default
+    -- see poll_ble_device()'s docstring for why batch Scan Unit passes a
+    shorter one.
     """
     SCAN_IN_PROGRESS.set()
     try:
@@ -167,7 +182,7 @@ async def poll_classic_device(mac: str) -> dict:
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=CLASSIC_TIMEOUT)
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
         output = stdout.decode(errors="replace")
 
         if proc.returncode != 0 or "Failed to connect" in output:

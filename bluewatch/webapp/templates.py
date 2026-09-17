@@ -5038,6 +5038,23 @@ LIVE_TEMPLATE = """
                 </div>
             </div>
 
+            <div class="panel">
+                <div class="panel-header">Scan Unit (Batch)</div>
+                <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                    <button class="btn btn-primary" id="batch-scan-btn" onclick="startBatchScan()" style="width: 100%; font-size: 0.75rem;" title="Runs Scan Unit (active GATT read) against every currently-visible Unknown device, one at a time, with a short timeout per device -- most will not answer (out of range, or an iPhone ignoring the connection), so this moves on fast rather than waiting out the full single-scan timeout on each.">⚡ Scan Unknown Devices</button>
+                    <div id="batch-scan-progress" hidden>
+                        <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.35rem;">
+                            <span id="batch-scan-status" style="font-size: 0.7rem; color: var(--text-secondary);">Scanning...</span>
+                            <button class="btn" id="batch-scan-cancel-btn" onclick="cancelBatchScan()" style="font-size: 0.65rem; padding: 0.2rem 0.5rem;">Cancel</button>
+                        </div>
+                        <div style="background: var(--bg-tertiary); border-radius: 3px; height: 5px; overflow: hidden;">
+                            <div id="batch-scan-bar" style="background: var(--accent-blue); height: 100%; width: 0%; transition: width 0.2s;"></div>
+                        </div>
+                        <div id="batch-scan-log" style="margin-top: 0.4rem; font-size: 0.65rem; color: var(--text-muted); max-height: 8rem; overflow-y: auto;"></div>
+                    </div>
+                </div>
+            </div>
+
         </aside>
 
         <main class="content">
@@ -5486,6 +5503,101 @@ LIVE_TEMPLATE = """
             } catch (error) {
                 console.error('Scan error:', error);
             }
+        }
+
+        // ==================== Batch Scan Unit ====================
+        let batchScanPollTimer = null;
+
+        async function startBatchScan() {
+            const macs = currentVisibleDevices.map(d => d.mac);
+            if (macs.length === 0) {
+                alert('No devices match the current filters to scan.');
+                return;
+            }
+            if (macs.length > 200) {
+                alert('Too many devices to batch-scan at once (' + macs.length + ', max 200) -- narrow the filters first (e.g. First seen within, or a higher Sightings threshold).');
+                return;
+            }
+            if (!confirm('Actively connect to ' + macs.length + ' device(s) one at a time to try to identify them? Most will not answer (out of range, or a phone ignoring the connection) -- this may take a few minutes.')) {
+                return;
+            }
+
+            const btn = document.getElementById('batch-scan-btn');
+            btn.disabled = true;
+            const panel = document.getElementById('batch-scan-progress');
+            panel.hidden = false;
+            document.getElementById('batch-scan-bar').style.width = '0%';
+            document.getElementById('batch-scan-log').textContent = '';
+            document.getElementById('batch-scan-status').textContent = 'Starting...';
+
+            try {
+                const response = await fetch('/api/scan-unit/batch', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ macs: macs })
+                });
+                if (!response.ok) {
+                    const err = await response.json().catch(() => ({}));
+                    document.getElementById('batch-scan-status').textContent = err.error || 'Failed to start batch scan';
+                    btn.disabled = false;
+                    return;
+                }
+            } catch (error) {
+                document.getElementById('batch-scan-status').textContent = 'Failed to start batch scan';
+                btn.disabled = false;
+                return;
+            }
+
+            batchScanPollTimer = setInterval(pollBatchScan, 1000);
+            pollBatchScan();
+        }
+
+        async function pollBatchScan() {
+            let data;
+            try {
+                const response = await fetch('/api/scan-unit/batch');
+                data = await response.json();
+            } catch (error) {
+                return;
+            }
+
+            const total = data.total || 0;
+            const completed = data.completed || 0;
+            const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+            document.getElementById('batch-scan-bar').style.width = pct + '%';
+
+            const statusEl = document.getElementById('batch-scan-status');
+            if (data.running) {
+                statusEl.textContent = 'Scanning ' + completed + ' / ' + total + (data.current_mac ? ' -- currently ' + data.current_mac : '');
+            } else {
+                clearInterval(batchScanPollTimer);
+                batchScanPollTimer = null;
+                document.getElementById('batch-scan-btn').disabled = false;
+                const identified = (data.results || []).filter(r => r.ok && r.applied && Object.keys(r.applied).length > 0).length;
+                statusEl.textContent = 'Done: ' + completed + ' scanned, ' + identified + ' identified something new.';
+                if (identified > 0) refreshDevices();
+            }
+
+            const logEl = document.getElementById('batch-scan-log');
+            logEl.textContent = '';
+            (data.results || []).slice().reverse().slice(0, 20).forEach(r => {
+                const line = document.createElement('div');
+                if (r.ok && r.applied && Object.keys(r.applied).length > 0) {
+                    line.style.color = 'var(--accent-green, #22c55e)';
+                    line.textContent = r.mac + ': identified (' + Object.entries(r.applied).map(([k, v]) => k + '=' + v).join(', ') + ')';
+                } else if (r.ok) {
+                    line.textContent = r.mac + ': connected, nothing new to add';
+                } else {
+                    line.textContent = r.mac + ': ' + (r.error || 'failed');
+                }
+                logEl.appendChild(line);
+            });
+        }
+
+        async function cancelBatchScan() {
+            try {
+                await fetch('/api/scan-unit/batch', { method: 'DELETE' });
+            } catch (error) { /* best-effort */ }
         }
 
         function updateStats(data) {

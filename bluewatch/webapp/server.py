@@ -1,5 +1,6 @@
 """Web server for the BlueWatch dashboard."""
 
+import asyncio
 import csv
 import hashlib
 import io
@@ -69,6 +70,9 @@ class WebServer:
         self._adapter = adapter
         self._sessions: dict[str, datetime] = {}  # session_token -> expiry
         self._session_duration = timedelta(hours=24)
+        self._batch_scan_task: asyncio.Task | None = None
+        self._batch_scan_state: dict = {"running": False}
+        self._batch_scan_cancel = False
         self._setup_routes()
 
     def _setup_routes(self):
@@ -90,6 +94,9 @@ class WebServer:
         self.app.router.add_get("/api/identity/{identity_id}/macs", self.api_identity_macs)
         self.app.router.add_post("/api/device/{mac}/name", self.api_set_device_name)
         self.app.router.add_post("/api/device/{mac}/scan", self.api_scan_device)
+        self.app.router.add_post("/api/scan-unit/batch", self.api_scan_batch_start)
+        self.app.router.add_get("/api/scan-unit/batch", self.api_scan_batch_status)
+        self.app.router.add_delete("/api/scan-unit/batch", self.api_scan_batch_cancel)
         self.app.router.add_get("/api/device/{mac}/rssi", self.api_device_rssi)
         self.app.router.add_get("/api/device/{mac}/dwell", self.api_device_dwell)
         self.app.router.add_get("/api/device/{mac}/correlation", self.api_device_correlation)
@@ -769,28 +776,49 @@ class WebServer:
         whichever matches the device's known bt_type. Unlike everything
         else in BlueWatch, this actively connects to the target device
         rather than only listening -- only ever triggered manually, one
-        device at a time, from the UI."""
+        device (or an operator-selected batch -- see api_scan_batch_start)
+        at a time, from the UI."""
         mac = request.match_info["mac"]
         device = await db.get_device(mac)
         if not device:
             return web.json_response({"error": "Device not found"}, status=404)
 
-        from ..active_scan import poll_ble_device, poll_classic_device
-
-        bt_type = device.bt_type or "ble"
         try:
-            if bt_type == "classic":
-                result = await poll_classic_device(mac)
-            elif bt_type == "both":
-                # Try BLE first (faster, more commonly useful), fall back
-                # to classic SDP if the BLE connection itself fails.
-                result = await poll_ble_device(mac, adapter=self._adapter)
-                if not result.get("ok"):
-                    result = await poll_classic_device(mac)
-            else:
-                result = await poll_ble_device(mac, adapter=self._adapter)
+            result = await self._scan_one_device(mac, device)
         except Exception as e:
             return web.json_response({"error": str(e)}, status=500)
+
+        return web.json_response(result)
+
+    async def _scan_one_device(self, mac: str, device, timeout: float | None = None) -> dict:
+        """The actual Scan Unit work for one device -- GATT/SDP poll, then
+        Fast Pair verification/model read alongside it. Factored out of
+        api_scan_device() so the batch job (api_scan_batch_start) can
+        reuse the exact same logic against a whole list of devices.
+        `timeout` (seconds) overrides poll_ble_device()/poll_classic_device()'s
+        own default when given -- the batch job passes a short one so a
+        run full of non-responders (iPhones, out-of-range devices) stays
+        fast; a single manually-triggered scan leaves it at None for the
+        more patient default."""
+        from ..active_scan import poll_ble_device, poll_classic_device
+
+        ble_kwargs = {"adapter": self._adapter}
+        classic_kwargs = {}
+        if timeout is not None:
+            ble_kwargs["timeout"] = timeout
+            classic_kwargs["timeout"] = timeout
+
+        bt_type = device.bt_type or "ble"
+        if bt_type == "classic":
+            result = await poll_classic_device(mac, **classic_kwargs)
+        elif bt_type == "both":
+            # Try BLE first (faster, more commonly useful), fall back
+            # to classic SDP if the BLE connection itself fails.
+            result = await poll_ble_device(mac, **ble_kwargs)
+            if not result.get("ok"):
+                result = await poll_classic_device(mac, **classic_kwargs)
+        else:
+            result = await poll_ble_device(mac, **ble_kwargs)
 
         result["bt_type"] = bt_type
         if result.get("ok"):
@@ -843,7 +871,91 @@ class WebServer:
                             await db.set_device_type(mac, guessed_type)
                             applied["device_type"] = guessed_type
 
-        return web.json_response(result)
+        return result
+
+    async def api_scan_batch_start(self, request: web.Request) -> web.Response:
+        """Start a batch Scan Unit run against an operator-chosen list of
+        devices -- e.g. "scan every currently-visible Unknown device" --
+        one at a time, in the background. Still fundamentally the same
+        manually-triggered active poll as api_scan_device(), just queued
+        up for several devices instead of clicked one at a time; never
+        runs on its own without this being called. Only one batch can be
+        in flight; the frontend is expected to disable the trigger while
+        api_scan_batch_status reports running: true."""
+        if self._batch_scan_state.get("running"):
+            return web.json_response({"error": "A batch scan is already running"}, status=409)
+
+        try:
+            data = await request.json()
+            macs = [m for m in (data.get("macs") or []) if isinstance(m, str)]
+        except Exception as e:
+            return web.json_response({"error": str(e)}, status=400)
+
+        if not macs:
+            return web.json_response({"error": "No MAC addresses given"}, status=400)
+        if len(macs) > 200:
+            return web.json_response({"error": "Too many devices for one batch (max 200)"}, status=400)
+
+        self._batch_scan_cancel = False
+        self._batch_scan_state = {
+            "running": True,
+            "total": len(macs),
+            "completed": 0,
+            "current_mac": None,
+            "results": [],
+        }
+        self._batch_scan_task = asyncio.create_task(self._run_batch_scan(macs))
+        return web.json_response({"status": "started", "total": len(macs)})
+
+    # Deliberately much shorter than a single manually-triggered scan's
+    # default (BLE_TIMEOUT=12s onboard / up to 25s over the ESP32): a
+    # batch run is expected to spend most of its time on devices that
+    # simply never answer (an iPhone ignoring the connection, or
+    # something that's since drifted out of range), and burning the full
+    # patient timeout on each one would make a 30-device batch take the
+    # better part of an hour for little gain -- a real device usually
+    # answers within a second or two if it's going to at all.
+    _BATCH_SCAN_TIMEOUT = 6.0
+
+    async def _run_batch_scan(self, macs: list[str]) -> None:
+        state = self._batch_scan_state
+        try:
+            for mac in macs:
+                if self._batch_scan_cancel:
+                    break
+                state["current_mac"] = mac
+                device = await db.get_device(mac)
+                if not device:
+                    entry = {"mac": mac, "ok": False, "error": "Device not found"}
+                else:
+                    try:
+                        result = await self._scan_one_device(mac, device, timeout=self._BATCH_SCAN_TIMEOUT)
+                    except Exception as e:
+                        result = {"ok": False, "error": str(e)}
+                    entry = {
+                        "mac": mac,
+                        "ok": result.get("ok", False),
+                        "error": result.get("error"),
+                        "applied": result.get("applied"),
+                    }
+                state["results"].append(entry)
+                state["completed"] += 1
+        finally:
+            state["running"] = False
+            state["current_mac"] = None
+
+    async def api_scan_batch_status(self, request: web.Request) -> web.Response:
+        """Poll-based progress for the running (or just-finished) batch
+        scan -- simple GET polling rather than a websocket, since this is
+        a one-at-a-time, operator-watched foreground action, not a
+        continuous stream."""
+        return web.json_response(self._batch_scan_state)
+
+    async def api_scan_batch_cancel(self, request: web.Request) -> web.Response:
+        """Stop a running batch scan before its next device -- does not
+        abort a poll already in flight, just skips the rest of the list."""
+        self._batch_scan_cancel = True
+        return web.json_response({"status": "ok"})
 
     async def _apply_scan_unit_results(self, mac: str, device, result: dict) -> dict:
         """Fill in vendor/identifier/type from a successful Scan Unit poll,
