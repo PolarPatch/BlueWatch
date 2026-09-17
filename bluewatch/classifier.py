@@ -1161,6 +1161,22 @@ def classify_device(
         if name.startswith("MeshCore-") or "meshtastic" in name_lower:
             return TYPE_MESH
 
+        # Plejd (Swedish smart-home switches/dimmers/relays) -- every
+        # device in a Plejd BLE mesh advertises this exact generic name
+        # regardless of specific hardware model (confirmed via a real
+        # pyplejd connection log, thomasloven/hass-plejd issue #147:
+        # "Saw device XX:XX:XX:XX:XX:XX: P mesh"). The specific model
+        # (switch/dimmer/relay/etc.) is NOT recoverable from this --
+        # pyplejd's own hardware-type table is dead code (commented out
+        # in its current const.py); the live implementation resolves
+        # model names from Plejd's cloud API tied to the owner's account,
+        # and even the old local approach required first authenticating
+        # into the encrypted mesh with a key from that same cloud login --
+        # both out of scope here. This only ever gets as specific as
+        # "a Plejd smart-home device."
+        if name == "P mesh":
+            return TYPE_SMART_HOME
+
         # Lime e-scooter (source: blesploit device-library)
         if re.match(r'^lime-[0-9]+$', name):
             return TYPE_VEHICLE

@@ -54,3 +54,17 @@ cross-verified against
 (Naval Postgraduate School) and the academic paper "Handoff All Your
 Privacy" (Celosia & Cunche, PoPETS 2019), reimplemented independently
 from the documented protocol facts.
+
+Plejd smart-home device recognition (`classify_device()` in
+`bluewatch/classifier.py`, matching the generic "P mesh" name every
+Plejd BLE mesh device advertises) was identified by researching
+[thomasloven/hass-plejd](https://github.com/thomasloven/hass-plejd)
+and its underlying [pyplejd](https://github.com/thomasloven/pyplejd)
+library (MIT licensed), including a live connection log in
+[hass-plejd#147](https://github.com/thomasloven/hass-plejd/issues/147)
+confirming the advertised name. Per-model identification (which
+specific switch/dimmer/relay) was investigated but not implemented --
+pyplejd resolves that from Plejd's cloud API tied to the owner's
+account, and even its legacy local-lookup table required first
+authenticating into the encrypted mesh, both out of scope for
+BlueWatch's passive/unauthenticated identification model.
