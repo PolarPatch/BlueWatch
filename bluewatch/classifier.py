@@ -686,6 +686,39 @@ def decode_samsung_status(manufacturer_data: Optional[dict]) -> Optional[dict]:
 # that flagged this as a passively-decodable signal worth surfacing --
 # its own offsets agree with the two Apache-2.0 sources above once
 # adjusted for its 2-byte (app-code + counter) header prefix.
+# DJI's own manufacturer-data model ID -- a company ID (0x08AA, verified
+# exact match against the Bluetooth SIG registry: "SZ DJI TECHNOLOGY
+# CO.,LTD") plus a 16-bit little-endian model-ID field at payload offset
+# 0. NOT drone-specific on its own: DJI uses the exact same company ID
+# and field layout for its Osmo handheld/action-camera line, so a blind
+# "company ID present -> TYPE_DRONE" would misclassify Osmo cameras.
+# Routes by the decoded model ID instead: recognized aircraft IDs ->
+# TYPE_DRONE, recognized Osmo IDs -> TYPE_CAMERA, an unrecognized ID ->
+# no type guess (vendor is still filled in by the caller's DJI vendor-
+# pattern/company-ID-fallback path regardless). Source: OffGridPete/
+# Fieldwatch's CatalogDecodes.kt (MIT licensed) -- its DJI_MODELS table,
+# fetched and reproduced directly, not guessed/approximated.
+COMPANY_ID_DJI = 0x08AA
+DJI_DRONE_MODEL_IDS = frozenset({112, 126})  # Mavic 3, Neo 2
+DJI_CAMERA_MODEL_IDS = frozenset({6, 16, 18, 20, 21, 23, 24, 25, 32, 33, 34})  # Osmo Action/Pocket/360/Nano line
+
+
+def classify_dji_manufacturer_data(payload: bytes) -> Optional[str]:
+    """Route a DJI (company ID 0x08AA) manufacturer-data payload to
+    TYPE_DRONE or TYPE_CAMERA by its model-ID field, or None for an
+    unrecognized model (still a DJI device, just not one this table
+    knows how to categorize -- see this section's module-level comment
+    above for why a bare company-ID match isn't enough on its own)."""
+    if len(payload) < 2:
+        return None
+    model_id = int.from_bytes(payload[0:2], "little")
+    if model_id in DJI_DRONE_MODEL_IDS:
+        return TYPE_DRONE
+    if model_id in DJI_CAMERA_MODEL_IDS:
+        return TYPE_CAMERA
+    return None
+
+
 DRONE_REMOTE_ID_SERVICE_DATA_UUID = "0000fffa-0000-1000-8000-00805f9b34fb"
 DRONE_REMOTE_ID_AD_APP_CODE = 0x0D
 
@@ -875,6 +908,15 @@ def classify_by_manufacturer_data(manufacturer_data: Optional[dict]) -> Optional
     # SMART_LOCK_COMPANY_IDS' comment above).
     if SMART_LOCK_COMPANY_IDS.intersection(manufacturer_data.keys()):
         return TYPE_LOCK
+
+    # DJI: model-aware routing (drone vs. Osmo camera) -- see
+    # classify_dji_manufacturer_data()'s comment above for why a bare
+    # company-ID match isn't used directly.
+    dji_payload = manufacturer_data.get(COMPANY_ID_DJI)
+    if dji_payload:
+        dji_type = classify_dji_manufacturer_data(dji_payload)
+        if dji_type:
+            return dji_type
 
     ms_payload = manufacturer_data.get(COMPANY_ID_MICROSOFT)
     if ms_payload and len(ms_payload) >= 2 and ms_payload[0] == MS_SWIFT_PAIR_SCENARIO_TYPE:
@@ -1507,6 +1549,22 @@ def classify_device(
         # OffGridPete/Fieldwatch, MIT licensed).
         if name.startswith("UVC G") and "Instant" in name:
             return TYPE_CAMERA
+
+        # Drone/controller BLE setup-mode names for makers with no
+        # company-ID/UUID fingerprint (Skydio, Autel, HOVERAir) or where
+        # only specific product-line names are safe to match (Parrot --
+        # matching the bare word "Parrot" would misfire on Parrot's
+        # unrelated car-audio Bluetooth kits, so only its actual drone
+        # model-name prefixes are checked). Deliberately complementary
+        # to, not redundant with, the ASTM Remote ID decoder above: these
+        # makers' own notes are that live-flight Remote ID telemetry is
+        # "often Wi-Fi and easy to miss" over BLE, so this catches the
+        # drone/controller's separate pairing-mode BLE presence instead.
+        # Source: OffGridPete/Fieldwatch (MIT licensed).
+        if (name.startswith("Skydio") or name.startswith("Autel")
+                or name.startswith("Hover") or name.startswith("HOVERAir")
+                or name.startswith("ANAFI") or name.startswith("Bebop")):
+            return TYPE_DRONE
 
         # Plejd (Swedish smart-home switches/dimmers/relays) -- every
         # device in a Plejd BLE mesh advertises this exact generic name

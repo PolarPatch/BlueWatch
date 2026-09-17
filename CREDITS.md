@@ -106,3 +106,20 @@ trusted. Fieldwatch's own bare `"ESP32"`/`"ESP32-*"` rule was
 deliberately left out of the skimmer patterns -- it's the default
 advertised name on countless unrelated hobbyist ESP32 projects, far
 too generic to flag without a high false-positive rate.
+
+DJI's model-aware drone/camera routing (`COMPANY_ID_DJI`,
+`classify_dji_manufacturer_data()` in `bluewatch/classifier.py`) and
+the Skydio/Autel/HOVERAir/Parrot BLE setup-mode name patterns were
+identified from OffGridPete/Fieldwatch's `CatalogDecodes.kt` and
+`DefaultCatalog.kt` (MIT licensed) -- DJI's company ID (0x08AA)
+independently cross-verified against the Bluetooth SIG registry
+(exact match: "SZ DJI TECHNOLOGY CO.,LTD"). DJI's own model-ID field
+covers both its drones and its Osmo handheld/action-camera line under
+the identical company ID and byte layout, so the decoded model ID is
+routed to Drone or Camera accordingly rather than assuming every
+0x08AA advert is a drone. These signatures are deliberately
+complementary to (not redundant with) the ASTM F3411/OpenDroneID
+Remote ID decoder added earlier the same night: per Fieldwatch's own
+notes, these makers' in-flight Remote ID telemetry is "often Wi-Fi and
+easy to miss" over BLE, so the setup/pairing-mode name patterns here
+catch a separate, complementary signal.
