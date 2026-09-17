@@ -1036,6 +1036,15 @@ async def upsert_device(
         if service_data else None
     )
 
+    # Generic third-party Find My-network accessories consistently
+    # broadcast this exact raw name -- not a real AirTag (Apple's own
+    # AirTags normally advertise no custom name at all while in their
+    # offline-finding state), just some accessory's own product string.
+    # Relabeled for clarity at the operator's request; device_type stays
+    # "tracker" from the genuine Find My protocol-byte match regardless.
+    if friendly_name == "ING-Find My":
+        friendly_name = "Apple Find My - ING"
+
     # AirPods/Beats broadcast a generic or empty local name, so Apple's
     # Continuity Proximity Pairing message (when present) is a better
     # source for friendly_name than the advertised name itself -- only
