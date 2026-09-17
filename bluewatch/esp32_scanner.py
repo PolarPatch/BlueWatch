@@ -237,7 +237,12 @@ class ESP32Scanner:
         if not self.connected or self._ws is None:
             return {"ok": False, "error": "ESP32 scanner not connected", "esp32_unreachable": True}
         if self._pending_connect is not None and not self._pending_connect.done():
-            return {"ok": False, "error": "ESP32 is already busy with another Scan Unit request"}
+            # Another Scan Unit request already has the ESP32's one BLE
+            # radio busy -- from this caller's point of view that's no
+            # different from the ESP32 being unreachable (we got no
+            # definitive answer about the target device at all), so it
+            # should fall back to the onboard adapter the same way.
+            return {"ok": False, "error": "ESP32 is already busy with another Scan Unit request", "esp32_unreachable": True}
 
         loop = asyncio.get_event_loop()
         future: asyncio.Future = loop.create_future()
@@ -255,7 +260,19 @@ class ESP32Scanner:
             try:
                 return await asyncio.wait_for(future, timeout=timeout)
             except asyncio.TimeoutError:
-                return {"ok": False, "error": "Timed out waiting for the ESP32 to finish connecting."}
+                # This is the ESP32 itself never sending back a
+                # connection_progress/scan_discovery_result message at
+                # all within the deadline -- an ambiguous, inconclusive
+                # non-answer (could be the ESP32's own BLE stack stalling,
+                # not necessarily the target device refusing), unlike a
+                # definitive "connection failed" the firmware actually
+                # reported (handled in _handle_message, no fallback flag
+                # there -- that IS a real answer about the target device).
+                # Flagged so the caller retries via the onboard adapter
+                # instead of treating this as the final word. Per direct
+                # feedback: confirmed live with a laptop that timed out
+                # here every time -- falling back is the right call.
+                return {"ok": False, "error": "Timed out waiting for the ESP32 to finish connecting.", "esp32_unreachable": True}
         except (OSError, aiohttp.ClientError) as e:
             return {"ok": False, "error": f"Could not reach the ESP32 scanner: {e}", "esp32_unreachable": True}
         finally:
