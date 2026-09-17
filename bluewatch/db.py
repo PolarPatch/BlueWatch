@@ -2332,6 +2332,38 @@ async def get_watched_devices() -> list[Device]:
             return [_parse_device_row(row) for row in rows]
 
 
+async def get_recent_sightings(mac: str, minutes: int = 15) -> list[dict]:
+    """Sightings in the last `minutes` minutes, for the Device Details
+    modal's live signal-strength panel (see api_device_live_signal()) --
+    a short, cheap window meant to be polled every few seconds while the
+    modal is open, deliberately separate from get_rssi_history()'s
+    multi-day charting query so a fast poll loop never has to scan a
+    large date range just to get the last minute's worth of data.
+
+    Cutoff is computed in Python (datetime.now(), which matches the
+    naive-local timestamps actually stored in `sightings`) rather than
+    via SQL datetime('now', ...) -- SQLite's datetime('now') returns
+    UTC, so comparing it directly against our local-time-naive stored
+    values silently shifts the window by the host's UTC offset (harmless
+    for a multi-day window elsewhere in this file, but catastrophic for
+    a 15-minute one: on this host's UTC+2 offset it was pulling in the
+    last ~2h15m instead of 15 minutes -- caught by testing this
+    endpoint live against real data before shipping it)."""
+    cutoff = (datetime.now() - timedelta(minutes=minutes)).isoformat()
+    async with _connect() as db:
+        async with db.execute(
+            """
+            SELECT timestamp, rssi
+            FROM sightings
+            WHERE mac = ? AND timestamp > ?
+            ORDER BY timestamp ASC
+            """,
+            (mac, cutoff)
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [{"timestamp": row[0], "rssi": row[1]} for row in rows]
+
+
 async def get_rssi_history(mac: str, days: int = 7) -> list[dict]:
     """Get RSSI history for a device for charting."""
     async with _connect() as db:

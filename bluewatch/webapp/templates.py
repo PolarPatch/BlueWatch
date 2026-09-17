@@ -2129,6 +2129,7 @@ HTML_TEMPLATE = """
         }
 
         let currentDeviceMac = null;
+        let liveSignalPollTimer = null;
 
         function renderModal(data) {
             const d = data.device;
@@ -2177,6 +2178,20 @@ HTML_TEMPLATE = """
                 '<div class="detail-item full"><div class="detail-label">Assign to Group</div><select class="form-input" id="device-group" onchange="setDeviceGroup(\\'' + d.mac + '\\', this.value)" style="font-size: 0.8rem;"><option value="">No group</option></select></div>' +
                 '<div class="detail-item full"><div class="detail-label">Notes</div><textarea class="form-input" id="device-notes" rows="2" style="font-size: 0.8rem; resize: vertical;" placeholder="Add notes...">' + (d.notes || '') + '</textarea><button class="btn" style="margin-top: 0.5rem;" onclick="saveNotes(\\'' + d.mac + '\\')">Save Notes</button></div>' +
                 '</div>' +
+                '<div class="heatmap-section" id="live-signal-section">' +
+                '<div class="heatmap-title">Live Signal</div>' +
+                '<div style="display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 0.4rem;">' +
+                '<span id="live-signal-rssi" style="font-size: 1.1rem; font-weight: 600; color: var(--text-primary);">—</span>' +
+                '<span id="live-signal-age" style="font-size: 0.7rem; color: var(--text-muted);">waiting…</span>' +
+                '</div>' +
+                '<div class="rssi-chart" id="live-signal-chart" style="height: 50px;"></div>' +
+                '<div style="margin-top: 0.5rem;">' +
+                '<div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-muted); margin-bottom: 0.25rem;">' +
+                '<span>Presence (last 15 min)</span><span id="live-signal-presence-pct">0%</span>' +
+                '</div>' +
+                '<div style="background: var(--bg-tertiary); border-radius: 3px; height: 6px; overflow: hidden;">' +
+                '<div id="live-signal-presence-bar" style="background: var(--accent-blue); height: 100%; width: 0%; transition: width 0.4s;"></div>' +
+                '</div></div></div>' +
                 '<div class="heatmap-section" id="scan-unit-section" hidden>' +
                 '<div class="heatmap-title">Scan Unit Result</div>' +
                 '<div id="scan-unit-result" style="font-size: 0.75rem; font-family: monospace; white-space: pre-wrap; word-break: break-all; max-height: 300px; overflow-y: auto;"></div>' +
@@ -2210,6 +2225,7 @@ HTML_TEMPLATE = """
                 '';
 
             loadRssiChart(d.mac);
+            startLiveSignalPolling(d.mac);
             loadDwellStats(d.mac);
             loadGroupsForDevice(d.group_id);
             loadDeviceTypes(d.device_type);
@@ -2739,7 +2755,105 @@ HTML_TEMPLATE = """
             } catch (error) { console.error('Error:', error); }
         }
 
-        function closeModal() { document.getElementById('device-modal').classList.remove('active'); }
+        // Live Signal panel -- polls a short recent window while the
+        // Device Details modal is open, for a Fieldwatch-style "signal
+        // trend + presence" view (OffGridPete/Fieldwatch, MIT licensed,
+        // reimplemented against BlueWatch's own sightings data). Started
+        // from renderModal(), stopped from closeModal() so the timer
+        // never outlives the modal it's updating.
+        const LIVE_SIGNAL_WINDOW_MINUTES = 15;
+        const LIVE_SIGNAL_POLL_MS = 3000;
+
+        function startLiveSignalPolling(mac) {
+            stopLiveSignalPolling();
+            fetchAndRenderLiveSignal(mac);
+            liveSignalPollTimer = setInterval(function() {
+                if (mac !== currentDeviceMac) { stopLiveSignalPolling(); return; }
+                fetchAndRenderLiveSignal(mac);
+            }, LIVE_SIGNAL_POLL_MS);
+        }
+
+        function stopLiveSignalPolling() {
+            if (liveSignalPollTimer) { clearInterval(liveSignalPollTimer); liveSignalPollTimer = null; }
+        }
+
+        async function fetchAndRenderLiveSignal(mac) {
+            const rssiEl = document.getElementById("live-signal-rssi");
+            const ageEl = document.getElementById("live-signal-age");
+            const chartEl = document.getElementById("live-signal-chart");
+            const pctEl = document.getElementById("live-signal-presence-pct");
+            const barEl = document.getElementById("live-signal-presence-bar");
+            if (!rssiEl) return; // modal closed mid-flight
+
+            let data;
+            try {
+                const response = await fetch("/api/device/" + encodeURIComponent(mac) + "/live-signal?minutes=" + LIVE_SIGNAL_WINDOW_MINUTES);
+                data = await response.json();
+            } catch (error) {
+                return; // transient -- next poll tick retries
+            }
+            if (mac !== currentDeviceMac) return; // modal switched devices while this was in flight
+
+            if (data.current_rssi === null || data.current_rssi === undefined) {
+                rssiEl.textContent = "—";
+                rssiEl.style.color = "var(--text-muted)";
+                ageEl.textContent = "no signal in the last " + LIVE_SIGNAL_WINDOW_MINUTES + " min";
+            } else {
+                const rssi = data.current_rssi;
+                let color = "#dc2626";
+                if (rssi > -50) color = "#16a34a";
+                else if (rssi > -60) color = "#65a30d";
+                else if (rssi > -70) color = "#d97706";
+                rssiEl.textContent = rssi + " dBm";
+                rssiEl.style.color = color;
+                const age = data.last_seen_seconds_ago;
+                ageEl.textContent = age === null || age === undefined ? "" : (age < 2 ? "just now" : Math.round(age) + "s ago");
+            }
+
+            if (pctEl) pctEl.textContent = (data.presence_pct || 0) + "%";
+            if (barEl) barEl.style.width = (data.presence_pct || 0) + "%";
+
+            if (chartEl) {
+                if (data.sightings && data.sightings.length >= 2) {
+                    renderLiveSignalChart(chartEl, data.sightings);
+                } else {
+                    chartEl.innerHTML = '<div style="color: var(--text-muted); font-size: 0.7rem; text-align: center; padding-top: 1rem;">Not enough recent data yet</div>';
+                }
+            }
+        }
+
+        function renderLiveSignalChart(container, sightings) {
+            const width = container.clientWidth - 20 || 200;
+            const height = 50;
+            const padding = { left: 26, right: 6, top: 5, bottom: 5 };
+            // Fixed y-axis (unlike renderRssiChart's auto-scaled one) so the
+            // chart doesn't visibly rescale/jitter on every 3s poll tick as
+            // new points trickle in -- matches the -30/-50/-70/-100 dBm
+            // scale Fieldwatch's own Signal trend graph uses.
+            const minRssi = -100, maxRssi = -30;
+            const xScale = (i) => padding.left + (i / (sightings.length - 1)) * (width - padding.left - padding.right);
+            const yScale = (rssi) => {
+                const clamped = Math.max(minRssi, Math.min(maxRssi, rssi));
+                return padding.top + (1 - (clamped - minRssi) / (maxRssi - minRssi)) * (height - padding.top - padding.bottom);
+            };
+            const linePath = sightings.map((s, i) => (i === 0 ? "M" : "L") + xScale(i) + "," + yScale(s.rssi)).join(" ");
+            const areaPath = linePath + " L" + xScale(sightings.length - 1) + "," + (height - padding.bottom) + " L" + padding.left + "," + (height - padding.bottom) + " Z";
+            container.innerHTML = '<svg viewBox="0 0 ' + width + " " + height + '" preserveAspectRatio="none">' +
+                '<defs><linearGradient id="liveSignalGradient" x1="0%" y1="0%" x2="0%" y2="100%">' +
+                '<stop offset="0%" style="stop-color: #16a34a; stop-opacity: 0.3"/>' +
+                '<stop offset="100%" style="stop-color: #16a34a; stop-opacity: 0.05"/>' +
+                "</linearGradient></defs>" +
+                '<path class="rssi-area" d="' + areaPath + '" style="fill: url(#liveSignalGradient); stroke: none;"/>' +
+                '<path class="rssi-line" d="' + linePath + '" style="stroke: #16a34a;"/>' +
+                '<text class="rssi-label" x="2" y="' + (padding.top + 6) + '">' + maxRssi + "</text>" +
+                '<text class="rssi-label" x="2" y="' + (height - padding.bottom) + '">' + minRssi + "</text>" +
+                "</svg>";
+        }
+
+        function closeModal() {
+            stopLiveSignalPolling();
+            document.getElementById('device-modal').classList.remove('active');
+        }
 
         function csvField(val) {
             const s = String(val);
@@ -6431,6 +6545,7 @@ LIVE_TEMPLATE = """
         }
 
         let currentDeviceMac = null;
+        let liveSignalPollTimer = null;
 
         function renderModal(data) {
             const d = data.device;
@@ -6479,6 +6594,20 @@ LIVE_TEMPLATE = """
                 '<div class="detail-item full"><div class="detail-label">Assign to Group</div><select class="form-input" id="device-group" onchange="setDeviceGroup(\\'' + d.mac + '\\', this.value)" style="font-size: 0.8rem;"><option value="">No group</option></select></div>' +
                 '<div class="detail-item full"><div class="detail-label">Notes</div><textarea class="form-input" id="device-notes" rows="2" style="font-size: 0.8rem; resize: vertical;" placeholder="Add notes...">' + (d.notes || '') + '</textarea><button class="btn" style="margin-top: 0.5rem;" onclick="saveNotes(\\'' + d.mac + '\\')">Save Notes</button></div>' +
                 '</div>' +
+                '<div class="heatmap-section" id="live-signal-section">' +
+                '<div class="heatmap-title">Live Signal</div>' +
+                '<div style="display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 0.4rem;">' +
+                '<span id="live-signal-rssi" style="font-size: 1.1rem; font-weight: 600; color: var(--text-primary);">—</span>' +
+                '<span id="live-signal-age" style="font-size: 0.7rem; color: var(--text-muted);">waiting…</span>' +
+                '</div>' +
+                '<div class="rssi-chart" id="live-signal-chart" style="height: 50px;"></div>' +
+                '<div style="margin-top: 0.5rem;">' +
+                '<div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-muted); margin-bottom: 0.25rem;">' +
+                '<span>Presence (last 15 min)</span><span id="live-signal-presence-pct">0%</span>' +
+                '</div>' +
+                '<div style="background: var(--bg-tertiary); border-radius: 3px; height: 6px; overflow: hidden;">' +
+                '<div id="live-signal-presence-bar" style="background: var(--accent-blue); height: 100%; width: 0%; transition: width 0.4s;"></div>' +
+                '</div></div></div>' +
                 '<div class="heatmap-section" id="scan-unit-section" hidden>' +
                 '<div class="heatmap-title">Scan Unit Result</div>' +
                 '<div id="scan-unit-result" style="font-size: 0.75rem; font-family: monospace; white-space: pre-wrap; word-break: break-all; max-height: 300px; overflow-y: auto;"></div>' +
@@ -6512,6 +6641,7 @@ LIVE_TEMPLATE = """
                 '';
 
             loadRssiChart(d.mac);
+            startLiveSignalPolling(d.mac);
             loadDwellStats(d.mac);
             loadGroupsForDevice(d.group_id);
             loadDeviceTypes(d.device_type);
@@ -7041,7 +7171,105 @@ LIVE_TEMPLATE = """
             } catch (error) { console.error('Error:', error); }
         }
 
-        function closeModal() { document.getElementById('device-modal').classList.remove('active'); }
+        // Live Signal panel -- polls a short recent window while the
+        // Device Details modal is open, for a Fieldwatch-style "signal
+        // trend + presence" view (OffGridPete/Fieldwatch, MIT licensed,
+        // reimplemented against BlueWatch's own sightings data). Started
+        // from renderModal(), stopped from closeModal() so the timer
+        // never outlives the modal it's updating.
+        const LIVE_SIGNAL_WINDOW_MINUTES = 15;
+        const LIVE_SIGNAL_POLL_MS = 3000;
+
+        function startLiveSignalPolling(mac) {
+            stopLiveSignalPolling();
+            fetchAndRenderLiveSignal(mac);
+            liveSignalPollTimer = setInterval(function() {
+                if (mac !== currentDeviceMac) { stopLiveSignalPolling(); return; }
+                fetchAndRenderLiveSignal(mac);
+            }, LIVE_SIGNAL_POLL_MS);
+        }
+
+        function stopLiveSignalPolling() {
+            if (liveSignalPollTimer) { clearInterval(liveSignalPollTimer); liveSignalPollTimer = null; }
+        }
+
+        async function fetchAndRenderLiveSignal(mac) {
+            const rssiEl = document.getElementById("live-signal-rssi");
+            const ageEl = document.getElementById("live-signal-age");
+            const chartEl = document.getElementById("live-signal-chart");
+            const pctEl = document.getElementById("live-signal-presence-pct");
+            const barEl = document.getElementById("live-signal-presence-bar");
+            if (!rssiEl) return; // modal closed mid-flight
+
+            let data;
+            try {
+                const response = await fetch("/api/device/" + encodeURIComponent(mac) + "/live-signal?minutes=" + LIVE_SIGNAL_WINDOW_MINUTES);
+                data = await response.json();
+            } catch (error) {
+                return; // transient -- next poll tick retries
+            }
+            if (mac !== currentDeviceMac) return; // modal switched devices while this was in flight
+
+            if (data.current_rssi === null || data.current_rssi === undefined) {
+                rssiEl.textContent = "—";
+                rssiEl.style.color = "var(--text-muted)";
+                ageEl.textContent = "no signal in the last " + LIVE_SIGNAL_WINDOW_MINUTES + " min";
+            } else {
+                const rssi = data.current_rssi;
+                let color = "#dc2626";
+                if (rssi > -50) color = "#16a34a";
+                else if (rssi > -60) color = "#65a30d";
+                else if (rssi > -70) color = "#d97706";
+                rssiEl.textContent = rssi + " dBm";
+                rssiEl.style.color = color;
+                const age = data.last_seen_seconds_ago;
+                ageEl.textContent = age === null || age === undefined ? "" : (age < 2 ? "just now" : Math.round(age) + "s ago");
+            }
+
+            if (pctEl) pctEl.textContent = (data.presence_pct || 0) + "%";
+            if (barEl) barEl.style.width = (data.presence_pct || 0) + "%";
+
+            if (chartEl) {
+                if (data.sightings && data.sightings.length >= 2) {
+                    renderLiveSignalChart(chartEl, data.sightings);
+                } else {
+                    chartEl.innerHTML = '<div style="color: var(--text-muted); font-size: 0.7rem; text-align: center; padding-top: 1rem;">Not enough recent data yet</div>';
+                }
+            }
+        }
+
+        function renderLiveSignalChart(container, sightings) {
+            const width = container.clientWidth - 20 || 200;
+            const height = 50;
+            const padding = { left: 26, right: 6, top: 5, bottom: 5 };
+            // Fixed y-axis (unlike renderRssiChart's auto-scaled one) so the
+            // chart doesn't visibly rescale/jitter on every 3s poll tick as
+            // new points trickle in -- matches the -30/-50/-70/-100 dBm
+            // scale Fieldwatch's own Signal trend graph uses.
+            const minRssi = -100, maxRssi = -30;
+            const xScale = (i) => padding.left + (i / (sightings.length - 1)) * (width - padding.left - padding.right);
+            const yScale = (rssi) => {
+                const clamped = Math.max(minRssi, Math.min(maxRssi, rssi));
+                return padding.top + (1 - (clamped - minRssi) / (maxRssi - minRssi)) * (height - padding.top - padding.bottom);
+            };
+            const linePath = sightings.map((s, i) => (i === 0 ? "M" : "L") + xScale(i) + "," + yScale(s.rssi)).join(" ");
+            const areaPath = linePath + " L" + xScale(sightings.length - 1) + "," + (height - padding.bottom) + " L" + padding.left + "," + (height - padding.bottom) + " Z";
+            container.innerHTML = '<svg viewBox="0 0 ' + width + " " + height + '" preserveAspectRatio="none">' +
+                '<defs><linearGradient id="liveSignalGradient" x1="0%" y1="0%" x2="0%" y2="100%">' +
+                '<stop offset="0%" style="stop-color: #16a34a; stop-opacity: 0.3"/>' +
+                '<stop offset="100%" style="stop-color: #16a34a; stop-opacity: 0.05"/>' +
+                "</linearGradient></defs>" +
+                '<path class="rssi-area" d="' + areaPath + '" style="fill: url(#liveSignalGradient); stroke: none;"/>' +
+                '<path class="rssi-line" d="' + linePath + '" style="stroke: #16a34a;"/>' +
+                '<text class="rssi-label" x="2" y="' + (padding.top + 6) + '">' + maxRssi + "</text>" +
+                '<text class="rssi-label" x="2" y="' + (height - padding.bottom) + '">' + minRssi + "</text>" +
+                "</svg>";
+        }
+
+        function closeModal() {
+            stopLiveSignalPolling();
+            document.getElementById('device-modal').classList.remove('active');
+        }
 
         function csvField(val) {
             const s = String(val);

@@ -98,6 +98,7 @@ class WebServer:
         self.app.router.add_get("/api/scan-unit/batch", self.api_scan_batch_status)
         self.app.router.add_delete("/api/scan-unit/batch", self.api_scan_batch_cancel)
         self.app.router.add_get("/api/device/{mac}/rssi", self.api_device_rssi)
+        self.app.router.add_get("/api/device/{mac}/live-signal", self.api_device_live_signal)
         self.app.router.add_get("/api/device/{mac}/dwell", self.api_device_dwell)
         self.app.router.add_get("/api/device/{mac}/correlation", self.api_device_correlation)
         self.app.router.add_get("/api/device/{mac}/rotation", self.api_device_rotation)
@@ -1021,6 +1022,59 @@ class WebServer:
 
         rssi_history = await db.get_rssi_history(mac, days)
         return web.json_response({"mac": mac, "rssi_history": rssi_history})
+
+    async def api_device_live_signal(self, request: web.Request) -> web.Response:
+        """Live signal-strength snapshot for the Device Details modal --
+        polled every few seconds while the modal is open (see
+        showDevice()'s startLiveSignalPolling() in templates.py), inspired
+        by Fieldwatch's "Signal trend" + "Presence" panel (OffGridPete/
+        Fieldwatch, MIT licensed -- reimplemented against BlueWatch's own
+        sightings data, no code copied). Returns the last `minutes` of
+        sightings for a live sparkline, plus a presence_pct: the window
+        split into 10-second buckets, presence_pct is the percentage of
+        buckets with at least one sighting -- a device advertising every
+        few seconds fills most buckets (near 100%); one seen once and
+        gone reads near 0%, independent of its actual advertising
+        interval (which varies a lot device to device)."""
+        mac = request.match_info["mac"]
+        minutes = max(1, min(int(request.query.get("minutes", "15")), 60))
+
+        sightings = await db.get_recent_sightings(mac, minutes)
+
+        bucket_seconds = 10
+        total_buckets = max(1, (minutes * 60) // bucket_seconds)
+        now = datetime.now()
+        window_start = now - timedelta(minutes=minutes)
+        filled_buckets = set()
+        for s in sightings:
+            try:
+                ts = datetime.fromisoformat(s["timestamp"])
+            except (ValueError, TypeError):
+                continue
+            bucket_index = int((ts - window_start).total_seconds() // bucket_seconds)
+            if 0 <= bucket_index < total_buckets:
+                filled_buckets.add(bucket_index)
+        presence_pct = round(100 * len(filled_buckets) / total_buckets, 1)
+
+        last_seen_seconds_ago = None
+        current_rssi = None
+        if sightings:
+            last = sightings[-1]
+            current_rssi = last["rssi"]
+            try:
+                last_ts = datetime.fromisoformat(last["timestamp"])
+                last_seen_seconds_ago = round((now - last_ts).total_seconds(), 1)
+            except (ValueError, TypeError):
+                pass
+
+        return web.json_response({
+            "mac": mac,
+            "minutes": minutes,
+            "sightings": sightings,
+            "presence_pct": presence_pct,
+            "current_rssi": current_rssi,
+            "last_seen_seconds_ago": last_seen_seconds_ago,
+        })
 
     async def api_device_dwell(self, request: web.Request) -> web.Response:
         """Get dwell time analysis for a device."""
