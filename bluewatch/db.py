@@ -611,7 +611,11 @@ def _build_device_query_filters(
     only_uncategorized is the explicit "hide categorized devices" toggle --
     unlike the default triage-queue restriction below (which a search term
     or show_all bypasses), this one always wins, so the user can focus on
-    Unknown devices even while searching."""
+    Unknown devices even while searching. "Categorized" means either sorted
+    into a Group *or* already auto/manually classified with a known Class
+    (device_type) -- a device BlueWatch has already told the operator what
+    it is doesn't belong in the triage queue either, even if it hasn't been
+    dragged into a folder yet."""
     conditions: list[str] = []
     params: list = []
 
@@ -633,7 +637,7 @@ def _build_device_query_filters(
     search_value = (search or "").strip()
 
     if only_uncategorized:
-        conditions.append("d.group_id IS NULL")
+        conditions.append("d.group_id IS NULL AND COALESCE(d.device_type, 'unknown') = 'unknown'")
     elif group_ids:
         placeholders = ", ".join("?" for _ in group_ids)
         conditions.append(f"d.group_id IN ({placeholders})")

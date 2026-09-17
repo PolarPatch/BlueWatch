@@ -913,7 +913,7 @@ HTML_TEMPLATE = """
             <div class="panel" id="categories-panel">
                 <div class="panel-header">Categories</div>
                 <button class="filter-btn" id="all-devices-btn" onclick="showAllDevices()" style="width: 100%; justify-content: flex-start; gap: 0.4rem; margin-bottom: 0.5rem;">All devices <span id="count-all" class="filter-count" style="color: inherit; font-size: inherit;">--</span></button>
-                <label style="display: flex; align-items: center; gap: 0.4rem; padding: 0 0.75rem 0.5rem; font-size: 0.75rem; color: var(--text-secondary); cursor: pointer;">
+                <label style="display: flex; align-items: center; gap: 0.4rem; padding: 0 0.75rem 0.5rem; font-size: 0.75rem; color: var(--text-secondary); cursor: pointer;" title="Hides devices already sorted into a category folder, and devices BlueWatch has already identified with a known Class (e.g. Tracker, Phone) -- only genuinely Unknown, unsorted devices remain.">
                     <input type="checkbox" id="hide-categorized-toggle" onchange="toggleHideCategorized()">
                     Hide categorized devices
                 </label>
@@ -2033,7 +2033,7 @@ HTML_TEMPLATE = """
                         '<td colspan="3" style="padding: 0.4rem 0.5rem; font-size: 0.75rem;">' + displayName + '</td>' +
                         '<td style="padding: 0.4rem 0.5rem; font-size: 0.7rem;">' + (d.last_rssi != null ? d.last_rssi + ' dBm' : '—') + '</td>' +
                         '<td style="padding: 0.4rem 0.5rem; font-size: 0.7rem;">' + d.total_sightings + '</td>' +
-                        '<td style="padding: 0.4rem 0.5rem; font-size: 0.7rem;" class="' + (isRecent ? 'recent' : '') + '" title="' + lastSeenTooltip + '">' + lastSeen + '</td>' +
+                        '<td style="padding: 0.4rem 0.5rem; font-size: 0.7rem;" class="' + (isRecent ? 'recent' : '') + '" title="Last seen: ' + lastSeenTooltip + (d.first_seen ? ' \\u2022 First seen: ' + new Date(d.first_seen).toLocaleString() : '') + '">' + lastSeen + '</td>' +
                         '<td style="padding: 0.4rem 0.5rem; font-size: 0.7rem;">' + groupHtml + '</td>' +
                         '</tr>';
                 }
@@ -2050,7 +2050,7 @@ HTML_TEMPLATE = """
                     '</td>' +
                     '<td class="rssi-value">' + (d.last_rssi != null ? d.last_rssi + ' dBm' : '—') + '</td>' +
                     '<td class="sighting-count">' + d.total_sightings + '</td>' +
-                    '<td class="last-seen ' + (isRecent ? 'recent' : '') + '" title="' + lastSeenTooltip + '">' + lastSeen + '</td>' +
+                    '<td class="last-seen ' + (isRecent ? 'recent' : '') + '" title="Last seen: ' + lastSeenTooltip + (d.first_seen ? ' \\u2022 First seen: ' + new Date(d.first_seen).toLocaleString() : '') + '">' + lastSeen + '</td>' +
                     '<td class="group-name">' + groupHtml + '</td>' +
                     '</tr>';
             }).join('');
@@ -5057,7 +5057,7 @@ LIVE_TEMPLATE = """
                 <div style="display: flex; align-items: center; gap: 1.25rem;">
                     <span class="stat-label">FILTERS</span>
                     <button class="filter-btn" id="all-devices-btn" onclick="showAllDevices()" style="gap: 0.4rem; padding: 0.3rem 0.6rem;">All devices <span id="count-all" class="filter-count" style="color: inherit; font-size: inherit;">--</span></button>
-                    <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.75rem; color: var(--text-secondary); cursor: pointer;">
+                    <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.75rem; color: var(--text-secondary); cursor: pointer;" title="Hides devices already sorted into a category folder, and devices BlueWatch has already identified with a known Class (e.g. Tracker, Phone) -- only genuinely Unknown, unsorted devices remain.">
                         <input type="checkbox" id="hide-categorized-toggle" onchange="toggleHideCategorized()">
                         Hide categorized devices
                     </label>
@@ -6195,7 +6195,7 @@ LIVE_TEMPLATE = """
                         '<td colspan="3" style="padding: 0.4rem 0.5rem; font-size: 0.75rem;">' + displayName + '</td>' +
                         '<td style="padding: 0.4rem 0.5rem; font-size: 0.7rem;">' + (d.last_rssi != null ? d.last_rssi + ' dBm' : '—') + '</td>' +
                         '<td style="padding: 0.4rem 0.5rem; font-size: 0.7rem;">' + d.total_sightings + '</td>' +
-                        '<td style="padding: 0.4rem 0.5rem; font-size: 0.7rem;" class="' + (isRecent ? 'recent' : '') + '" title="' + lastSeenTooltip + '">' + lastSeen + '</td>' +
+                        '<td style="padding: 0.4rem 0.5rem; font-size: 0.7rem;" class="' + (isRecent ? 'recent' : '') + '" title="Last seen: ' + lastSeenTooltip + (d.first_seen ? ' \\u2022 First seen: ' + new Date(d.first_seen).toLocaleString() : '') + '">' + lastSeen + '</td>' +
                         '<td style="padding: 0.4rem 0.5rem; font-size: 0.7rem;">' + groupHtml + '</td>' +
                         '</tr>';
                 }
@@ -6212,7 +6212,7 @@ LIVE_TEMPLATE = """
                     '</td>' +
                     '<td class="rssi-value">' + (d.last_rssi != null ? d.last_rssi + ' dBm' : '—') + '</td>' +
                     '<td class="sighting-count">' + d.total_sightings + '</td>' +
-                    '<td class="last-seen ' + (isRecent ? 'recent' : '') + '" title="' + lastSeenTooltip + '">' + lastSeen + '</td>' +
+                    '<td class="last-seen ' + (isRecent ? 'recent' : '') + '" title="Last seen: ' + lastSeenTooltip + (d.first_seen ? ' \\u2022 First seen: ' + new Date(d.first_seen).toLocaleString() : '') + '">' + lastSeen + '</td>' +
                     '<td class="group-name">' + groupHtml + '</td>' +
                     '</tr>';
             }).join('');
