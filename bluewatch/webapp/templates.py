@@ -2245,11 +2245,19 @@ HTML_TEMPLATE = """
                 '</div>' +
                 '<div class="heatmap-section" id="live-signal-section">' +
                 '<div class="heatmap-title">Live Signal</div>' +
-                '<div style="display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 0.4rem;">' +
-                '<span style="display: flex; align-items: baseline; gap: 0.35rem;"><span id="live-signal-rssi" style="font-size: 1.1rem; font-weight: 600; color: var(--text-primary);">—</span><span id="live-signal-trend" style="font-size: 0.85rem; font-family: monospace; font-weight: 700;"></span></span>' +
-                '<span id="live-signal-age" style="font-size: 0.7rem; color: var(--text-muted);">waiting…</span>' +
-                '</div>' +
+                '<div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">' +
+                '<span id="live-signal-icon" style="width: 26px; height: 26px; border-radius: 50%; background: var(--bg-tertiary); display: flex; align-items: center; justify-content: center; font-size: 0.65rem; flex-shrink: 0;">' + escapeHtml(d.type_icon || '') + '</span>' +
+                '<span style="font-family: monospace; font-weight: 600; font-size: 0.8rem; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">' + escapeHtml(d.friendly_name || d.mac) + '</span>' +
+                '<span style="display: flex; flex-direction: column; align-items: flex-end; gap: 0.1rem;">' +
+                '<span style="display: flex; align-items: baseline; gap: 0.3rem;"><span id="live-signal-rssi" style="font-size: 1rem; font-weight: 600; color: var(--text-primary);">—</span><span id="live-signal-trend" style="font-size: 0.8rem; font-family: monospace; font-weight: 700;"></span></span>' +
+                '<span id="live-signal-avg" style="font-size: 0.65rem; color: var(--text-muted);">avg —</span>' +
+                '</span></div>' +
+                '<div style="margin-bottom: 0.4rem;"><span class="type-badge ' + getTypeClass(d.device_type) + '" style="font-size: 0.65rem; padding: 0.15rem 0.5rem;">' + escapeHtml(d.type_label || 'Unknown') + '</span></div>' +
                 '<div class="rssi-chart" id="live-signal-chart" style="height: 64px;"></div>' +
+                '<div style="display: flex; justify-content: space-between; font-size: 0.65rem; color: var(--text-muted); margin-top: 0.3rem;">' +
+                '<span id="live-signal-footer">first — · last —</span>' +
+                '<span id="live-signal-age">waiting…</span>' +
+                '</div>' +
                 '<div style="margin-top: 0.5rem;">' +
                 '<div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-muted); margin-bottom: 0.25rem;">' +
                 '<span>Presence (last 15 min)</span><span id="live-signal-presence-pct">0%</span>' +
@@ -2876,10 +2884,24 @@ HTML_TEMPLATE = """
             return "#dc2626";
         }
 
+        function formatDurationCompact(seconds) {
+            // "1h 10m" / "14s" style -- matches Fieldwatch's own
+            // "first Xh Xm · last Xs" card footer.
+            seconds = Math.max(0, Math.round(seconds));
+            if (seconds < 60) return seconds + "s";
+            const mins = Math.floor(seconds / 60);
+            if (mins < 60) return mins + "m";
+            const hrs = Math.floor(mins / 60);
+            const remMins = mins % 60;
+            return hrs + "h" + (remMins ? " " + remMins + "m" : "");
+        }
+
         async function fetchAndRenderLiveSignal(mac) {
             const rssiEl = document.getElementById("live-signal-rssi");
             const trendEl = document.getElementById("live-signal-trend");
             const ageEl = document.getElementById("live-signal-age");
+            const avgEl = document.getElementById("live-signal-avg");
+            const footerEl = document.getElementById("live-signal-footer");
             const chartEl = document.getElementById("live-signal-chart");
             const pctEl = document.getElementById("live-signal-presence-pct");
             const trackEl = document.getElementById("live-signal-presence-track");
@@ -2931,6 +2953,27 @@ HTML_TEMPLATE = """
 
             if (pctEl) pctEl.textContent = (data.presence_pct || 0) + "%";
             if (trackEl) renderPresenceTrack(trackEl, data.sightings || [], LIVE_SIGNAL_WINDOW_MINUTES);
+
+            const s = data.sightings || [];
+            if (avgEl) {
+                if (s.length) {
+                    const avg = Math.round(s.reduce((a, x) => a + x.rssi, 0) / s.length);
+                    avgEl.textContent = "avg " + avg;
+                } else {
+                    avgEl.textContent = "avg —";
+                }
+            }
+            if (footerEl) {
+                if (s.length) {
+                    const firstTs = new Date(s[0].timestamp).getTime();
+                    const firstAgo = (Date.now() - firstTs) / 1000;
+                    const lastAgo = data.last_seen_seconds_ago;
+                    footerEl.textContent = "first " + formatDurationCompact(firstAgo)
+                        + " · last " + (lastAgo == null ? "—" : formatDurationCompact(lastAgo));
+                } else {
+                    footerEl.textContent = "first — · last —";
+                }
+            }
 
             if (chartEl) {
                 if (data.sightings && data.sightings.length >= 2) {
@@ -6853,11 +6896,19 @@ LIVE_TEMPLATE = """
                 '</div>' +
                 '<div class="heatmap-section" id="live-signal-section">' +
                 '<div class="heatmap-title">Live Signal</div>' +
-                '<div style="display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 0.4rem;">' +
-                '<span style="display: flex; align-items: baseline; gap: 0.35rem;"><span id="live-signal-rssi" style="font-size: 1.1rem; font-weight: 600; color: var(--text-primary);">—</span><span id="live-signal-trend" style="font-size: 0.85rem; font-family: monospace; font-weight: 700;"></span></span>' +
-                '<span id="live-signal-age" style="font-size: 0.7rem; color: var(--text-muted);">waiting…</span>' +
-                '</div>' +
+                '<div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">' +
+                '<span id="live-signal-icon" style="width: 26px; height: 26px; border-radius: 50%; background: var(--bg-tertiary); display: flex; align-items: center; justify-content: center; font-size: 0.65rem; flex-shrink: 0;">' + escapeHtml(d.type_icon || '') + '</span>' +
+                '<span style="font-family: monospace; font-weight: 600; font-size: 0.8rem; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">' + escapeHtml(d.friendly_name || d.mac) + '</span>' +
+                '<span style="display: flex; flex-direction: column; align-items: flex-end; gap: 0.1rem;">' +
+                '<span style="display: flex; align-items: baseline; gap: 0.3rem;"><span id="live-signal-rssi" style="font-size: 1rem; font-weight: 600; color: var(--text-primary);">—</span><span id="live-signal-trend" style="font-size: 0.8rem; font-family: monospace; font-weight: 700;"></span></span>' +
+                '<span id="live-signal-avg" style="font-size: 0.65rem; color: var(--text-muted);">avg —</span>' +
+                '</span></div>' +
+                '<div style="margin-bottom: 0.4rem;"><span class="type-badge ' + getTypeClass(d.device_type) + '" style="font-size: 0.65rem; padding: 0.15rem 0.5rem;">' + escapeHtml(d.type_label || 'Unknown') + '</span></div>' +
                 '<div class="rssi-chart" id="live-signal-chart" style="height: 64px;"></div>' +
+                '<div style="display: flex; justify-content: space-between; font-size: 0.65rem; color: var(--text-muted); margin-top: 0.3rem;">' +
+                '<span id="live-signal-footer">first — · last —</span>' +
+                '<span id="live-signal-age">waiting…</span>' +
+                '</div>' +
                 '<div style="margin-top: 0.5rem;">' +
                 '<div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-muted); margin-bottom: 0.25rem;">' +
                 '<span>Presence (last 15 min)</span><span id="live-signal-presence-pct">0%</span>' +
@@ -7484,10 +7535,24 @@ LIVE_TEMPLATE = """
             return "#dc2626";
         }
 
+        function formatDurationCompact(seconds) {
+            // "1h 10m" / "14s" style -- matches Fieldwatch's own
+            // "first Xh Xm · last Xs" card footer.
+            seconds = Math.max(0, Math.round(seconds));
+            if (seconds < 60) return seconds + "s";
+            const mins = Math.floor(seconds / 60);
+            if (mins < 60) return mins + "m";
+            const hrs = Math.floor(mins / 60);
+            const remMins = mins % 60;
+            return hrs + "h" + (remMins ? " " + remMins + "m" : "");
+        }
+
         async function fetchAndRenderLiveSignal(mac) {
             const rssiEl = document.getElementById("live-signal-rssi");
             const trendEl = document.getElementById("live-signal-trend");
             const ageEl = document.getElementById("live-signal-age");
+            const avgEl = document.getElementById("live-signal-avg");
+            const footerEl = document.getElementById("live-signal-footer");
             const chartEl = document.getElementById("live-signal-chart");
             const pctEl = document.getElementById("live-signal-presence-pct");
             const trackEl = document.getElementById("live-signal-presence-track");
@@ -7539,6 +7604,27 @@ LIVE_TEMPLATE = """
 
             if (pctEl) pctEl.textContent = (data.presence_pct || 0) + "%";
             if (trackEl) renderPresenceTrack(trackEl, data.sightings || [], LIVE_SIGNAL_WINDOW_MINUTES);
+
+            const s = data.sightings || [];
+            if (avgEl) {
+                if (s.length) {
+                    const avg = Math.round(s.reduce((a, x) => a + x.rssi, 0) / s.length);
+                    avgEl.textContent = "avg " + avg;
+                } else {
+                    avgEl.textContent = "avg —";
+                }
+            }
+            if (footerEl) {
+                if (s.length) {
+                    const firstTs = new Date(s[0].timestamp).getTime();
+                    const firstAgo = (Date.now() - firstTs) / 1000;
+                    const lastAgo = data.last_seen_seconds_ago;
+                    footerEl.textContent = "first " + formatDurationCompact(firstAgo)
+                        + " · last " + (lastAgo == null ? "—" : formatDurationCompact(lastAgo));
+                } else {
+                    footerEl.textContent = "first — · last —";
+                }
+            }
 
             if (chartEl) {
                 if (data.sightings && data.sightings.length >= 2) {
