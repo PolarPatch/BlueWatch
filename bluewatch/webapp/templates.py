@@ -2273,8 +2273,8 @@ HTML_TEMPLATE = """
                 droneStateHtml(d) +
                 '<div class="detail-item"' + (d.identity_mac_count > 1 && d.identity_first_seen ? ' title="Earliest sighting across all ' + d.identity_mac_count + ' rotated addresses clustered under this identity"' : '') + '><div class="detail-label">First seen</div><div class="detail-value mono">' + (d.identity_mac_count > 1 && d.identity_first_seen ? new Date(d.identity_first_seen).toLocaleString() : (d.first_seen ? new Date(d.first_seen).toLocaleString() : '—')) + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">Last seen</div><div class="detail-value mono">' + (d.last_seen ? new Date(d.last_seen).toLocaleString() : '—') + '</div></div>' +
-                '<div class="detail-item full"><div class="detail-label">Activity Pattern</div><div class="detail-value">' + (data.pattern || 'Insufficient data') + '</div></div>' +
-                '<div class="detail-item full"><div class="detail-label">BLE Services</div><div class="detail-value mono" style="font-size:0.75rem;">' + (data.uuid_names && data.uuid_names.length > 0 ? data.uuid_names.join(', ') : '—') + '</div></div>' +
+                '<div class="detail-item"><div class="detail-label">Activity Pattern</div><div class="detail-value">' + (data.pattern || 'Insufficient data') + '</div></div>' +
+                '<div class="detail-item"><div class="detail-label">BLE Services</div><div class="detail-value mono" style="font-size:0.75rem;">' + (data.uuid_names && data.uuid_names.length > 0 ? data.uuid_names.join(', ') : '—') + '</div></div>' +
                 '<div class="detail-item full"><div class="detail-label">Assign to Group</div><select class="form-input" id="device-group" onchange="setDeviceGroup(\\'' + d.mac + '\\', this.value)" style="font-size: 0.8rem;"><option value="">No group</option></select></div>' +
                 '<div class="detail-item full"><div class="detail-label">Notes</div><textarea class="form-input" id="device-notes" rows="2" style="font-size: 0.8rem; resize: vertical;" placeholder="Add notes...">' + (d.notes || '') + '</textarea><button class="btn" style="margin-top: 0.5rem;" onclick="saveNotes(\\'' + d.mac + '\\')">Save Notes</button></div>' +
                 '</div>' +
@@ -2282,7 +2282,7 @@ HTML_TEMPLATE = """
                 '<div class="heatmap-section" id="live-signal-section">' +
                 '<div class="heatmap-title">Live Signal</div>' +
                 '<div style="display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 0.3rem;">' +
-                '<span style="display: flex; align-items: baseline; gap: 0.3rem;"><span id="live-signal-rssi" style="font-size: 1rem; font-weight: 600; color: var(--text-primary);">—</span><span id="live-signal-trend" style="font-size: 0.8rem; font-family: monospace; font-weight: 700;"></span></span>' +
+                '<span style="display: flex; align-items: baseline; gap: 0.3rem;"><span id="live-signal-rssi" style="font-size: 0.85rem; font-weight: 400; color: var(--text-primary);">—</span><span id="live-signal-trend" style="font-size: 0.8rem; font-family: monospace; font-weight: 700;"></span></span>' +
                 '<span id="live-signal-avg" style="font-size: 0.65rem; color: var(--text-muted);">avg —</span>' +
                 '</div>' +
                 '<div class="rssi-chart" id="live-signal-chart" style="height: 90px;"></div>' +
@@ -2298,6 +2298,7 @@ HTML_TEMPLATE = """
                 '</div></div>' +
                 '<div class="heatmap-section" id="rssi-section">' +
                 '<div class="heatmap-title">Signal History (7d)</div>' +
+                '<div style="height: 1.15rem; margin-bottom: 0.3rem;"></div>' +
                 '<div class="rssi-chart" id="rssi-chart" style="height: 90px;"><div style="color: var(--text-muted); font-size: 0.75rem; text-align: center; padding-top: 1.5rem;">Loading...</div></div>' +
                 '</div>' +
                 '</div>' +
@@ -2311,12 +2312,12 @@ HTML_TEMPLATE = """
                 '<div id="dwell-stats" class="heatmap" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem;"><div style="color: var(--text-muted);">Loading...</div></div>' +
                 '</div>' +
                 '<div class="heatmap-section">' +
-                '<div class="heatmap-title">Hourly Activity (30d)</div>' +
-                '<div class="heatmap">' + renderHourlyHeatmap(data.hourly_data) + '</div>' +
-                '</div>' +
-                '<div class="heatmap-section">' +
                 '<div class="heatmap-title">Daily Activity</div>' +
                 '<div class="heatmap">' + renderDailyHeatmap(data.daily_data) + '</div>' +
+                '</div>' +
+                '<div class="heatmap-section">' +
+                '<div class="heatmap-title">Hourly Activity (30d)</div>' +
+                '<div class="heatmap">' + renderHourlyHeatmap(data.hourly_data) + '</div>' +
                 '</div>' +
                 '<div class="heatmap-section">' +
                 '<div class="heatmap-title">Timeline (30d)</div>' +
@@ -6950,8 +6951,8 @@ LIVE_TEMPLATE = """
                 droneStateHtml(d) +
                 '<div class="detail-item"' + (d.identity_mac_count > 1 && d.identity_first_seen ? ' title="Earliest sighting across all ' + d.identity_mac_count + ' rotated addresses clustered under this identity"' : '') + '><div class="detail-label">First seen</div><div class="detail-value mono">' + (d.identity_mac_count > 1 && d.identity_first_seen ? new Date(d.identity_first_seen).toLocaleString() : (d.first_seen ? new Date(d.first_seen).toLocaleString() : '—')) + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">Last seen</div><div class="detail-value mono">' + (d.last_seen ? new Date(d.last_seen).toLocaleString() : '—') + '</div></div>' +
-                '<div class="detail-item full"><div class="detail-label">Activity Pattern</div><div class="detail-value">' + (data.pattern || 'Insufficient data') + '</div></div>' +
-                '<div class="detail-item full"><div class="detail-label">BLE Services</div><div class="detail-value mono" style="font-size:0.75rem;">' + (data.uuid_names && data.uuid_names.length > 0 ? data.uuid_names.join(', ') : '—') + '</div></div>' +
+                '<div class="detail-item"><div class="detail-label">Activity Pattern</div><div class="detail-value">' + (data.pattern || 'Insufficient data') + '</div></div>' +
+                '<div class="detail-item"><div class="detail-label">BLE Services</div><div class="detail-value mono" style="font-size:0.75rem;">' + (data.uuid_names && data.uuid_names.length > 0 ? data.uuid_names.join(', ') : '—') + '</div></div>' +
                 '<div class="detail-item full"><div class="detail-label">Assign to Group</div><select class="form-input" id="device-group" onchange="setDeviceGroup(\\'' + d.mac + '\\', this.value)" style="font-size: 0.8rem;"><option value="">No group</option></select></div>' +
                 '<div class="detail-item full"><div class="detail-label">Notes</div><textarea class="form-input" id="device-notes" rows="2" style="font-size: 0.8rem; resize: vertical;" placeholder="Add notes...">' + (d.notes || '') + '</textarea><button class="btn" style="margin-top: 0.5rem;" onclick="saveNotes(\\'' + d.mac + '\\')">Save Notes</button></div>' +
                 '</div>' +
@@ -6959,7 +6960,7 @@ LIVE_TEMPLATE = """
                 '<div class="heatmap-section" id="live-signal-section">' +
                 '<div class="heatmap-title">Live Signal</div>' +
                 '<div style="display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 0.3rem;">' +
-                '<span style="display: flex; align-items: baseline; gap: 0.3rem;"><span id="live-signal-rssi" style="font-size: 1rem; font-weight: 600; color: var(--text-primary);">—</span><span id="live-signal-trend" style="font-size: 0.8rem; font-family: monospace; font-weight: 700;"></span></span>' +
+                '<span style="display: flex; align-items: baseline; gap: 0.3rem;"><span id="live-signal-rssi" style="font-size: 0.85rem; font-weight: 400; color: var(--text-primary);">—</span><span id="live-signal-trend" style="font-size: 0.8rem; font-family: monospace; font-weight: 700;"></span></span>' +
                 '<span id="live-signal-avg" style="font-size: 0.65rem; color: var(--text-muted);">avg —</span>' +
                 '</div>' +
                 '<div class="rssi-chart" id="live-signal-chart" style="height: 90px;"></div>' +
@@ -6975,6 +6976,7 @@ LIVE_TEMPLATE = """
                 '</div></div>' +
                 '<div class="heatmap-section" id="rssi-section">' +
                 '<div class="heatmap-title">Signal History (7d)</div>' +
+                '<div style="height: 1.15rem; margin-bottom: 0.3rem;"></div>' +
                 '<div class="rssi-chart" id="rssi-chart" style="height: 90px;"><div style="color: var(--text-muted); font-size: 0.75rem; text-align: center; padding-top: 1.5rem;">Loading...</div></div>' +
                 '</div>' +
                 '</div>' +
@@ -6988,12 +6990,12 @@ LIVE_TEMPLATE = """
                 '<div id="dwell-stats" class="heatmap" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem;"><div style="color: var(--text-muted);">Loading...</div></div>' +
                 '</div>' +
                 '<div class="heatmap-section">' +
-                '<div class="heatmap-title">Hourly Activity (30d)</div>' +
-                '<div class="heatmap">' + renderHourlyHeatmap(data.hourly_data) + '</div>' +
-                '</div>' +
-                '<div class="heatmap-section">' +
                 '<div class="heatmap-title">Daily Activity</div>' +
                 '<div class="heatmap">' + renderDailyHeatmap(data.daily_data) + '</div>' +
+                '</div>' +
+                '<div class="heatmap-section">' +
+                '<div class="heatmap-title">Hourly Activity (30d)</div>' +
+                '<div class="heatmap">' + renderHourlyHeatmap(data.hourly_data) + '</div>' +
                 '</div>' +
                 '<div class="heatmap-section">' +
                 '<div class="heatmap-title">Timeline (30d)</div>' +
