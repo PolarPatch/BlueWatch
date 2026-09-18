@@ -123,3 +123,17 @@ Remote ID decoder added earlier the same night: per Fieldwatch's own
 notes, these makers' in-flight Remote ID telemetry is "often Wi-Fi and
 easy to miss" over BLE, so the setup/pairing-mode name patterns here
 catch a separate, complementary signal.
+
+Nuki smart lock/opener detection (`TYPE_LOCK` entries in
+`SERVICE_UUID_PATTERNS`, `bluewatch/classifier.py`) uses the four
+128-bit "Keyturner" service UUIDs (pairing and main-service, for both
+the Lock and Opener product lines) read directly from
+[technyon/nuki_ble](https://github.com/technyon/nuki_ble) (MIT
+licensed), the official open-source Nuki BLE client library --
+verified in its own `NukiLockConstants.h`/`NukiOpenerConstants.h`
+source and confirmed via `NukiBle.cpp` that the pairing-service UUID
+is read out of advertised BLE service data, a real signal available to
+a passive scanner. Fieldwatch's `DefaultCatalog.kt` was what first
+flagged that Nuki has a real UUID-based signature worth having, but
+its actual UUID values weren't captured there; the values used here
+come from Nuki's own reference implementation instead.

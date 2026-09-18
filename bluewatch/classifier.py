@@ -1281,6 +1281,16 @@ SERVICE_UUID_PATTERNS = [
     ("5b833e28-6bc7-4802-8e9a-723ceca4bd8f".replace("-", ""), TYPE_HEADPHONES),
     ("5b833e20-6bc7-4802-8e9a-723ceca4bd8f".replace("-", ""), TYPE_HEADPHONES),
 
+    # Nuki smart lock/opener (Keyturner protocol) -- pairing-mode and
+    # normal-operation service UUIDs for both product lines, source:
+    # technyon/nuki_ble (MIT licensed, the official open-source Nuki BLE
+    # client library) -- verified directly in its NukiLockConstants.h /
+    # NukiOpenerConstants.h source, not just referenced secondhand.
+    ("a92ee100-5501-11e4-916c-0800200c9a66".replace("-", ""), TYPE_LOCK),  # Nuki Lock pairing
+    ("a92ee200-5501-11e4-916c-0800200c9a66".replace("-", ""), TYPE_LOCK),  # Nuki Lock (Keyturner)
+    ("a92ae100-5501-11e4-916c-0800200c9a66".replace("-", ""), TYPE_LOCK),  # Nuki Opener pairing
+    ("a92ae200-5501-11e4-916c-0800200c9a66".replace("-", ""), TYPE_LOCK),  # Nuki Opener (Keyturner)
+
     # Note: Tesla's iOS-fallback (service UUID 0x1122) and Swapfiets
     # (service UUID 0x1580) are deliberately NOT listed here -- those
     # 16-bit UUIDs aren't specific enough alone (0x1122/0x1580 are
