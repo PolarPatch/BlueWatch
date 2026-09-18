@@ -99,6 +99,7 @@ class WebServer:
         self.app.router.add_delete("/api/scan-unit/batch", self.api_scan_batch_cancel)
         self.app.router.add_get("/api/device/{mac}/rssi", self.api_device_rssi)
         self.app.router.add_get("/api/device/{mac}/live-signal", self.api_device_live_signal)
+        self.app.router.add_get("/api/devices/priority", self.api_priority_devices)
         self.app.router.add_get("/api/device/{mac}/dwell", self.api_device_dwell)
         self.app.router.add_get("/api/device/{mac}/correlation", self.api_device_correlation)
         self.app.router.add_get("/api/device/{mac}/rotation", self.api_device_rotation)
@@ -1075,6 +1076,43 @@ class WebServer:
             "current_rssi": current_rssi,
             "last_seen_seconds_ago": last_seen_seconds_ago,
         })
+
+    async def api_priority_devices(self, request: web.Request) -> web.Response:
+        """Devices that must always surface regardless of the main table's
+        active filters: everything explicitly watched (gold star), plus any
+        device whose type is on the operator's Type-Based Alerts list
+        (Config > Alerts, e.g. "drone") seen within the last 30 minutes --
+        so a brand-new drone MAC that was never individually watched still
+        jumps out the moment it's seen, not just returning devices."""
+        settings = await db.get_settings()
+        devices = await db.get_priority_devices(settings.type_alert_types)
+
+        device_list = []
+        for d in devices:
+            device_type = d.device_type or classify_device(
+                d.vendor,
+                d.friendly_name,
+                d.service_uuids,
+                d.device_class,
+                d.manufacturer_data,
+                appearance=d.appearance,
+                service_data=d.service_data,
+                mac=d.mac,
+            )
+            device_list.append({
+                "mac": d.mac,
+                "vendor": d.vendor,
+                "friendly_name": d.friendly_name,
+                "device_type": device_type,
+                "type_icon": get_type_icon(device_type),
+                "type_label": get_type_label(device_type),
+                "watched": d.watched,
+                "last_seen": (d.last_seen.isoformat()) if d.last_seen else None,
+                "last_rssi": d.last_rssi,
+                "reason": "watched" if d.watched else "type_alert",
+            })
+
+        return web.json_response({"devices": device_list})
 
     async def api_device_dwell(self, request: web.Request) -> web.Response:
         """Get dwell time analysis for a device."""

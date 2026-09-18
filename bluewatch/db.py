@@ -2332,6 +2332,33 @@ async def get_watched_devices() -> list[Device]:
             return [_parse_device_row(row) for row in rows]
 
 
+async def get_priority_devices(type_alert_types: tuple[str, ...], minutes: int = 30, limit: int = 25) -> list[Device]:
+    """Devices that should always surface regardless of the main table's
+    active filters: everything explicitly watched, plus devices whose type
+    is on the operator's Type-Based Alerts list (Config > Alerts) that have
+    been seen within the last `minutes` -- e.g. a brand-new drone MAC that
+    was never individually watched still needs to jump out immediately.
+    """
+    cutoff = (datetime.now() - timedelta(minutes=minutes)).isoformat()
+    async with _connect() as db:
+        db.row_factory = aiosqlite.Row
+        if type_alert_types:
+            placeholders = ",".join("?" for _ in type_alert_types)
+            query = (
+                "SELECT * FROM devices "
+                "WHERE watched = 1 "
+                f"OR (ignored = 0 AND device_type IN ({placeholders}) AND last_seen >= ?) "
+                "ORDER BY last_seen DESC LIMIT ?"
+            )
+            params = (*type_alert_types, cutoff, limit)
+        else:
+            query = "SELECT * FROM devices WHERE watched = 1 ORDER BY last_seen DESC LIMIT ?"
+            params = (limit,)
+        async with db.execute(query, params) as cursor:
+            rows = await cursor.fetchall()
+            return [_parse_device_row(row) for row in rows]
+
+
 async def get_recent_sightings(mac: str, minutes: int = 15) -> list[dict]:
     """Sightings in the last `minutes` minutes, for the Device Details
     modal's live signal-strength panel (see api_device_live_signal()) --

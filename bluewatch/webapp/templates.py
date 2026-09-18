@@ -947,6 +947,14 @@ HTML_TEMPLATE = """
         </aside>
 
         <main class="content">
+            <div class="table-container" id="priority-box" style="margin-bottom: 0.75rem; padding: 0.6rem 0.75rem; display: none;">
+                <div style="display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.4rem;">
+                    <span style="color: #f5c518; font-size: 0.9rem;">★</span>
+                    <span class="table-title" style="font-size: 0.8rem;">Priority</span>
+                    <span style="font-size: 0.7rem; color: var(--text-muted);">watched devices and type alerts &mdash; always shown, ignores filters</span>
+                </div>
+                <div id="priority-list" style="display: flex; flex-wrap: wrap; gap: 0.5rem;"></div>
+            </div>
             <div class="table-container" id="devices-container">
                 <div class="table-header">
                     <span class="table-title">Identified Targets <span id="selected-count" class="selected-summary" style="display: none;">· 0 selected</span></span>
@@ -1346,6 +1354,44 @@ HTML_TEMPLATE = """
         function updateStats(data) {
             // (Total units seen was removed from the header -- data.total
             // is still returned by the API but nothing displays it now.)
+        }
+
+        // ==================== Priority box (watched + type alerts) ====================
+        // Always-visible box that surfaces watched devices and devices whose
+        // type is on the Type-Based Alerts list (Config > Alerts), ignoring
+        // whatever filters are active in the main table below -- so e.g. a
+        // brand-new drone MAC still jumps out even if "Hide categorized" or
+        // a First Seen filter would otherwise hide it.
+        async function loadPriorityDevices() {
+            try {
+                const res = await fetch('/api/devices/priority');
+                const data = await res.json();
+                renderPriorityBox(data.devices || []);
+            } catch (e) {
+                console.error('Failed to load priority devices:', e);
+            }
+        }
+
+        function renderPriorityBox(devices) {
+            const box = document.getElementById('priority-box');
+            const list = document.getElementById('priority-list');
+            if (!box || !list) return;
+            if (devices.length === 0) {
+                box.style.display = 'none';
+                return;
+            }
+            box.style.display = '';
+            list.innerHTML = devices.map(d => {
+                const name = obfuscateName(d.friendly_name || d.vendor || d.mac);
+                const badge = d.reason === 'watched'
+                    ? '<span style="color:#f5c518;" title="Watched device">★</span>'
+                    : '<span style="color:#f59e0b; font-size:0.6rem; font-weight:600; letter-spacing:0.03em;" title="Type alert: ' + escapeHtml(d.type_label) + '">ALERT</span>';
+                return '<div onclick="showDevice(\\'' + d.mac + '\\')" style="cursor:pointer; display:flex; align-items:center; gap:0.4rem; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 4px; padding: 0.3rem 0.6rem; font-size: 0.75rem;">'
+                    + badge
+                    + '<span class="type-badge ' + getTypeClass(d.device_type) + '" style="font-size:0.65rem; padding:0.1rem 0.35rem;">' + d.type_icon + '</span>'
+                    + '<span>' + escapeHtml(name) + '</span>'
+                    + '</div>';
+            }).join('');
         }
 
         // ==================== Categories (sidebar tree) ====================
@@ -2948,6 +2994,8 @@ HTML_TEMPLATE = """
         updatePaginationUI();
         refreshDevices();
         setInterval(refreshDevices, 10000);
+        loadPriorityDevices();
+        setInterval(loadPriorityDevices, 10000);
     </script>
 </body>
 </html>
@@ -5239,6 +5287,14 @@ LIVE_TEMPLATE = """
                     </div>
                 </div>
             </div>
+            <div class="table-container" id="priority-box" style="margin-bottom: 0.75rem; padding: 0.6rem 0.75rem; display: none;">
+                <div style="display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.4rem;">
+                    <span style="color: #f5c518; font-size: 0.9rem;">★</span>
+                    <span class="table-title" style="font-size: 0.8rem;">Priority</span>
+                    <span style="font-size: 0.7rem; color: var(--text-muted);">watched devices and type alerts &mdash; always shown, ignores filters</span>
+                </div>
+                <div id="priority-list" style="display: flex; flex-wrap: wrap; gap: 0.5rem;"></div>
+            </div>
             <div class="table-container" id="devices-container">
                 <table class="device-table">
                     <thead>
@@ -5745,6 +5801,44 @@ LIVE_TEMPLATE = """
         function updateStats(data) {
             // (Total units seen was removed from the header -- data.total
             // is still returned by the API but nothing displays it now.)
+        }
+
+        // ==================== Priority box (watched + type alerts) ====================
+        // Always-visible box that surfaces watched devices and devices whose
+        // type is on the Type-Based Alerts list (Config > Alerts), ignoring
+        // whatever filters are active in the main table below -- so e.g. a
+        // brand-new drone MAC still jumps out even if "Hide categorized" or
+        // a First Seen filter would otherwise hide it.
+        async function loadPriorityDevices() {
+            try {
+                const res = await fetch('/api/devices/priority');
+                const data = await res.json();
+                renderPriorityBox(data.devices || []);
+            } catch (e) {
+                console.error('Failed to load priority devices:', e);
+            }
+        }
+
+        function renderPriorityBox(devices) {
+            const box = document.getElementById('priority-box');
+            const list = document.getElementById('priority-list');
+            if (!box || !list) return;
+            if (devices.length === 0) {
+                box.style.display = 'none';
+                return;
+            }
+            box.style.display = '';
+            list.innerHTML = devices.map(d => {
+                const name = obfuscateName(d.friendly_name || d.vendor || d.mac);
+                const badge = d.reason === 'watched'
+                    ? '<span style="color:#f5c518;" title="Watched device">★</span>'
+                    : '<span style="color:#f59e0b; font-size:0.6rem; font-weight:600; letter-spacing:0.03em;" title="Type alert: ' + escapeHtml(d.type_label) + '">ALERT</span>';
+                return '<div onclick="showDevice(\\'' + d.mac + '\\')" style="cursor:pointer; display:flex; align-items:center; gap:0.4rem; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 4px; padding: 0.3rem 0.6rem; font-size: 0.75rem;">'
+                    + badge
+                    + '<span class="type-badge ' + getTypeClass(d.device_type) + '" style="font-size:0.65rem; padding:0.1rem 0.35rem;">' + d.type_icon + '</span>'
+                    + '<span>' + escapeHtml(name) + '</span>'
+                    + '</div>';
+            }).join('');
         }
 
         // ==================== Categories (sidebar tree) ====================
@@ -7365,6 +7459,8 @@ LIVE_TEMPLATE = """
         refreshDevices();
         loadLiveStats();
         setInterval(refreshDevices, 3000);
+        loadPriorityDevices();
+        setInterval(loadPriorityDevices, 5000);
         setInterval(loadLiveStats, 3000);
     </script>
 </body>
