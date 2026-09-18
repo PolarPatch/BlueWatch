@@ -167,3 +167,16 @@ disclosure terms). That same repo's camera/microphone/recording-device
 rules were checked and found to be name-substring-only with no
 company-ID/OUI/UUID backing at all -- no stronger than BlueWatch's
 existing camera signal, so nothing from that part of it was adopted.
+
+Flipper Zero's older, pre-IEEE-assignment MAC prefix
+(`FLIPPER_MAC_OUI_LEGACY = "80:E1:26"`, `bluewatch/classifier.py`) was
+added after a real unit ("Uw1n1p") went undetected by BlueWatch while
+correctly identified by [blesploit's own web UI](https://github.com/blesploit/esp32-firmware) --
+the gap traced to that unit's advertisement having no manufacturer-data
+company ID at all, only the MAC to go on. Confirmed via Flipper
+Devices' own account ("From this moment our new products will have MAC
+addresses starting from 0C:FA:22", Sept 2024, implying every unit sold
+before that keeps the older prefix) and independently cross-checked
+against [InnerFireZ/flipper-detector](https://github.com/InnerFireZ/flipper-detector),
+an unrelated, dedicated bluetoothctl-based Flipper detector script
+built around the same prefix.
