@@ -2298,19 +2298,15 @@ HTML_TEMPLATE = """
                 '<div class="detail-item"><div class="detail-label">Activity Pattern</div><div class="detail-value">' + (data.pattern || 'Insufficient data') + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">BLE Services</div><div class="detail-value mono" style="font-size:0.75rem;">' + (data.uuid_names && data.uuid_names.length > 0 ? data.uuid_names.join(', ') : '—') + '</div></div>' +
                 '<div class="detail-item full"><div class="detail-label">Assign to Group</div><select class="form-input" id="device-group" onchange="setDeviceGroup(\\'' + d.mac + '\\', this.value)" style="font-size: 0.8rem;"><option value="">No group</option></select></div>' +
-                '<div class="detail-item full"><div class="detail-label">Notes</div><textarea class="form-input" id="device-notes" rows="2" style="font-size: 0.8rem; resize: vertical;" placeholder="Add notes...">' + (d.notes || '') + '</textarea><button class="btn" style="margin-top: 0.5rem;" onclick="saveNotes(\\'' + d.mac + '\\')">Save Notes</button></div>' +
+                '<div class="detail-item full"><div class="detail-label">Notes</div><textarea class="form-input" id="device-notes" rows="2" style="font-size: 0.8rem; resize: vertical;" placeholder="Add notes...">' + (d.notes || '') + '</textarea><button class="btn" style="margin-top: 0.35rem; padding: 0.3rem 0.6rem; display: block;" onclick="saveNotes(\\'' + d.mac + '\\')">Save Notes</button></div>' +
                 '</div>' +
                 '<div class="heatmap-grid-2col">' +
                 '<div class="heatmap-section" id="live-signal-section">' +
                 '<div class="heatmap-title">Live Signal</div>' +
-                '<div style="display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 0.3rem;">' +
-                '<span style="display: flex; align-items: baseline; gap: 0.3rem;"><span id="live-signal-rssi" style="font-size: 0.85rem; font-weight: 400; color: var(--text-primary);">—</span><span id="live-signal-trend" style="font-size: 0.8rem; font-family: monospace; font-weight: 700;"></span></span>' +
-                '<span id="live-signal-avg" style="font-size: 0.65rem; color: var(--text-muted);">avg —</span>' +
-                '</div>' +
                 '<div class="rssi-chart" id="live-signal-chart" style="height: 90px;"></div>' +
-                '<div style="display: flex; justify-content: space-between; font-size: 0.65rem; color: var(--text-muted); margin-top: 0.2rem;">' +
+                '<div style="display: flex; justify-content: space-between; align-items: baseline; font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">' +
+                '<span style="display: flex; align-items: baseline; gap: 0.3rem;"><span id="live-signal-rssi" style="font-weight: 400; color: var(--text-primary);">—</span><span id="live-signal-trend" style="font-family: monospace; font-weight: 700;"></span><span id="live-signal-avg">avg —</span></span>' +
                 '<span id="live-signal-footer">first — · last —</span>' +
-                '<span id="live-signal-age">waiting…</span>' +
                 '</div>' +
                 '<div style="margin-top: 0.35rem;">' +
                 '<div style="display: flex; justify-content: space-between; font-size: 0.65rem; color: var(--text-muted); margin-bottom: 0.15rem;">' +
@@ -2320,7 +2316,6 @@ HTML_TEMPLATE = """
                 '</div></div>' +
                 '<div class="heatmap-section" id="rssi-section">' +
                 '<div class="heatmap-title">Signal History (7d)</div>' +
-                '<div style="height: 1.15rem; margin-bottom: 0.3rem;"></div>' +
                 '<div class="rssi-chart" id="rssi-chart" style="height: 90px;"><div style="color: var(--text-muted); font-size: 0.75rem; text-align: center; padding-top: 1.5rem;">Loading...</div></div>' +
                 '</div>' +
                 '</div>' +
@@ -2948,7 +2943,6 @@ HTML_TEMPLATE = """
         async function fetchAndRenderLiveSignal(mac) {
             const rssiEl = document.getElementById("live-signal-rssi");
             const trendEl = document.getElementById("live-signal-trend");
-            const ageEl = document.getElementById("live-signal-age");
             const avgEl = document.getElementById("live-signal-avg");
             const footerEl = document.getElementById("live-signal-footer");
             const chartEl = document.getElementById("live-signal-chart");
@@ -2969,7 +2963,6 @@ HTML_TEMPLATE = """
                 rssiEl.textContent = "—";
                 rssiEl.style.color = "var(--text-muted)";
                 if (trendEl) trendEl.textContent = "";
-                ageEl.textContent = "no signal in the last " + LIVE_SIGNAL_WINDOW_MINUTES + " min";
             } else {
                 const rssi = data.current_rssi;
                 rssiEl.textContent = rssi + " dBm";
@@ -2996,8 +2989,6 @@ HTML_TEMPLATE = """
                         trendEl.textContent = "";
                     }
                 }
-                const age = data.last_seen_seconds_ago;
-                ageEl.textContent = age === null || age === undefined ? "" : (age < 2 ? "just now" : Math.round(age) + "s ago");
             }
 
             if (pctEl) pctEl.textContent = (data.presence_pct || 0) + "%";
@@ -3020,7 +3011,7 @@ HTML_TEMPLATE = """
                     footerEl.textContent = "first " + formatDurationCompact(firstAgo)
                         + " · last " + (lastAgo == null ? "—" : formatDurationCompact(lastAgo));
                 } else {
-                    footerEl.textContent = "first — · last —";
+                    footerEl.textContent = "no signal in the last " + LIVE_SIGNAL_WINDOW_MINUTES + " min";
                 }
             }
 
@@ -7001,19 +6992,15 @@ LIVE_TEMPLATE = """
                 '<div class="detail-item"><div class="detail-label">Activity Pattern</div><div class="detail-value">' + (data.pattern || 'Insufficient data') + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">BLE Services</div><div class="detail-value mono" style="font-size:0.75rem;">' + (data.uuid_names && data.uuid_names.length > 0 ? data.uuid_names.join(', ') : '—') + '</div></div>' +
                 '<div class="detail-item full"><div class="detail-label">Assign to Group</div><select class="form-input" id="device-group" onchange="setDeviceGroup(\\'' + d.mac + '\\', this.value)" style="font-size: 0.8rem;"><option value="">No group</option></select></div>' +
-                '<div class="detail-item full"><div class="detail-label">Notes</div><textarea class="form-input" id="device-notes" rows="2" style="font-size: 0.8rem; resize: vertical;" placeholder="Add notes...">' + (d.notes || '') + '</textarea><button class="btn" style="margin-top: 0.5rem;" onclick="saveNotes(\\'' + d.mac + '\\')">Save Notes</button></div>' +
+                '<div class="detail-item full"><div class="detail-label">Notes</div><textarea class="form-input" id="device-notes" rows="2" style="font-size: 0.8rem; resize: vertical;" placeholder="Add notes...">' + (d.notes || '') + '</textarea><button class="btn" style="margin-top: 0.35rem; padding: 0.3rem 0.6rem; display: block;" onclick="saveNotes(\\'' + d.mac + '\\')">Save Notes</button></div>' +
                 '</div>' +
                 '<div class="heatmap-grid-2col">' +
                 '<div class="heatmap-section" id="live-signal-section">' +
                 '<div class="heatmap-title">Live Signal</div>' +
-                '<div style="display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 0.3rem;">' +
-                '<span style="display: flex; align-items: baseline; gap: 0.3rem;"><span id="live-signal-rssi" style="font-size: 0.85rem; font-weight: 400; color: var(--text-primary);">—</span><span id="live-signal-trend" style="font-size: 0.8rem; font-family: monospace; font-weight: 700;"></span></span>' +
-                '<span id="live-signal-avg" style="font-size: 0.65rem; color: var(--text-muted);">avg —</span>' +
-                '</div>' +
                 '<div class="rssi-chart" id="live-signal-chart" style="height: 90px;"></div>' +
-                '<div style="display: flex; justify-content: space-between; font-size: 0.65rem; color: var(--text-muted); margin-top: 0.2rem;">' +
+                '<div style="display: flex; justify-content: space-between; align-items: baseline; font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">' +
+                '<span style="display: flex; align-items: baseline; gap: 0.3rem;"><span id="live-signal-rssi" style="font-weight: 400; color: var(--text-primary);">—</span><span id="live-signal-trend" style="font-family: monospace; font-weight: 700;"></span><span id="live-signal-avg">avg —</span></span>' +
                 '<span id="live-signal-footer">first — · last —</span>' +
-                '<span id="live-signal-age">waiting…</span>' +
                 '</div>' +
                 '<div style="margin-top: 0.35rem;">' +
                 '<div style="display: flex; justify-content: space-between; font-size: 0.65rem; color: var(--text-muted); margin-bottom: 0.15rem;">' +
@@ -7023,7 +7010,6 @@ LIVE_TEMPLATE = """
                 '</div></div>' +
                 '<div class="heatmap-section" id="rssi-section">' +
                 '<div class="heatmap-title">Signal History (7d)</div>' +
-                '<div style="height: 1.15rem; margin-bottom: 0.3rem;"></div>' +
                 '<div class="rssi-chart" id="rssi-chart" style="height: 90px;"><div style="color: var(--text-muted); font-size: 0.75rem; text-align: center; padding-top: 1.5rem;">Loading...</div></div>' +
                 '</div>' +
                 '</div>' +
@@ -7651,7 +7637,6 @@ LIVE_TEMPLATE = """
         async function fetchAndRenderLiveSignal(mac) {
             const rssiEl = document.getElementById("live-signal-rssi");
             const trendEl = document.getElementById("live-signal-trend");
-            const ageEl = document.getElementById("live-signal-age");
             const avgEl = document.getElementById("live-signal-avg");
             const footerEl = document.getElementById("live-signal-footer");
             const chartEl = document.getElementById("live-signal-chart");
@@ -7672,7 +7657,6 @@ LIVE_TEMPLATE = """
                 rssiEl.textContent = "—";
                 rssiEl.style.color = "var(--text-muted)";
                 if (trendEl) trendEl.textContent = "";
-                ageEl.textContent = "no signal in the last " + LIVE_SIGNAL_WINDOW_MINUTES + " min";
             } else {
                 const rssi = data.current_rssi;
                 rssiEl.textContent = rssi + " dBm";
@@ -7699,8 +7683,6 @@ LIVE_TEMPLATE = """
                         trendEl.textContent = "";
                     }
                 }
-                const age = data.last_seen_seconds_ago;
-                ageEl.textContent = age === null || age === undefined ? "" : (age < 2 ? "just now" : Math.round(age) + "s ago");
             }
 
             if (pctEl) pctEl.textContent = (data.presence_pct || 0) + "%";
@@ -7723,7 +7705,7 @@ LIVE_TEMPLATE = """
                     footerEl.textContent = "first " + formatDurationCompact(firstAgo)
                         + " · last " + (lastAgo == null ? "—" : formatDurationCompact(lastAgo));
                 } else {
-                    footerEl.textContent = "first — · last —";
+                    footerEl.textContent = "no signal in the last " + LIVE_SIGNAL_WINDOW_MINUTES + " min";
                 }
             }
 
