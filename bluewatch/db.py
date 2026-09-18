@@ -2338,25 +2338,51 @@ async def get_priority_devices(type_alert_types: tuple[str, ...], minutes: int =
     is on the operator's Type-Based Alerts list (Config > Alerts) that have
     been seen within the last `minutes` -- e.g. a brand-new drone MAC that
     was never individually watched still needs to jump out immediately.
+
+    The type-alert half classifies candidates in Python
+    (classify_device()) rather than filtering on the devices.device_type
+    SQL column directly -- that column is essentially never populated by
+    normal scanning (only the TUI's "list" command's auto-classify path
+    ever writes it; the web dashboard has always computed it on the fly
+    per request instead), so a raw SQL `device_type IN (...)` filter
+    would silently never match most real devices. Caught live: a Flipper
+    Zero that wasn't yet individually watched would not have appeared
+    here despite "flipper" being on the operator's alert-type list, even
+    though the same device rendered correctly as "Flipper Zero" in the
+    main table (which does fall back to classify_device()).
     """
-    cutoff = (datetime.now() - timedelta(minutes=minutes)).isoformat()
+    from .classifier import classify_device
+
     async with _connect() as db:
         db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT * FROM devices WHERE watched = 1 ORDER BY last_seen DESC"
+        ) as cursor:
+            result = [_parse_device_row(row) for row in await cursor.fetchall()]
+        result_macs = {d.mac for d in result}
+
         if type_alert_types:
-            placeholders = ",".join("?" for _ in type_alert_types)
-            query = (
-                "SELECT * FROM devices "
-                "WHERE watched = 1 "
-                f"OR (ignored = 0 AND device_type IN ({placeholders}) AND last_seen >= ?) "
-                "ORDER BY last_seen DESC LIMIT ?"
-            )
-            params = (*type_alert_types, cutoff, limit)
-        else:
-            query = "SELECT * FROM devices WHERE watched = 1 ORDER BY last_seen DESC LIMIT ?"
-            params = (limit,)
-        async with db.execute(query, params) as cursor:
-            rows = await cursor.fetchall()
-            return [_parse_device_row(row) for row in rows]
+            cutoff = (datetime.now() - timedelta(minutes=minutes)).isoformat()
+            async with db.execute(
+                "SELECT * FROM devices WHERE ignored = 0 AND watched = 0 "
+                "AND last_seen >= ? ORDER BY last_seen DESC LIMIT 200",
+                (cutoff,),
+            ) as cursor:
+                candidates = [_parse_device_row(row) for row in await cursor.fetchall()]
+            for d in candidates:
+                if d.mac in result_macs:
+                    continue
+                device_type = d.device_type or classify_device(
+                    d.vendor, d.friendly_name, d.service_uuids, d.device_class,
+                    d.manufacturer_data, appearance=d.appearance,
+                    service_data=d.service_data, mac=d.mac,
+                )
+                if device_type in type_alert_types:
+                    result.append(d)
+                    result_macs.add(d.mac)
+
+        result.sort(key=lambda d: d.last_seen or datetime.min, reverse=True)
+        return result[:limit]
 
 
 async def get_recent_sightings(mac: str, minutes: int = 15) -> list[dict]:
