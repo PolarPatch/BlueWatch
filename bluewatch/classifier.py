@@ -249,6 +249,19 @@ COMPANY_ID_FLIPPER = 0x0E29
 # (standards-oui.ieee.org/oui/oui.csv) and Wireshark's manuf database.
 # Source: OffGridPete/Fieldwatch (MIT licensed).
 FLIPPER_MAC_OUI = "0C:FA:22"
+# The older, pre-IEEE-assignment MAC prefix -- Flipper Devices' own
+# official account confirmed 0C:FA:22 is the NEW prefix ("From this
+# moment our new products will have MAC addresses starting from
+# 0C:FA:22", Sept 2024), implying every unit sold before that still
+# advertises 80:E1:26. Missing this one is a confirmed real gap: a real
+# Flipper Zero seen live (name "Uw1n1p") was misclassified until this was
+# added, caught by comparing against blesploit's own detection of the
+# same physical device. Independently cross-checked against a second,
+# unrelated source (InnerFireZ/flipper-detector, a dedicated bluetoothctl-
+# based Flipper detector script that greps for this exact same prefix) --
+# not in the IEEE MA-L registry at all, which fits a pre-assignment
+# firmware-chosen prefix rather than a registered one.
+FLIPPER_MAC_OUI_LEGACY = "80:E1:26"
 # Swapfiets e-bike lock (source: blesploit device-library)
 COMPANY_ID_SWAPFIETS = 0x020F
 # Smart-lock company IDs -- each names a lock maker specifically enough to
@@ -1589,8 +1602,10 @@ def classify_device(
     # company-ID check inside classify_by_manufacturer_data() below (some
     # firmware/advert modes carry a fixed vendor MAC with no manufacturer-
     # data field at all). See FLIPPER_MAC_OUI's comment above.
-    if mac and mac.upper().replace("-", ":").startswith(FLIPPER_MAC_OUI):
-        return TYPE_FLIPPER
+    if mac:
+        mac_norm = mac.upper().replace("-", ":")
+        if mac_norm.startswith(FLIPPER_MAC_OUI) or mac_norm.startswith(FLIPPER_MAC_OUI_LEGACY):
+            return TYPE_FLIPPER
 
     # Manufacturer-data fingerprints (AirTag/Find My, Flipper Zero, Meta
     # glasses) are the most specific signal available -- check first.

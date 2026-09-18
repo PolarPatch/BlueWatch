@@ -67,6 +67,53 @@ def hash_password(password: str) -> str:
     return f"{salt}:{hash_obj.hexdigest()}"
 
 
+def _device_to_json(d, group=None) -> dict:
+    """Same JSON shape api_devices() has always returned per device --
+    factored out so the live-sighting SSE push (broadcast the instant a
+    device is upserted, see WebServer.broadcast_sighting) and the
+    polled /api/devices response can never drift apart."""
+    device_type = d.device_type or classify_device(
+        d.vendor,
+        d.friendly_name,
+        d.service_uuids,
+        d.device_class,
+        d.manufacturer_data,
+        appearance=d.appearance,
+        service_data=d.service_data,
+        mac=d.mac,
+    )
+    return {
+        "mac": d.mac,
+        "vendor": d.vendor,
+        "friendly_name": d.friendly_name,
+        "device_type": device_type,
+        "type_icon": get_type_icon(device_type),
+        "type_label": get_type_label(device_type),
+        "ignored": d.ignored,
+        "watched": d.watched,
+        "randomized_mac": is_randomized_mac(d.mac),
+        "first_seen": (d.first_seen.isoformat()) if d.first_seen else None,
+        "last_seen": (d.last_seen.isoformat()) if d.last_seen else None,
+        "total_sightings": d.total_sightings,
+        "last_rssi": d.last_rssi,
+        "service_uuids": d.service_uuids,
+        "uuid_names": get_uuid_names(d.service_uuids),
+        "group_id": d.group_id,
+        "group_name": group.name if group else None,
+        "group_color": group.color if group else None,
+        "notify_arrive": d.notify_arrive,
+        "notify_arrive_expires_at": (d.notify_arrive_expires_at.isoformat()) if d.notify_arrive_expires_at else None,
+        "notify_depart": d.notify_depart,
+        "notify_depart_expires_at": (d.notify_depart_expires_at.isoformat()) if d.notify_depart_expires_at else None,
+        "identity_id": d.identity_id,
+        "identity_mac_count": d.identity_mac_count,
+        "identity_total_sightings": d.identity_total_sightings,
+        "identity_first_seen": (d.identity_first_seen.isoformat()) if d.identity_first_seen else None,
+        "name_conflict_at": (d.name_conflict_at.isoformat()) if d.name_conflict_at else None,
+        "name_conflict_name": d.name_conflict_name,
+    }
+
+
 def verify_password(password: str, stored_hash: str) -> bool:
     """Verify a password against a stored hash."""
     if not stored_hash or ":" not in stored_hash:
@@ -91,6 +138,7 @@ class WebServer:
         self._batch_scan_state: dict = {"running": False}
         self._batch_scan_cancel = False
         self._nr_client: aiohttp.ClientSession | None = None
+        self._sse_clients: set[web.StreamResponse] = set()
         self._setup_routes()
 
     def _setup_routes(self):
@@ -103,6 +151,7 @@ class WebServer:
         self.app.router.add_route("*", "/nr/{tail:.*}", self.proxy_nr)
         self.app.router.add_static("/assets/", path=str(ASSETS_DIR), name="assets")
         self.app.router.add_get("/api/devices", self.api_devices)
+        self.app.router.add_get("/api/live-events", self.api_live_events)
         self.app.router.add_get("/api/devices/export", self.api_export_devices)
         self.app.router.add_post("/api/devices/export", self.api_export_devices)
         self.app.router.add_get("/api/device/{mac}", self.api_device)
@@ -225,6 +274,60 @@ class WebServer:
         """Serve the about page."""
         return web.Response(text=ABOUT_TEMPLATE, content_type="text/html")
 
+    async def api_live_events(self, request: web.Request) -> web.StreamResponse:
+        """Server-Sent Events stream: pushes a device's JSON the instant
+        it's upserted from a scan (see broadcast_sighting, called from
+        daemon.py's scan loops right after db.upsert_device()), so a
+        newly-seen device appears on screen without waiting for the
+        dashboard's next poll tick. Purely additive -- the existing
+        periodic refreshDevices() poll stays as-is, as the source of
+        truth for pagination/stats/filter reconciliation; this only
+        makes *new* sightings show up sooner than that poll interval."""
+        resp = web.StreamResponse(
+            status=200,
+            headers={
+                "Content-Type": "text/event-stream",
+                "Cache-Control": "no-cache",
+                "X-Accel-Buffering": "no",
+            },
+        )
+        try:
+            await resp.prepare(request)
+            self._sse_clients.add(resp)
+            # Nothing to send from this end -- broadcast_sighting() writes
+            # to `resp` directly from elsewhere. Just hold the connection
+            # open until the client disconnects, with a periodic comment
+            # ping so idle proxies/browsers don't time it out.
+            while True:
+                await asyncio.sleep(20)
+                await resp.write(b": ping\n\n")
+        except (ConnectionResetError, ConnectionError, asyncio.CancelledError):
+            # Covers both the builtin ConnectionResetError and aiohttp's
+            # own ClientConnectionResetError (a ConnectionError subclass)
+            # -- a client that disconnects mid-prepare or mid-ping must
+            # never surface as an unhandled exception in the daemon log.
+            pass
+        finally:
+            self._sse_clients.discard(resp)
+        return resp
+
+    async def broadcast_sighting(self, device_json: dict) -> None:
+        """Push one device's JSON to every connected dashboard immediately
+        -- called from daemon.py right after db.upsert_device() for each
+        sighting, not batched to end-of-scan-cycle, so it's on screen as
+        close to real-time as the radio itself allows. A dead/slow client
+        is dropped rather than allowed to block the others."""
+        if not self._sse_clients:
+            return
+        payload = f"data: {json.dumps(device_json)}\n\n".encode("utf-8")
+        dead = set()
+        for resp in self._sse_clients:
+            try:
+                await resp.write(payload)
+            except (ConnectionResetError, RuntimeError):
+                dead.add(resp)
+        self._sse_clients -= dead
+
     async def api_devices(self, request: web.Request) -> web.Response:
         """Get paginated devices and dashboard stats."""
         def _safe_int(value: str, default: int) -> int:
@@ -316,50 +419,10 @@ class WebServer:
                 first_seen_filter=first_seen_filter,
             )
 
-        device_list = []
-        for d in devices:
-            device_type = d.device_type or classify_device(
-                d.vendor,
-                d.friendly_name,
-                d.service_uuids,
-                d.device_class,
-                d.manufacturer_data,
-                appearance=d.appearance,
-                service_data=d.service_data,
-                mac=d.mac,
-            )
-            group = group_lookup.get(d.group_id) if d.group_id else None
-
-            device_list.append({
-                "mac": d.mac,
-                "vendor": d.vendor,
-                "friendly_name": d.friendly_name,
-                "device_type": device_type,
-                "type_icon": get_type_icon(device_type),
-                "type_label": get_type_label(device_type),
-                "ignored": d.ignored,
-                "watched": d.watched,
-                "randomized_mac": is_randomized_mac(d.mac),
-                "first_seen": (d.first_seen.isoformat()) if d.first_seen else None,
-                "last_seen": (d.last_seen.isoformat()) if d.last_seen else None,
-                "total_sightings": d.total_sightings,
-                "last_rssi": d.last_rssi,
-                "service_uuids": d.service_uuids,
-                "uuid_names": get_uuid_names(d.service_uuids),
-                "group_id": d.group_id,
-                "group_name": group.name if group else None,
-                "group_color": group.color if group else None,
-                "notify_arrive": d.notify_arrive,
-                "notify_arrive_expires_at": (d.notify_arrive_expires_at.isoformat()) if d.notify_arrive_expires_at else None,
-                "notify_depart": d.notify_depart,
-                "notify_depart_expires_at": (d.notify_depart_expires_at.isoformat()) if d.notify_depart_expires_at else None,
-                "identity_id": d.identity_id,
-                "identity_mac_count": d.identity_mac_count,
-                "identity_total_sightings": d.identity_total_sightings,
-                "identity_first_seen": (d.identity_first_seen.isoformat()) if d.identity_first_seen else None,
-                "name_conflict_at": (d.name_conflict_at.isoformat()) if d.name_conflict_at else None,
-                "name_conflict_name": d.name_conflict_name,
-            })
+        device_list = [
+            _device_to_json(d, group_lookup.get(d.group_id) if d.group_id else None)
+            for d in devices
+        ]
 
         total_pages = max(1, math.ceil(total / page_size)) if total else 1
         return web.json_response({

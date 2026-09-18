@@ -1357,6 +1357,35 @@ HTML_TEMPLATE = """
             // is still returned by the API but nothing displays it now.)
         }
 
+        // ==================== Live sighting stream (SSE) ====================
+        // /api/live-events pushes the instant a device is upserted from a
+        // scan (daemon.py, right after db.upsert_device()) -- rather than
+        // waiting up to the poll interval (setInterval(refreshDevices,...)
+        // below) to notice it. Deliberately does NOT merge the pushed
+        // device into allDevices client-side (that array is one server-
+        // computed page under the current filter/sort -- blindly inserting
+        // a device risks putting it somewhere it doesn't belong, e.g. past
+        // a filter that would exclude it). Instead each push triggers a
+        // debounced real refresh -- coalesces a burst of many devices from
+        // one scan cycle into a single fetch instead of one per device --
+        // so what's on screen is always server-truth, just fetched near-
+        // instantly instead of on the next scheduled tick.
+        let liveEventSource = null;
+        let liveRefreshDebounce = null;
+        function startLiveEventStream() {
+            if (liveEventSource) return;
+            liveEventSource = new EventSource('/api/live-events');
+            liveEventSource.onmessage = () => {
+                clearTimeout(liveRefreshDebounce);
+                liveRefreshDebounce = setTimeout(() => {
+                    refreshDevices();
+                    loadPriorityDevices();
+                }, 200);
+            };
+            // EventSource reconnects on its own after a drop/server
+            // restart -- nothing to do here beyond letting it retry.
+        }
+
         // ==================== Priority box (watched + type alerts) ====================
         // Always-visible box that surfaces watched devices and devices whose
         // type is on the Type-Based Alerts list (Config > Alerts), ignoring
@@ -2997,6 +3026,7 @@ HTML_TEMPLATE = """
         setInterval(refreshDevices, 10000);
         loadPriorityDevices();
         setInterval(loadPriorityDevices, 10000);
+        startLiveEventStream();
     </script>
 </body>
 </html>
@@ -5807,6 +5837,35 @@ LIVE_TEMPLATE = """
             // is still returned by the API but nothing displays it now.)
         }
 
+        // ==================== Live sighting stream (SSE) ====================
+        // /api/live-events pushes the instant a device is upserted from a
+        // scan (daemon.py, right after db.upsert_device()) -- rather than
+        // waiting up to the poll interval (setInterval(refreshDevices,...)
+        // below) to notice it. Deliberately does NOT merge the pushed
+        // device into allDevices client-side (that array is one server-
+        // computed page under the current filter/sort -- blindly inserting
+        // a device risks putting it somewhere it doesn't belong, e.g. past
+        // a filter that would exclude it). Instead each push triggers a
+        // debounced real refresh -- coalesces a burst of many devices from
+        // one scan cycle into a single fetch instead of one per device --
+        // so what's on screen is always server-truth, just fetched near-
+        // instantly instead of on the next scheduled tick.
+        let liveEventSource = null;
+        let liveRefreshDebounce = null;
+        function startLiveEventStream() {
+            if (liveEventSource) return;
+            liveEventSource = new EventSource('/api/live-events');
+            liveEventSource.onmessage = () => {
+                clearTimeout(liveRefreshDebounce);
+                liveRefreshDebounce = setTimeout(() => {
+                    refreshDevices();
+                    loadPriorityDevices();
+                }, 200);
+            };
+            // EventSource reconnects on its own after a drop/server
+            // restart -- nothing to do here beyond letting it retry.
+        }
+
         // ==================== Priority box (watched + type alerts) ====================
         // Always-visible box that surfaces watched devices and devices whose
         // type is on the Type-Based Alerts list (Config > Alerts), ignoring
@@ -7466,6 +7525,7 @@ LIVE_TEMPLATE = """
         loadPriorityDevices();
         setInterval(loadPriorityDevices, 5000);
         setInterval(loadLiveStats, 3000);
+        startLiveEventStream();
     </script>
 </body>
 </html>

@@ -21,6 +21,7 @@ from .config import SCAN_INTERVAL, SOCKET_PATH, METRICS_PORT
 from .scanner import BluetoothScanner, ScannedDevice, list_adapters
 from .esp32_scanner import ESP32Scanner
 from .web import WebServer
+from .webapp.server import _device_to_json
 from .notifications import NotificationManager
 
 def _sd_notify(message: str) -> None:
@@ -276,6 +277,11 @@ class BlueWatchDaemon:
                             service_data=device.service_data,
                             appearance=device.appearance,
                         )
+                        if self._web_server is not None:
+                            try:
+                                await self._web_server.broadcast_sighting(_device_to_json(db_device))
+                            except Exception as e:
+                                logger.debug(f"Live-event broadcast failed: {e}")
                         await self._notifications.on_device_seen(db_device, is_new)
                         if not db_device.vendor and not is_randomized_mac(db_device.mac):
                             wigle_candidates.append(db_device.mac)
@@ -594,6 +600,16 @@ class BlueWatchDaemon:
                     )
                     if is_new:
                         new_count += 1
+
+                    # Push to any open dashboard immediately -- see
+                    # WebServer.broadcast_sighting's comment. Best-effort:
+                    # a bad payload or a dead SSE client must never break
+                    # scanning itself.
+                    if self._web_server is not None:
+                        try:
+                            await self._web_server.broadcast_sighting(_device_to_json(db_device))
+                        except Exception as e:
+                            logger.debug(f"Live-event broadcast failed: {e}")
 
                     # Trigger notification checks
                     await self._notifications.on_device_seen(db_device, is_new)
