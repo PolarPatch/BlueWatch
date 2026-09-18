@@ -2332,15 +2332,18 @@ async def get_watched_devices() -> list[Device]:
             return [_parse_device_row(row) for row in rows]
 
 
-async def get_priority_devices(type_alert_types: tuple[str, ...], minutes: int = 30, limit: int = 25) -> list[Device]:
+async def get_priority_devices(type_alert_types: tuple[str, ...], minutes: int = 1, limit: int = 25) -> list[Device]:
     """Devices that should always surface regardless of the main table's
     active filters: watched devices AND type-alert-listed devices (Config
-    > Alerts), both gated to the last `minutes` -- this is meant to read
-    as "here's what just showed up", not a permanent watch-list display
-    (that already exists separately in Config > Alerts' own Watched
-    Devices list, with no recency filter, by design). A watched device
-    that hasn't been seen in hours has nothing urgent to surface right
-    now, so it drops out of this box until it's actually seen again --
+    > Alerts), both gated to the last `minutes` (default 1 -- the
+    operator explicitly wants this tight: gone the moment a device
+    stops being seen, back the instant it is again, not a lingering
+    grace period). This is meant to read as "here's what's actually
+    here right now", not a permanent watch-list display (that already
+    exists separately in Config > Alerts' own Watched Devices list,
+    with no recency filter, by design). A watched device that hasn't
+    been seen in the last minute has nothing to surface right now, so
+    it drops out of this box until it's actually seen again --
     confirmed with the operator after the box kept showing two watched
     Flipper Zeros hours after they were last nearby.
 
