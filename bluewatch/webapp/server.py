@@ -12,7 +12,6 @@ import secrets
 from datetime import datetime, timedelta
 from pathlib import Path
 
-import aiohttp
 from aiohttp import web
 
 from .. import db, rpa
@@ -22,9 +21,9 @@ from .templates import ABOUT_TEMPLATE, HTML_TEMPLATE, LIVE_TEMPLATE, LOGIN_TEMPL
 
 logger = logging.getLogger(__name__)
 
-# bluewatch/webapp/server.py -> repo root's assets/ dir (works from an
-# editable install too, since __file__ resolves to the real source path).
-ASSETS_DIR = Path(__file__).resolve().parent.parent.parent / "assets"
+# Static assets (logo) ship inside the package (bluewatch/assets), so they
+# are present for editable, regular pip, and Docker installs alike.
+ASSETS_DIR = Path(__file__).resolve().parent.parent / "assets"
 
 # Routes reachable without a valid session when auth is enabled. Everything
 # else is gated by _auth_middleware. /api/auth/setup is allowed through so the
@@ -37,22 +36,6 @@ PUBLIC_PATHS = frozenset({
     "/api/auth/status",
     "/api/auth/setup",
 })
-
-# Third-party "Neighborhood Rhythm" dashboard (siropkin/neighborhood-rhythm,
-# MIT licensed), deployed alongside BlueWatch as its own gunicorn/Flask
-# service and systemd collector timer for side-by-side evaluation --
-# deliberately NOT merged into BlueWatch's own dashboard/data model, per
-# the operator's explicit request to test it standalone first. Bound to
-# 127.0.0.1:8000 only (see its systemd unit) so it's reachable exclusively
-# through this proxy, gated by BlueWatch's own session auth just like every
-# other route -- it would otherwise be a second, unauthenticated way to see
-# the same home presence/tracking data BlueWatch itself requires a login
-# for. Its templates/JS hardcode these paths as root-relative (no
-# templating), so proxied HTML/JS responses get them rewritten from "/X" to
-# "/nr/X" to keep living under the /nr prefix instead of colliding with
-# BlueWatch's own /api/* routes.
-NR_BASE_URL = "http://127.0.0.1:8000"
-NR_REWRITE_PATHS = ("/static/", "/api/", "/stream", "/device/", "/favicon.ico")
 
 # Import for type hints (will be None at runtime if not used)
 try:
@@ -138,7 +121,6 @@ class WebServer:
         self._batch_scan_task: asyncio.Task | None = None
         self._batch_scan_state: dict = {"running": False}
         self._batch_scan_cancel = False
-        self._nr_client: aiohttp.ClientSession | None = None
         self._sse_clients: set[web.StreamResponse] = set()
         self._setup_routes()
 
@@ -148,9 +130,11 @@ class WebServer:
         self.app.router.add_get("/settings", self.settings_page)
         self.app.router.add_get("/about", self.about_page)
         self.app.router.add_get("/all", self.index)
-        self.app.router.add_route("*", "/nr", self.proxy_nr)
-        self.app.router.add_route("*", "/nr/{tail:.*}", self.proxy_nr)
-        self.app.router.add_static("/assets/", path=str(ASSETS_DIR), name="assets")
+        # A missing assets dir must never stop the web UI from starting.
+        if ASSETS_DIR.is_dir():
+            self.app.router.add_static("/assets/", path=str(ASSETS_DIR), name="assets")
+        else:
+            logger.warning("Assets directory not found (%s); logo will not be served", ASSETS_DIR)
         self.app.router.add_get("/api/devices", self.api_devices)
         self.app.router.add_get("/api/live-events", self.api_live_events)
         self.app.router.add_get("/api/devices/export", self.api_export_devices)
@@ -1878,79 +1862,6 @@ class WebServer:
 
     async def stop(self) -> None:
         """Stop the web server."""
-        if self._nr_client:
-            await self._nr_client.close()
-            self._nr_client = None
         if hasattr(self, '_runner') and self._runner:
             await self._runner.cleanup()
             logger.info("Web server stopped")
-
-    async def proxy_nr(self, request: web.Request) -> web.StreamResponse:
-        """Reverse-proxy /nr/* to the standalone Neighborhood Rhythm
-        dashboard (see NR_BASE_URL's comment above). A thin passthrough:
-        forwards method/query/body, streams Server-Sent Events (its
-        /stream endpoint) chunk-by-chunk instead of buffering, and
-        rewrites the handful of root-relative paths its HTML/JS hardcode
-        so they keep resolving under /nr instead of colliding with
-        BlueWatch's own /api/* routes."""
-        if self._nr_client is None:
-            self._nr_client = aiohttp.ClientSession()
-
-        tail = request.match_info.get("tail", "")
-        upstream_url = f"{NR_BASE_URL}/{tail}"
-        if request.query_string:
-            upstream_url += "?" + request.query_string
-
-        body = await request.read()
-        forward_headers = {"Accept": request.headers.get("Accept", "*/*")}
-        if body and "Content-Type" in request.headers:
-            forward_headers["Content-Type"] = request.headers["Content-Type"]
-        # /stream is a long-lived SSE connection -- no total cap, unlike
-        # every other (short, request/response) proxied call.
-        is_stream = tail.split("?")[0] == "stream"
-        proxy_timeout = aiohttp.ClientTimeout(total=None if is_stream else 30)
-        try:
-            upstream_resp = await self._nr_client.request(
-                request.method,
-                upstream_url,
-                data=body if body else None,
-                headers=forward_headers,
-                timeout=proxy_timeout,
-            )
-        except aiohttp.ClientConnectorError:
-            return web.Response(
-                status=503,
-                text="Neighborhood Rhythm's web service isn't reachable on "
-                     "127.0.0.1:8000 -- check 'systemctl status "
-                     "neighborhood-rhythm-web' on the Pi.",
-            )
-
-        async with upstream_resp:
-            content_type = upstream_resp.headers.get("Content-Type", "")
-
-            if "text/event-stream" in content_type:
-                stream_resp = web.StreamResponse(
-                    status=upstream_resp.status,
-                    headers={"Content-Type": content_type, "Cache-Control": "no-cache"},
-                )
-                await stream_resp.prepare(request)
-                async for chunk in upstream_resp.content.iter_any():
-                    await stream_resp.write(chunk)
-                return stream_resp
-
-            raw = await upstream_resp.read()
-            is_rewritable_text = any(
-                t in content_type for t in ("text/html", "javascript", "text/css")
-            )
-            if is_rewritable_text:
-                text = raw.decode("utf-8", errors="replace")
-                for p in NR_REWRITE_PATHS:
-                    for quote in ('"', "'", "`"):
-                        text = text.replace(f'{quote}{p}', f'{quote}/nr{p}')
-                raw = text.encode("utf-8")
-
-            return web.Response(
-                body=raw,
-                status=upstream_resp.status,
-                content_type=content_type.split(";")[0] or "application/octet-stream",
-            )

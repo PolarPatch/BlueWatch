@@ -38,11 +38,15 @@ VENV_DIR="${DATA_DIR}/venv"     # Must NOT be under ~/Documents, ~/Desktop, etc.
                                  # macOS TCC blocks launchd access to those folders.
 LOG_DIR="${HOME}/Library/Logs/bluewatch"
 PLIST_LABEL="com.bluewatch.daemon"
+WEB_PORT=8080  # default dashboard port
 PLIST_PATH="${HOME}/Library/LaunchAgents/${PLIST_LABEL}.plist"
 
 # ── Verify macOS ─────────────────────────────────────────────
-if [[ "$(uname -s)" != "Darwin" ]]; then
-    error "This script is for macOS only."
+if [[ "$(uname -s)" == "Linux" ]]; then
+    # Linux uses systemd instead of launchd: hand over to the Linux installer.
+    exec "${SCRIPT_DIR}/install-linux.sh" "$@"
+elif [[ "$(uname -s)" != "Darwin" ]]; then
+    error "Unsupported OS: this script supports macOS and Linux."
     exit 1
 fi
 
@@ -150,8 +154,7 @@ do_install() {
 
     <!--
         Call the venv Python directly — no external bash wrapper needed.
-        The daemon itself waits for the macOS Bluetooth controller to be
-        ready before scanning, avoiding "adapter busy" errors at login.
+        bleak waits for CoreBluetooth to become ready on its own.
     -->
     <key>ProgramArguments</key>
     <array>
@@ -205,22 +208,23 @@ PLIST
     info "launchd agent loaded and enabled."
 
     # ── Verify ───────────────────────────────────────────────
-    # The launcher waits for Bluetooth, so give it extra time
-    info "Waiting for launcher to confirm Bluetooth readiness …"
-    sleep 8
-
-    if launchctl list "${PLIST_LABEL}" &>/dev/null 2>&1; then
-        local pid
-        pid=$(launchctl list "${PLIST_LABEL}" 2>/dev/null | awk 'NR==1{print $1}')
-        if [[ "${pid}" != "-" && -n "${pid}" ]]; then
-            printf "\n${GREEN}✔ BlueWatch is running (PID ${pid})!${NC}\n"
-            info "Dashboard: http://localhost:8080"
-        else
-            printf "\n${GREEN}✔ BlueWatch agent is registered.${NC}\n"
-            info "The launcher is waiting for Bluetooth – check logs for status."
+    # Poll the dashboard instead of guessing: only claim success once it answers.
+    info "Waiting for the web dashboard …"
+    local i ok="false" pid
+    for i in $(seq 1 30); do
+        if curl -fs -o /dev/null --max-time 2 "http://127.0.0.1:${WEB_PORT}/"; then
+            ok="true"
+            break
         fi
+        sleep 2
+    done
+
+    pid="$(launchctl list "${PLIST_LABEL}" 2>/dev/null | awk -F'= ' '/"PID"/ {gsub(/;/, "", $2); print $2}')"
+    if [[ "${ok}" == "true" ]]; then
+        printf "\n${GREEN}✔ BlueWatch is running${pid:+ (PID ${pid})}!${NC}\n"
+        info "Dashboard: http://localhost:${WEB_PORT}"
     else
-        warn "Service may not have started – check logs:"
+        warn "The dashboard did not answer yet. Check the log:"
         warn "  tail -f ${LOG_DIR}/bluewatch.stderr.log"
     fi
 

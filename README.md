@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/logo.png" alt="BlueWatch logo" width="320">
+  <img src="bluewatch/assets/logo.png" alt="BlueWatch logo" width="320">
 </p>
 
 # BlueWatch
@@ -144,8 +144,8 @@ BlueWatch is a Bluetooth scanner that:
 
 ```bash
 # Clone this repository, then build and start with Docker Compose
-git clone <this-repo-url>
-cd bluewatch
+git clone https://github.com/PolarPatch/BlueWatch.git
+cd BlueWatch
 docker compose up -d --build
 
 # View logs
@@ -158,7 +158,8 @@ The web dashboard will be available at **http://localhost:8080**
 
 #### Docker Requirements
 
-- Docker and Docker Compose
+- Docker with the **Compose v2 plugin** (`docker compose`). On Raspberry Pi OS / Debian, install Docker from [docs.docker.com/engine/install](https://docs.docker.com/engine/install/) rather than the distro's `docker.io` package, which on Debian 12 (Bookworm) only ships the old `docker-compose` v1.
+- A **64-bit** operating system on Raspberry Pi. On 32-bit Raspberry Pi OS, Docker pulls an ARMv5 image where the Python dependencies cannot be installed, so the build fails. Use 64-bit Raspberry Pi OS, or the [one-command Linux installer](#linux-without-docker-one-command), which works on 32-bit as well.
 - Linux host with a **BLE-capable Bluetooth adapter** (Bluetooth 4.0+) that supports the **Central** role
 - BlueZ installed and running on the host (`sudo apt install bluez && sudo systemctl enable --now bluetooth`)
 
@@ -193,18 +194,43 @@ No Bluetooth adapters with BLE 'central' role found
 
 You can check your adapter's capabilities with `bluetoothctl show` and look for `central` in the supported roles.
 
-### Manual Installation (Linux)
+### Linux without Docker (one command)
+
+Works on Raspberry Pi OS, Debian and Ubuntu. The installer sets up BlueZ,
+a private Python virtual environment in `/opt/bluewatch`, and a systemd
+service that starts at boot:
 
 ```bash
+git clone https://github.com/PolarPatch/BlueWatch.git
+cd BlueWatch
+./install.sh
+```
+
+The dashboard is then available at `http://<your-machine>:8080`. Data lives in
+`/var/lib/bluewatch`. To upgrade, `git pull` and run `./install.sh` again. To
+remove it, run `./install.sh uninstall` (add `--purge` to delete the data too).
+
+`install.sh` picks the right installer for your OS (`install-linux.sh` on
+Linux, launchd on macOS), so it is the same command everywhere.
+
+### Manual Installation (Linux)
+
+Modern Debian, Ubuntu and Raspberry Pi OS refuse a plain `pip install`
+into the system Python ("externally-managed-environment"), so use a virtual
+environment:
+
+```bash
+# Install system dependencies (Debian/Ubuntu/Raspberry Pi OS)
+sudo apt install bluez python3-venv python3-pip
+
 # Install system dependencies (Arch Linux)
 sudo pacman -S bluez bluez-utils python-pip
 
-# Install system dependencies (Debian/Ubuntu)
-sudo apt install bluez python3-pip
-
-# Clone and install
-git clone <this-repo-url>
-cd bluewatch
+# Clone and install into a virtual environment
+git clone https://github.com/PolarPatch/BlueWatch.git
+cd BlueWatch
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -e .
 ```
 
@@ -214,16 +240,19 @@ Bluetooth scanning requires elevated privileges. Choose one:
 
 1. **Run as root** (simplest):
    ```bash
-   sudo bluewatch
+   sudo .venv/bin/bluewatch
    ```
 
 2. **Grant capabilities to Python**:
    ```bash
-   sudo setcap 'cap_net_admin,cap_net_raw+eip' $(readlink -f $(which python))
-   bluewatch
+   sudo setcap 'cap_net_admin,cap_net_raw+eip' $(readlink -f .venv/bin/python)
+   .venv/bin/bluewatch
    ```
 
-3. **Use systemd service** (recommended for always-on):
+3. **Use the systemd service** (recommended for always-on). The bundled
+   `bluewatch.service` expects the package in `/opt/bluewatch/venv`, which
+   is what `./install.sh` sets up. If you installed elsewhere, edit the
+   `ExecStart=` line first:
    ```bash
    sudo cp bluewatch.service /etc/systemd/system/
    sudo systemctl daemon-reload
@@ -234,10 +263,22 @@ Bluetooth scanning requires elevated privileges. Choose one:
 
 BlueWatch works natively on macOS without Docker. macOS uses CoreBluetooth instead of BlueZ, which is handled automatically by the `bleak` library.
 
+**One command** (installs into a private virtual environment and starts BlueWatch automatically at login):
+
+```bash
+git clone https://github.com/PolarPatch/BlueWatch.git
+cd BlueWatch
+./install.sh
+```
+
+Remove it with `./install.sh uninstall` (add `--purge` to delete the data too).
+
+**Or run it manually:**
+
 ```bash
 # Clone the repository
-git clone <this-repo-url>
-cd bluewatch
+git clone https://github.com/PolarPatch/BlueWatch.git
+cd BlueWatch
 
 # Create a virtual environment
 python3 -m venv .venv

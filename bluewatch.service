@@ -5,7 +5,7 @@ Wants=bluetooth.target
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/python3 -m bluewatch.daemon
+ExecStart=/opt/bluewatch/venv/bin/python -m bluewatch.daemon
 Restart=always
 RestartSec=10
 WatchdogSec=60

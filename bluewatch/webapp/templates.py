@@ -936,7 +936,6 @@ HTML_TEMPLATE = """
                 <a href="/" class="nav-link">Dashboard</a>
                 <a href="/all" class="nav-link active">All devices</a>
                 <a href="/settings" class="nav-link">Config</a>
-                <a href="/nr" class="nav-link">Neighborhood Rhythm</a>
             </nav>
         </div>
         <div class="topbar-right">
@@ -3321,7 +3320,6 @@ SETTINGS_TEMPLATE = """
                 <a href="/" class="nav-link">Dashboard</a>
                 <a href="/all" class="nav-link">All devices</a>
                 <a href="/settings" class="nav-link active">Config</a>
-                <a href="/nr" class="nav-link">Neighborhood Rhythm</a>
             </nav>
         </div>
         <div><button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Toggle light/dark mode">☀</button></div>
@@ -4426,7 +4424,6 @@ ABOUT_TEMPLATE = """
                 <a href="/" class="nav-link">Dashboard</a>
                 <a href="/all" class="nav-link">All devices</a>
                 <a href="/settings" class="nav-link">Config</a>
-                <a href="/nr" class="nav-link">Neighborhood Rhythm</a>
             </nav>
         </div>
         <div><button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Toggle light/dark mode">☀</button></div>
@@ -5461,7 +5458,6 @@ LIVE_TEMPLATE = """
                 <a href="/" class="nav-link active">Dashboard</a>
                 <a href="/all" class="nav-link">All devices</a>
                 <a href="/settings" class="nav-link">Config</a>
-                <a href="/nr" class="nav-link">Neighborhood Rhythm</a>
             </nav>
         </div>
         <div class="topbar-right">

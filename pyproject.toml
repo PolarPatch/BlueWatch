@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bluewatch"
-version = "0.1.2"
+version = "0.1.3"
 description = "Bluetooth neighborhood monitor - track devices in your area"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -24,3 +24,6 @@ bluewatch = "bluewatch.daemon:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
+
+[tool.setuptools.package-data]
+bluewatch = ["data/*.csv", "assets/*"]
