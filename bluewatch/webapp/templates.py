@@ -658,7 +658,7 @@ HTML_TEMPLATE = """
             border: 1px solid var(--border-color);
             border-radius: 4px;
             width: 90%;
-            max-width: 700px;
+            max-width: 960px;
             max-height: 85vh;
             overflow-y: auto;
         }
@@ -731,10 +731,39 @@ HTML_TEMPLATE = """
 
         .heatmap-title {
             font-size: 0.65rem;
-            
+
             letter-spacing: 0.1em;
             color: var(--text-muted);
             margin-bottom: 0.5rem;
+        }
+
+        /* Two sections side by side instead of stacked -- compresses the
+        modal's overall height noticeably on the wider layout above. */
+        .heatmap-grid-2col {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0 1.25rem;
+        }
+        .heatmap-grid-2col .heatmap-section { margin-top: 1rem; }
+        @media (max-width: 640px) {
+            .heatmap-grid-2col { grid-template-columns: 1fr; }
+        }
+
+        .dwell-stat-card {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 0.6rem 0.4rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.2rem;
+        }
+        .dwell-stat-value { font-size: 1.15rem; font-weight: 700; line-height: 1; }
+        .dwell-stat-label {
+            font-size: 0.55rem;
+            letter-spacing: 0.08em;
+            color: var(--text-muted);
         }
 
         .heatmap {
@@ -2268,9 +2297,10 @@ HTML_TEMPLATE = """
                 '<div class="heatmap-title">Scan Unit Result</div>' +
                 '<div id="scan-unit-result" style="font-size: 0.75rem; font-family: monospace; white-space: pre-wrap; word-break: break-all; max-height: 300px; overflow-y: auto;"></div>' +
                 '</div>' +
+                '<div class="heatmap-grid-2col">' +
                 '<div class="heatmap-section">' +
                 '<div class="heatmap-title">Time Nearby (30d)</div>' +
-                '<div id="dwell-stats" class="heatmap" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; text-align: center;"><div style="color: var(--text-muted);">Loading...</div></div>' +
+                '<div id="dwell-stats" class="heatmap" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem;"><div style="color: var(--text-muted);">Loading...</div></div>' +
                 '</div>' +
                 '<div class="heatmap-section">' +
                 '<div class="heatmap-title">Hourly Activity (30d)</div>' +
@@ -2284,9 +2314,10 @@ HTML_TEMPLATE = """
                 '<div class="heatmap-title">Timeline (30d)</div>' +
                 renderTimeline(data.timeline) +
                 '</div>' +
+                '</div>' +
                 '<div class="heatmap-section" id="rssi-section">' +
                 '<div class="heatmap-title">Signal History (7d)</div>' +
-                '<div class="rssi-chart" id="rssi-chart"><div style="color: var(--text-muted); font-size: 0.75rem; text-align: center; padding-top: 1.5rem;">Loading...</div></div>' +
+                '<div class="rssi-chart" id="rssi-chart" style="height: 90px;"><div style="color: var(--text-muted); font-size: 0.75rem; text-align: center; padding-top: 1.5rem;">Loading...</div></div>' +
                 '</div>' +
                 (d.identity_id ? (
                     '<div class="heatmap-section">' +
@@ -2597,10 +2628,11 @@ HTML_TEMPLATE = """
             try {
                 const response = await fetch('/api/device/' + encodeURIComponent(mac) + '/dwell?days=30');
                 const data = await response.json();
-                container.innerHTML = '<div><div style="font-size: 0.95rem; color: var(--accent-amber);">' + Math.round(data.total_minutes) + '</div><div style="font-size: 0.6rem; color: var(--text-muted);">TOTAL MIN</div></div>' +
-                    '<div><div style="font-size: 0.95rem; color: var(--accent-green);">' + data.session_count + '</div><div style="font-size: 0.6rem; color: var(--text-muted);">SESSIONS</div></div>' +
-                    '<div><div style="font-size: 0.95rem; color: var(--accent-blue);">' + Math.round(data.avg_session_minutes) + '</div><div style="font-size: 0.6rem; color: var(--text-muted);">AVG MIN</div></div>' +
-                    '<div><div style="font-size: 0.95rem; color: var(--accent-red);">' + Math.round(data.longest_session_minutes) + '</div><div style="font-size: 0.6rem; color: var(--text-muted);">LONGEST</div></div>';
+                container.innerHTML =
+                    '<div class="dwell-stat-card"><div class="dwell-stat-value" style="color: var(--accent-amber);">' + Math.round(data.total_minutes) + '</div><div class="dwell-stat-label">TOTAL MIN</div></div>' +
+                    '<div class="dwell-stat-card"><div class="dwell-stat-value" style="color: var(--accent-green);">' + data.session_count + '</div><div class="dwell-stat-label">SESSIONS</div></div>' +
+                    '<div class="dwell-stat-card"><div class="dwell-stat-value" style="color: var(--accent-blue);">' + Math.round(data.avg_session_minutes) + '</div><div class="dwell-stat-label">AVG MIN</div></div>' +
+                    '<div class="dwell-stat-card"><div class="dwell-stat-value" style="color: var(--accent-red);">' + Math.round(data.longest_session_minutes) + '</div><div class="dwell-stat-label">LONGEST</div></div>';
             } catch (error) {
                 container.innerHTML = '<div style="color: var(--text-muted);">Error loading data</div>';
             }
@@ -5131,7 +5163,7 @@ LIVE_TEMPLATE = """
             border: 1px solid var(--border-color);
             border-radius: 4px;
             width: 90%;
-            max-width: 700px;
+            max-width: 960px;
             max-height: 85vh;
             overflow-y: auto;
         }
@@ -5204,10 +5236,39 @@ LIVE_TEMPLATE = """
 
         .heatmap-title {
             font-size: 0.65rem;
-            
+
             letter-spacing: 0.1em;
             color: var(--text-muted);
             margin-bottom: 0.5rem;
+        }
+
+        /* Two sections side by side instead of stacked -- compresses the
+        modal's overall height noticeably on the wider layout above. */
+        .heatmap-grid-2col {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0 1.25rem;
+        }
+        .heatmap-grid-2col .heatmap-section { margin-top: 1rem; }
+        @media (max-width: 640px) {
+            .heatmap-grid-2col { grid-template-columns: 1fr; }
+        }
+
+        .dwell-stat-card {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 0.6rem 0.4rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.2rem;
+        }
+        .dwell-stat-value { font-size: 1.15rem; font-weight: 700; line-height: 1; }
+        .dwell-stat-label {
+            font-size: 0.55rem;
+            letter-spacing: 0.08em;
+            color: var(--text-muted);
         }
 
         .heatmap {
@@ -6909,9 +6970,10 @@ LIVE_TEMPLATE = """
                 '<div class="heatmap-title">Scan Unit Result</div>' +
                 '<div id="scan-unit-result" style="font-size: 0.75rem; font-family: monospace; white-space: pre-wrap; word-break: break-all; max-height: 300px; overflow-y: auto;"></div>' +
                 '</div>' +
+                '<div class="heatmap-grid-2col">' +
                 '<div class="heatmap-section">' +
                 '<div class="heatmap-title">Time Nearby (30d)</div>' +
-                '<div id="dwell-stats" class="heatmap" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; text-align: center;"><div style="color: var(--text-muted);">Loading...</div></div>' +
+                '<div id="dwell-stats" class="heatmap" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem;"><div style="color: var(--text-muted);">Loading...</div></div>' +
                 '</div>' +
                 '<div class="heatmap-section">' +
                 '<div class="heatmap-title">Hourly Activity (30d)</div>' +
@@ -6925,9 +6987,10 @@ LIVE_TEMPLATE = """
                 '<div class="heatmap-title">Timeline (30d)</div>' +
                 renderTimeline(data.timeline) +
                 '</div>' +
+                '</div>' +
                 '<div class="heatmap-section" id="rssi-section">' +
                 '<div class="heatmap-title">Signal History (7d)</div>' +
-                '<div class="rssi-chart" id="rssi-chart"><div style="color: var(--text-muted); font-size: 0.75rem; text-align: center; padding-top: 1.5rem;">Loading...</div></div>' +
+                '<div class="rssi-chart" id="rssi-chart" style="height: 90px;"><div style="color: var(--text-muted); font-size: 0.75rem; text-align: center; padding-top: 1.5rem;">Loading...</div></div>' +
                 '</div>' +
                 (d.identity_id ? (
                     '<div class="heatmap-section">' +
@@ -7238,10 +7301,11 @@ LIVE_TEMPLATE = """
             try {
                 const response = await fetch('/api/device/' + encodeURIComponent(mac) + '/dwell?days=30');
                 const data = await response.json();
-                container.innerHTML = '<div><div style="font-size: 0.95rem; color: var(--accent-amber);">' + Math.round(data.total_minutes) + '</div><div style="font-size: 0.6rem; color: var(--text-muted);">TOTAL MIN</div></div>' +
-                    '<div><div style="font-size: 0.95rem; color: var(--accent-green);">' + data.session_count + '</div><div style="font-size: 0.6rem; color: var(--text-muted);">SESSIONS</div></div>' +
-                    '<div><div style="font-size: 0.95rem; color: var(--accent-blue);">' + Math.round(data.avg_session_minutes) + '</div><div style="font-size: 0.6rem; color: var(--text-muted);">AVG MIN</div></div>' +
-                    '<div><div style="font-size: 0.95rem; color: var(--accent-red);">' + Math.round(data.longest_session_minutes) + '</div><div style="font-size: 0.6rem; color: var(--text-muted);">LONGEST</div></div>';
+                container.innerHTML =
+                    '<div class="dwell-stat-card"><div class="dwell-stat-value" style="color: var(--accent-amber);">' + Math.round(data.total_minutes) + '</div><div class="dwell-stat-label">TOTAL MIN</div></div>' +
+                    '<div class="dwell-stat-card"><div class="dwell-stat-value" style="color: var(--accent-green);">' + data.session_count + '</div><div class="dwell-stat-label">SESSIONS</div></div>' +
+                    '<div class="dwell-stat-card"><div class="dwell-stat-value" style="color: var(--accent-blue);">' + Math.round(data.avg_session_minutes) + '</div><div class="dwell-stat-label">AVG MIN</div></div>' +
+                    '<div class="dwell-stat-card"><div class="dwell-stat-value" style="color: var(--accent-red);">' + Math.round(data.longest_session_minutes) + '</div><div class="dwell-stat-label">LONGEST</div></div>';
             } catch (error) {
                 container.innerHTML = '<div style="color: var(--text-muted);">Error loading data</div>';
             }
