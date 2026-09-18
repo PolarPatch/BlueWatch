@@ -949,9 +949,13 @@ HTML_TEMPLATE = """
             <div class="panel" id="categories-panel">
                 <div class="panel-header">Categories</div>
                 <button class="filter-btn" id="all-devices-btn" onclick="showAllDevices()" style="width: 100%; justify-content: flex-start; gap: 0.4rem; margin-bottom: 0.5rem;">All devices <span id="count-all" class="filter-count" style="color: inherit; font-size: inherit;">--</span></button>
-                <label style="display: flex; align-items: center; gap: 0.4rem; padding: 0 0.75rem 0.5rem; font-size: 0.75rem; color: var(--text-secondary); cursor: pointer;" title="Hides devices already sorted into a category folder, and devices BlueWatch has already identified with a known Class (e.g. Tracker, Phone) -- only genuinely Unknown, unsorted devices remain.">
-                    <input type="checkbox" id="hide-categorized-toggle" onchange="toggleHideCategorized()">
-                    Hide categorized devices
+                <label style="display: flex; align-items: center; gap: 0.4rem; padding: 0 0.75rem 0.25rem; font-size: 0.75rem; color: var(--text-secondary); cursor: pointer;" title="Hides devices BlueWatch has already identified with a known Class (e.g. Tracker, Phone) -- independent of whether they've been filed into a Group.">
+                    <input type="checkbox" id="hide-classified-toggle" onchange="toggleHideClassified()">
+                    Hide classified devices
+                </label>
+                <label style="display: flex; align-items: center; gap: 0.4rem; padding: 0 0.75rem 0.5rem; font-size: 0.75rem; color: var(--text-secondary); cursor: pointer;" title="Hides devices already sorted into a category folder -- independent of whether their Class is known.">
+                    <input type="checkbox" id="hide-grouped-toggle" onchange="toggleHideGrouped()">
+                    Hide grouped devices
                 </label>
                 <div style="padding: 0 0.75rem 0.5rem;">
                     <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.25rem;">
@@ -1137,7 +1141,8 @@ HTML_TEMPLATE = """
         let allDevices = [];
         let currentFilter = 'all';
         let currentGroupId = null;
-        let hideCategorized = localStorage.getItem('bluewatch_hide_categorized') === 'true';
+        let hideClassified = localStorage.getItem('bluewatch_hide_classified') === 'true';
+        let hideGrouped = localStorage.getItem('bluewatch_hide_grouped') === 'true';
         let dateFilteredDevices = null;
         let compactView = localStorage.getItem('bluewatch_compact_view') === 'true';
         let screenshotMode = localStorage.getItem('bluewatch_screenshot_mode') === 'true';
@@ -1167,8 +1172,9 @@ HTML_TEMPLATE = """
             params.set('page', pagination.page);
             params.set('page_size', pagination.pageSize);
             params.set('filter', currentFilter);
-            if (hideCategorized) {
-                params.set('only_uncategorized', '1');
+            if (hideClassified || hideGrouped) {
+                if (hideClassified) params.set('hide_classified', '1');
+                if (hideGrouped) params.set('hide_grouped', '1');
             } else if (currentGroupId !== null) {
                 params.set('group_id', currentGroupId);
             }
@@ -1541,16 +1547,32 @@ HTML_TEMPLATE = """
             refreshDevices();
         }
 
-        function setHideCategorized(value) {
-            hideCategorized = value;
-            localStorage.setItem('bluewatch_hide_categorized', hideCategorized);
-            const checkbox = document.getElementById('hide-categorized-toggle');
+        function setHideClassified(value) {
+            hideClassified = value;
+            localStorage.setItem('bluewatch_hide_classified', hideClassified);
+            const checkbox = document.getElementById('hide-classified-toggle');
             if (checkbox) checkbox.checked = value;
         }
 
-        function toggleHideCategorized() {
-            const checkbox = document.getElementById('hide-categorized-toggle');
-            setHideCategorized(checkbox ? checkbox.checked : false);
+        function toggleHideClassified() {
+            const checkbox = document.getElementById('hide-classified-toggle');
+            setHideClassified(checkbox ? checkbox.checked : false);
+            selectedMacs.clear();
+            lastSelectedIndex = null;
+            pagination.page = 1;
+            refreshDevices();
+        }
+
+        function setHideGrouped(value) {
+            hideGrouped = value;
+            localStorage.setItem('bluewatch_hide_grouped', hideGrouped);
+            const checkbox = document.getElementById('hide-grouped-toggle');
+            if (checkbox) checkbox.checked = value;
+        }
+
+        function toggleHideGrouped() {
+            const checkbox = document.getElementById('hide-grouped-toggle');
+            setHideGrouped(checkbox ? checkbox.checked : false);
             selectedMacs.clear();
             lastSelectedIndex = null;
             pagination.page = 1;
@@ -3193,8 +3215,10 @@ HTML_TEMPLATE = """
         })();
 
         (function initHideCategorized() {
-            const checkbox = document.getElementById('hide-categorized-toggle');
-            if (checkbox) checkbox.checked = hideCategorized;
+            const classCb = document.getElementById('hide-classified-toggle');
+            if (classCb) classCb.checked = hideClassified;
+            const groupCb = document.getElementById('hide-grouped-toggle');
+            if (groupCb) groupCb.checked = hideGrouped;
         })();
 
         updateViewToggle();
@@ -5510,21 +5534,25 @@ LIVE_TEMPLATE = """
                     <div id="most-seen-list" style="display: flex; gap: 1.5rem; flex-wrap: wrap;">--</div>
                 </div>
             </div>
-            <div class="stat-card" style="display: flex; align-items: center; justify-content: space-between; gap: 2rem; margin-bottom: 0.75rem; flex-wrap: wrap;">
-                <div style="display: flex; align-items: center; gap: 1.25rem;">
+            <div class="stat-card" style="margin-bottom: 0.75rem;">
+                <div style="display: flex; align-items: center; gap: 1.25rem; margin-bottom: 0.6rem;">
                     <span class="stat-label">FILTERS</span>
                     <button class="filter-btn" id="all-devices-btn" onclick="showAllDevices()" style="gap: 0.4rem; padding: 0.3rem 0.6rem;">All devices <span id="count-all" class="filter-count" style="color: inherit; font-size: inherit;">--</span></button>
-                    <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.75rem; color: var(--text-secondary); cursor: pointer;" title="Hides devices already sorted into a category folder, and devices BlueWatch has already identified with a known Class (e.g. Tracker, Phone) -- only genuinely Unknown, unsorted devices remain.">
-                        <input type="checkbox" id="hide-categorized-toggle" onchange="toggleHideCategorized()">
-                        Hide categorized devices
+                </div>
+                <div style="display: flex; align-items: center; gap: 1.25rem; flex-wrap: wrap;">
+                    <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.75rem; color: var(--text-secondary); cursor: pointer;" title="Hides devices BlueWatch has already identified with a known Class (e.g. Tracker, Phone) -- independent of whether they've been filed into a Group.">
+                        <input type="checkbox" id="hide-classified-toggle" onchange="toggleHideClassified()">
+                        Hide classified
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.75rem; color: var(--text-secondary); cursor: pointer;" title="Hides devices already sorted into a category folder -- independent of whether their Class is known.">
+                        <input type="checkbox" id="hide-grouped-toggle" onchange="toggleHideGrouped()">
+                        Hide grouped
                     </label>
                     <div style="display: flex; align-items: center; gap: 0.75rem;">
                         <span class="stat-label">First seen within</span>
                         <input type="range" id="first-seen-slider" min="1" max="7" step="1" value="1" oninput="onFirstSeenSliderChange()" style="width: 120px;">
                         <span id="first-seen-slider-value" style="font-size: 0.75rem; color: var(--text-primary); min-width: 4rem;">off</span>
                     </div>
-                </div>
-                <div style="display: flex; align-items: center; gap: 1.25rem; flex-wrap: wrap;">
                     <div style="display: flex; align-items: center; gap: 0.75rem;">
                         <span class="stat-label">Sightings &ge;</span>
                         <input type="range" id="sightings-threshold" min="1" max="50" value="1" step="1" oninput="onSightingsThresholdChange()" style="width: 140px;">
@@ -5670,7 +5698,8 @@ LIVE_TEMPLATE = """
         let allDevices = [];
         let currentFilter = 'all';
         let currentGroupId = null;
-        let hideCategorized = localStorage.getItem('bluewatch_hide_categorized') === 'true';
+        let hideClassified = localStorage.getItem('bluewatch_hide_classified') === 'true';
+        let hideGrouped = localStorage.getItem('bluewatch_hide_grouped') === 'true';
         let rssiThreshold = -100;
         let sightingsThreshold = 1;
         let dateFilteredDevices = null;
@@ -5705,12 +5734,14 @@ LIVE_TEMPLATE = """
             // A specific category is a deliberate historical browse (same as
             // /all), not a "what's nearby right now" query -- only the
             // default/All-devices/hide-categorized views stay live-windowed.
-            const viewingSpecificCategory = !hideCategorized && currentGroupId !== null && currentGroupId !== '__all__';
+            const hidingAnything = hideClassified || hideGrouped;
+            const viewingSpecificCategory = !hidingAnything && currentGroupId !== null && currentGroupId !== '__all__';
             if (!viewingSpecificCategory) {
                 params.set('active_within', '60');
             }
-            if (hideCategorized) {
-                params.set('only_uncategorized', '1');
+            if (hidingAnything) {
+                if (hideClassified) params.set('hide_classified', '1');
+                if (hideGrouped) params.set('hide_grouped', '1');
             } else if (currentGroupId !== null) {
                 params.set('group_id', currentGroupId);
             }
@@ -6202,16 +6233,32 @@ LIVE_TEMPLATE = """
             refreshDevices();
         }
 
-        function setHideCategorized(value) {
-            hideCategorized = value;
-            localStorage.setItem('bluewatch_hide_categorized', hideCategorized);
-            const checkbox = document.getElementById('hide-categorized-toggle');
+        function setHideClassified(value) {
+            hideClassified = value;
+            localStorage.setItem('bluewatch_hide_classified', hideClassified);
+            const checkbox = document.getElementById('hide-classified-toggle');
             if (checkbox) checkbox.checked = value;
         }
 
-        function toggleHideCategorized() {
-            const checkbox = document.getElementById('hide-categorized-toggle');
-            setHideCategorized(checkbox ? checkbox.checked : false);
+        function toggleHideClassified() {
+            const checkbox = document.getElementById('hide-classified-toggle');
+            setHideClassified(checkbox ? checkbox.checked : false);
+            selectedMacs.clear();
+            lastSelectedIndex = null;
+            pagination.page = 1;
+            refreshDevices();
+        }
+
+        function setHideGrouped(value) {
+            hideGrouped = value;
+            localStorage.setItem('bluewatch_hide_grouped', hideGrouped);
+            const checkbox = document.getElementById('hide-grouped-toggle');
+            if (checkbox) checkbox.checked = value;
+        }
+
+        function toggleHideGrouped() {
+            const checkbox = document.getElementById('hide-grouped-toggle');
+            setHideGrouped(checkbox ? checkbox.checked : false);
             selectedMacs.clear();
             lastSelectedIndex = null;
             pagination.page = 1;
@@ -7871,8 +7918,10 @@ LIVE_TEMPLATE = """
         })();
 
         (function initHideCategorized() {
-            const checkbox = document.getElementById('hide-categorized-toggle');
-            if (checkbox) checkbox.checked = hideCategorized;
+            const classCb = document.getElementById('hide-classified-toggle');
+            if (classCb) classCb.checked = hideClassified;
+            const groupCb = document.getElementById('hide-grouped-toggle');
+            if (groupCb) groupCb.checked = hideGrouped;
         })();
 
         updateViewToggle();

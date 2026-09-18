@@ -364,7 +364,8 @@ class WebServer:
             except ValueError:
                 pass
 
-        only_uncategorized = request.query.get("only_uncategorized") == "1"
+        hide_classified = request.query.get("hide_classified") == "1"
+        hide_grouped = request.query.get("hide_grouped") == "1"
 
         first_seen_filter = request.query.get("first_seen") or None
         if first_seen_filter not in ("6h", "12h", "24h", "48h", "7d", "30d"):
@@ -395,7 +396,8 @@ class WebServer:
             sort_direction=sort_direction,
             exclude_randomized=exclude_randomized,
             group_ids=group_ids,
-            only_uncategorized=only_uncategorized,
+            hide_classified=hide_classified,
+            hide_grouped=hide_grouped,
             active_within_seconds=active_within_seconds,
             first_seen_filter=first_seen_filter,
         )
@@ -414,7 +416,8 @@ class WebServer:
                 sort_direction=sort_direction,
                 group_ids=group_ids,
                 show_all=show_all,
-                only_uncategorized=only_uncategorized,
+                hide_classified=hide_classified,
+                hide_grouped=hide_grouped,
                 active_within_seconds=active_within_seconds,
                 exclude_randomized=exclude_randomized,
                 first_seen_filter=first_seen_filter,

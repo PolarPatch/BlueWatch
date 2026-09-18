@@ -600,7 +600,8 @@ def _build_device_query_filters(
     exclude_randomized: bool,
     group_ids: Optional[list] = None,
     show_all: bool = False,
-    only_uncategorized: bool = False,
+    hide_classified: bool = False,
+    hide_grouped: bool = False,
     active_within_seconds: Optional[int] = None,
     first_seen_filter: Optional[str] = None,
 ) -> tuple[str, list]:
@@ -628,14 +629,19 @@ def _build_device_query_filters(
     ignored if group_ids is also given (a specific category takes
     precedence).
 
-    only_uncategorized is the explicit "hide categorized devices" toggle --
-    unlike the default triage-queue restriction below (which a search term
-    or show_all bypasses), this one always wins, so the user can focus on
-    Unknown devices even while searching. "Categorized" means either sorted
-    into a Group *or* already auto/manually classified with a known Class
-    (device_type) -- a device BlueWatch has already told the operator what
-    it is doesn't belong in the triage queue either, even if it hasn't been
-    dragged into a folder yet."""
+    hide_classified and hide_grouped are two independent "hide
+    categorized devices" toggles -- unlike the default triage-queue
+    restriction below (which a search term or show_all bypasses), these
+    always win, so the user can focus on Unknown/unfiled devices even
+    while searching. Deliberately separate, not one combined toggle:
+    a device can have a well-known Class (e.g. classify_device()
+    recognized its company ID as a car-audio system) without the
+    operator having reviewed and filed it into a Group yet -- that's
+    still a device worth surfacing in triage, so hiding it just because
+    BlueWatch auto-classified its type would hide genuinely new devices
+    the operator hasn't actually looked at. hide_classified hides
+    devices with a known device_type; hide_grouped hides devices
+    already filed into a Group; either, both, or neither can be on."""
     conditions: list[str] = []
     params: list = []
 
@@ -656,8 +662,13 @@ def _build_device_query_filters(
 
     search_value = (search or "").strip()
 
-    if only_uncategorized:
-        conditions.append("d.group_id IS NULL AND COALESCE(d.device_type, 'unknown') = 'unknown'")
+    if hide_classified or hide_grouped:
+        sub_conditions = []
+        if hide_classified:
+            sub_conditions.append("COALESCE(d.device_type, 'unknown') = 'unknown'")
+        if hide_grouped:
+            sub_conditions.append("d.group_id IS NULL")
+        conditions.append(" AND ".join(sub_conditions))
     elif group_ids:
         placeholders = ", ".join("?" for _ in group_ids)
         conditions.append(f"d.group_id IN ({placeholders})")
@@ -724,7 +735,8 @@ async def get_devices_page(
     exclude_randomized: bool = True,
     group_ids: Optional[list] = None,
     show_all: bool = False,
-    only_uncategorized: bool = False,
+    hide_classified: bool = False,
+    hide_grouped: bool = False,
     active_within_seconds: Optional[int] = None,
     first_seen_filter: Optional[str] = None,
 ) -> tuple[list[Device], int]:
@@ -744,7 +756,8 @@ async def get_devices_page(
         group_ids=group_ids,
         show_all=show_all,
         active_within_seconds=active_within_seconds,
-        only_uncategorized=only_uncategorized,
+        hide_classified=hide_classified,
+        hide_grouped=hide_grouped,
         first_seen_filter=first_seen_filter,
     )
 
