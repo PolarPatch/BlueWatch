@@ -658,7 +658,7 @@ HTML_TEMPLATE = """
             border: 1px solid var(--border-color);
             border-radius: 4px;
             width: 90%;
-            max-width: 960px;
+            max-width: 700px;
             max-height: 85vh;
             overflow-y: auto;
         }
@@ -864,7 +864,7 @@ HTML_TEMPLATE = """
         }
 
         .rssi-chart svg { width: 100%; height: 100%; }
-        .rssi-line { fill: none; stroke: var(--accent-red); stroke-width: 1.5; }
+        .rssi-line { fill: none; stroke: #ffffff; stroke-width: 1.5; }
         .rssi-area { fill: url(#rssiGradient); }
         .rssi-label { font-size: 0.55rem; fill: var(--text-muted); }
 
@@ -2282,16 +2282,16 @@ HTML_TEMPLATE = """
                 '<span id="live-signal-avg" style="font-size: 0.65rem; color: var(--text-muted);">avg —</span>' +
                 '</span></div>' +
                 '<div style="margin-bottom: 0.4rem;"><span class="type-badge ' + getTypeClass(d.device_type) + '" style="font-size: 0.65rem; padding: 0.15rem 0.5rem;">' + escapeHtml(d.type_label || 'Unknown') + '</span></div>' +
-                '<div class="rssi-chart" id="live-signal-chart" style="height: 64px;"></div>' +
-                '<div style="display: flex; justify-content: space-between; font-size: 0.65rem; color: var(--text-muted); margin-top: 0.3rem;">' +
+                '<div class="rssi-chart" id="live-signal-chart" style="height: 56px;"></div>' +
+                '<div style="display: flex; justify-content: space-between; font-size: 0.65rem; color: var(--text-muted); margin-top: 0.2rem;">' +
                 '<span id="live-signal-footer">first — · last —</span>' +
                 '<span id="live-signal-age">waiting…</span>' +
                 '</div>' +
-                '<div style="margin-top: 0.5rem;">' +
-                '<div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-muted); margin-bottom: 0.25rem;">' +
+                '<div style="margin-top: 0.35rem;">' +
+                '<div style="display: flex; justify-content: space-between; font-size: 0.65rem; color: var(--text-muted); margin-bottom: 0.15rem;">' +
                 '<span>Presence (last 15 min)</span><span id="live-signal-presence-pct">0%</span>' +
                 '</div>' +
-                '<div id="live-signal-presence-track" style="height: 16px;"></div>' +
+                '<div id="live-signal-presence-track" style="height: 10px;"></div>' +
                 '</div></div>' +
                 '<div class="heatmap-section" id="scan-unit-section" hidden>' +
                 '<div class="heatmap-title">Scan Unit Result</div>' +
@@ -2857,12 +2857,12 @@ HTML_TEMPLATE = """
 
             container.innerHTML = '<svg viewBox="0 0 ' + width + ' ' + height + '" preserveAspectRatio="none">' +
                 '<defs><linearGradient id="rssiGradient" x1="0%" y1="0%" x2="0%" y2="100%">' +
-                '<stop offset="0%" style="stop-color: #dc2626; stop-opacity: 0.3"/>' +
-                '<stop offset="100%" style="stop-color: #dc2626; stop-opacity: 0.05"/>' +
+                '<stop offset="0%" style="stop-color: #ffffff; stop-opacity: 0.25"/>' +
+                '<stop offset="100%" style="stop-color: #ffffff; stop-opacity: 0.03"/>' +
                 '</linearGradient></defs>' +
                 grid +
                 '<path class="rssi-area" d="' + areaPath + '"/>' +
-                '<path class="rssi-line" d="' + linePath + '"/>' +
+                '<path class="rssi-line" d="' + linePath + '" style="stroke: #ffffff;"/>' +
                 '<text class="rssi-label" x="' + padding.left + '" y="' + (height - 2) + '">' + formatTime(firstTime) + '</text>' +
                 '<text class="rssi-label" x="' + (width - padding.right) + '" y="' + (height - 2) + '" text-anchor="end">' + formatTime(lastTime) + '</text>' +
                 '</svg>';
@@ -5163,7 +5163,7 @@ LIVE_TEMPLATE = """
             border: 1px solid var(--border-color);
             border-radius: 4px;
             width: 90%;
-            max-width: 960px;
+            max-width: 700px;
             max-height: 85vh;
             overflow-y: auto;
         }
@@ -5369,7 +5369,7 @@ LIVE_TEMPLATE = """
         }
 
         .rssi-chart svg { width: 100%; height: 100%; }
-        .rssi-line { fill: none; stroke: var(--accent-red); stroke-width: 1.5; }
+        .rssi-line { fill: none; stroke: #ffffff; stroke-width: 1.5; }
         .rssi-area { fill: url(#rssiGradient); }
         .rssi-label { font-size: 0.55rem; fill: var(--text-muted); }
 
@@ -6955,16 +6955,16 @@ LIVE_TEMPLATE = """
                 '<span id="live-signal-avg" style="font-size: 0.65rem; color: var(--text-muted);">avg —</span>' +
                 '</span></div>' +
                 '<div style="margin-bottom: 0.4rem;"><span class="type-badge ' + getTypeClass(d.device_type) + '" style="font-size: 0.65rem; padding: 0.15rem 0.5rem;">' + escapeHtml(d.type_label || 'Unknown') + '</span></div>' +
-                '<div class="rssi-chart" id="live-signal-chart" style="height: 64px;"></div>' +
-                '<div style="display: flex; justify-content: space-between; font-size: 0.65rem; color: var(--text-muted); margin-top: 0.3rem;">' +
+                '<div class="rssi-chart" id="live-signal-chart" style="height: 56px;"></div>' +
+                '<div style="display: flex; justify-content: space-between; font-size: 0.65rem; color: var(--text-muted); margin-top: 0.2rem;">' +
                 '<span id="live-signal-footer">first — · last —</span>' +
                 '<span id="live-signal-age">waiting…</span>' +
                 '</div>' +
-                '<div style="margin-top: 0.5rem;">' +
-                '<div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-muted); margin-bottom: 0.25rem;">' +
+                '<div style="margin-top: 0.35rem;">' +
+                '<div style="display: flex; justify-content: space-between; font-size: 0.65rem; color: var(--text-muted); margin-bottom: 0.15rem;">' +
                 '<span>Presence (last 15 min)</span><span id="live-signal-presence-pct">0%</span>' +
                 '</div>' +
-                '<div id="live-signal-presence-track" style="height: 16px;"></div>' +
+                '<div id="live-signal-presence-track" style="height: 10px;"></div>' +
                 '</div></div>' +
                 '<div class="heatmap-section" id="scan-unit-section" hidden>' +
                 '<div class="heatmap-title">Scan Unit Result</div>' +
@@ -7530,12 +7530,12 @@ LIVE_TEMPLATE = """
 
             container.innerHTML = '<svg viewBox="0 0 ' + width + ' ' + height + '" preserveAspectRatio="none">' +
                 '<defs><linearGradient id="rssiGradient" x1="0%" y1="0%" x2="0%" y2="100%">' +
-                '<stop offset="0%" style="stop-color: #dc2626; stop-opacity: 0.3"/>' +
-                '<stop offset="100%" style="stop-color: #dc2626; stop-opacity: 0.05"/>' +
+                '<stop offset="0%" style="stop-color: #ffffff; stop-opacity: 0.25"/>' +
+                '<stop offset="100%" style="stop-color: #ffffff; stop-opacity: 0.03"/>' +
                 '</linearGradient></defs>' +
                 grid +
                 '<path class="rssi-area" d="' + areaPath + '"/>' +
-                '<path class="rssi-line" d="' + linePath + '"/>' +
+                '<path class="rssi-line" d="' + linePath + '" style="stroke: #ffffff;"/>' +
                 '<text class="rssi-label" x="' + padding.left + '" y="' + (height - 2) + '">' + formatTime(firstTime) + '</text>' +
                 '<text class="rssi-label" x="' + (width - padding.right) + '" y="' + (height - 2) + '" text-anchor="end">' + formatTime(lastTime) + '</text>' +
                 '</svg>';
