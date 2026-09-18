@@ -2862,7 +2862,7 @@ HTML_TEMPLATE = """
         // from renderModal(), stopped from closeModal() so the timer
         // never outlives the modal it's updating.
         const LIVE_SIGNAL_WINDOW_MINUTES = 15;
-        const LIVE_SIGNAL_POLL_MS = 3000;
+        const LIVE_SIGNAL_POLL_MS = 1000;
 
         function startLiveSignalPolling(mac) {
             stopLiveSignalPolling();
@@ -7481,7 +7481,7 @@ LIVE_TEMPLATE = """
         // from renderModal(), stopped from closeModal() so the timer
         // never outlives the modal it's updating.
         const LIVE_SIGNAL_WINDOW_MINUTES = 15;
-        const LIVE_SIGNAL_POLL_MS = 3000;
+        const LIVE_SIGNAL_POLL_MS = 1000;
 
         function startLiveSignalPolling(mac) {
             stopLiveSignalPolling();

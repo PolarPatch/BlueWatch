@@ -520,6 +520,25 @@ class BluetoothScanner:
             "seen_at": time.monotonic(),
         }
 
+    def get_live_rssi(self, mac: str) -> Optional[dict]:
+        """Instant read of a device's latest advertisement, straight from
+        the continuous scanner's in-memory callback state -- no waiting
+        for the next SCAN_INTERVAL snapshot-to-DB cycle. The radio is
+        already listening to every advertiser continuously regardless of
+        SCAN_INTERVAL (that only governs how often accumulated results
+        get written to SQLite); this is what lets the Device Details
+        live-signal panel show genuinely current data instead of
+        occasionally up to SCAN_INTERVAL seconds stale. Returns None if
+        continuous scanning isn't active or nothing's been heard from
+        this MAC since the scanner started."""
+        entry = self._live_ble.get(mac)
+        if entry is None:
+            return None
+        return {
+            "rssi": entry["adv"].rssi,
+            "seconds_ago": max(0.0, time.monotonic() - entry["seen_at"]),
+        }
+
     async def start_continuous_ble(self) -> None:
         """Start (or resume) continuous BLE scanning: a single long-lived
         scan instead of repeated stop/restart cycles. Safe to call when

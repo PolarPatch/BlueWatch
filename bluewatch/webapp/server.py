@@ -126,12 +126,13 @@ def verify_password(password: str, stored_hash: str) -> bool:
 class WebServer:
     """Web server for BlueWatch dashboard."""
 
-    def __init__(self, host: str = "0.0.0.0", port: int = 8080, notifications=None, adapter=None):
+    def __init__(self, host: str = "0.0.0.0", port: int = 8080, notifications=None, adapter=None, scanner=None):
         self.host = host
         self.port = port
         self.app = web.Application(middlewares=[self._auth_middleware])
         self._notifications = notifications
         self._adapter = adapter
+        self._scanner = scanner
         self._sessions: dict[str, datetime] = {}  # session_token -> expiry
         self._session_duration = timedelta(hours=24)
         self._batch_scan_task: asyncio.Task | None = None
@@ -1150,6 +1151,22 @@ class WebServer:
                 last_seen_seconds_ago = round((now - last_ts).total_seconds(), 1)
             except (ValueError, TypeError):
                 pass
+
+        # Prefer the continuous scanner's own in-memory last-advertisement
+        # state over the DB-derived value above when it's available -- the
+        # radio hears every advertisement in real time regardless of
+        # SCAN_INTERVAL (that only governs how often accumulated results
+        # get written to SQLite), so this is what actually gets this panel
+        # down to sub-second freshness instead of occasionally being up to
+        # SCAN_INTERVAL seconds behind. Falls back to the DB-derived
+        # reading above for the ESP32 second-radio path (no continuous
+        # in-memory feed) or if this MAC hasn't been heard since the
+        # scanner last (re)started.
+        if self._scanner is not None:
+            live = self._scanner.get_live_rssi(mac)
+            if live is not None:
+                current_rssi = live["rssi"]
+                last_seen_seconds_ago = round(live["seconds_ago"], 1)
 
         return web.json_response({
             "mac": mac,
