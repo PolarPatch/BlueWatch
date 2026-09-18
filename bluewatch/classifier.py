@@ -268,6 +268,24 @@ COMPANY_ID_YALE = 0x0BDE
 COMPANY_ID_SALTO = 0x0199
 COMPANY_ID_AUGUST = 0x01D1
 COMPANY_ID_ALLEGION = 0x013B
+# Second batch, source: OffGridPete/Fieldwatch (MIT licensed), each
+# cross-verified against the Bluetooth SIG's own company_identifiers
+# registry (see URL above):
+#   0x0725 -> "Tedee Sp. z o.o." (exact match)
+#   0x05BA -> "igloohome" (exact match)
+#   0x014B -> "Master Lock" (exact match -- Bluetooth padlocks)
+#   0x015E -> "Unikey Technologies, Inc." (exact match -- makes the BLE
+#             module inside Kwikset's Kevo lock line)
+#   0x0C64 -> "dormakaba Holding AG" (exact match -- Saflok/Oracode
+#             hotel and commercial door hardware)
+#   0x0196 -> "Paxton Access Ltd" (exact match -- Net2 commercial door
+#             readers/access-control panels)
+COMPANY_ID_TEDEE = 0x0725
+COMPANY_ID_IGLOOHOME = 0x05BA
+COMPANY_ID_MASTER_LOCK = 0x014B
+COMPANY_ID_KEVO = 0x015E
+COMPANY_ID_DORMAKABA = 0x0C64
+COMPANY_ID_PAXTON = 0x0196
 SMART_LOCK_COMPANY_IDS = frozenset({
     COMPANY_ID_ASSA_ABLOY,
     COMPANY_ID_HID_GLOBAL,
@@ -275,7 +293,36 @@ SMART_LOCK_COMPANY_IDS = frozenset({
     COMPANY_ID_SALTO,
     COMPANY_ID_AUGUST,
     COMPANY_ID_ALLEGION,
+    COMPANY_ID_TEDEE,
+    COMPANY_ID_IGLOOHOME,
+    COMPANY_ID_MASTER_LOCK,
+    COMPANY_ID_KEVO,
+    COMPANY_ID_DORMAKABA,
+    COMPANY_ID_PAXTON,
 })
+
+# Smart-home hub/appliance company IDs that aren't locks themselves but
+# are close cousins of the lock list above (same "vendor-strength, no
+# name/UUID needed" tier). Source: OffGridPete/Fieldwatch (MIT
+# licensed), cross-verified against the Bluetooth SIG registry:
+#   0x0878 -> "The Chamberlain Group, Inc." (exact match -- myQ garage
+#             door hub/opener)
+#   0x0434 -> "Hatch Baby, Inc." (exact match -- Hatch Rest/Restore
+#             nursery sound machines)
+COMPANY_ID_CHAMBERLAIN = 0x0878
+COMPANY_ID_HATCH_BABY = 0x0434
+SMART_HOME_COMPANY_IDS = frozenset({
+    COMPANY_ID_CHAMBERLAIN,
+    COMPANY_ID_HATCH_BABY,
+})
+
+# Commercial fleet/vehicle telematics -- a genuinely different category
+# from the phone-as-key/infotainment OEM list below (this is a
+# third-party tracking unit bolted onto a vehicle, not the vehicle
+# maker's own BLE), but resolves to the same TYPE_VEHICLE output.
+# Source: OffGridPete/Fieldwatch (MIT licensed); 0x0B6B -> "Samsara
+# Networks, Inc" (exact match against the Bluetooth SIG registry).
+COMPANY_ID_SAMSARA = 0x0B6B
 COMPANY_ID_META_PLATFORMS = 0x01AB
 COMPANY_ID_META_PLATFORMS_TECH = 0x058E
 # Dedicated smart-glasses makers only -- deliberately not including
@@ -283,6 +330,17 @@ COMPANY_ID_META_PLATFORMS_TECH = 0x058E
 # they'd misclassify unrelated phones/earbuds/laptops as glasses too.
 COMPANY_ID_EVEN_REALITIES = 0x10F9
 COMPANY_ID_VUZIX = 0x060C
+# Luxottica (Ray-Ban Meta's actual eyewear manufacturer, a joint
+# venture with Meta) and Snapchat Inc (Spectacles is its only BLE
+# hardware product) are both dedicated-enough to add bare, same tier
+# as the two above. Source: BenGeorgie55/BLE-Scanner (AGPLv3 -- company
+# ID *values* only were taken, not any code/structure, and each was
+# independently cross-verified against the Bluetooth SIG registry
+# rather than trusted from that repo):
+#   0x0D53 -> "Luxottica Group S.p.A" (exact match)
+#   0x03C2 -> "Snapchat Inc" (exact match)
+COMPANY_ID_LUXOTTICA = 0x0D53
+COMPANY_ID_SNAP = 0x03C2
 COMPANY_ID_MICROSOFT = 0x0006
 
 # More vendor company IDs (source: blesploit device-library vendor
@@ -901,7 +959,8 @@ def classify_by_manufacturer_data(manufacturer_data: Optional[dict]) -> Optional
         return TYPE_FLIPPER
 
     if (COMPANY_ID_META_PLATFORMS in manufacturer_data or COMPANY_ID_META_PLATFORMS_TECH in manufacturer_data
-            or COMPANY_ID_EVEN_REALITIES in manufacturer_data or COMPANY_ID_VUZIX in manufacturer_data):
+            or COMPANY_ID_EVEN_REALITIES in manufacturer_data or COMPANY_ID_VUZIX in manufacturer_data
+            or COMPANY_ID_LUXOTTICA in manufacturer_data or COMPANY_ID_SNAP in manufacturer_data):
         return TYPE_GLASSES
 
     # Smart-lock makers (source: OffGridPete/Fieldwatch -- see
@@ -968,6 +1027,16 @@ def classify_by_manufacturer_data(manufacturer_data: Optional[dict]) -> Optional
     # VEHICLE_TPMS_COMPANY_IDS' comment above).
     if VEHICLE_TPMS_COMPANY_IDS.intersection(manufacturer_data.keys()):
         return TYPE_VEHICLE
+
+    # Commercial fleet telematics (source: OffGridPete/Fieldwatch -- see
+    # COMPANY_ID_SAMSARA's comment above).
+    if COMPANY_ID_SAMSARA in manufacturer_data:
+        return TYPE_VEHICLE
+
+    # Smart-home hubs/appliances (source: OffGridPete/Fieldwatch -- see
+    # SMART_HOME_COMPANY_IDS' comment above).
+    if SMART_HOME_COMPANY_IDS.intersection(manufacturer_data.keys()):
+        return TYPE_SMART_HOME
 
     return None
 
@@ -1497,6 +1566,25 @@ def classify_device(
     if name and "huawei" in name.lower() and manufacturer_data and COMPANY_ID_HUAWEI in manufacturer_data:
         return TYPE_PHONE
 
+    # Smart glasses from multi-product companies -- company ID alone
+    # would misclassify their other unrelated BLE products (Sony
+    # earbuds/speakers, Epson printers/watches, TCL phones/TVs), so the
+    # name is required too, same reasoning as Polar/Huawei above.
+    # Source: BenGeorgie55/BLE-Scanner (AGPLv3, values only, independently
+    # cross-verified against the Bluetooth SIG registry -- see
+    # COMPANY_ID_LUXOTTICA's comment above for the verification note):
+    #   0x012D -> "Sony Corporation" (exact match)
+    #   0x0040 -> "Seiko Epson Corporation" (exact match)
+    #   0x0BC6 -> "TCL COMMUNICATION EQUIPMENT CO.,LTD." (exact match)
+    if manufacturer_data and name:
+        name_l = name.lower()
+        if "smarteyeglass" in name_l and COMPANY_ID_SONY in manufacturer_data:
+            return TYPE_GLASSES
+        if "moverio" in name_l and 0x0040 in manufacturer_data:
+            return TYPE_GLASSES
+        if "rayneo" in name_l and 0x0BC6 in manufacturer_data:
+            return TYPE_GLASSES
+
     # Flipper Devices' own MAC-OUI -- an independent signal from the
     # company-ID check inside classify_by_manufacturer_data() below (some
     # firmware/advert modes carry a fixed vendor MAC with no manufacturer-
@@ -1595,6 +1683,34 @@ def classify_device(
         # Lime e-scooter (source: blesploit device-library)
         if re.match(r'^lime-[0-9]+$', name):
             return TYPE_VEHICLE
+
+        # Find My-style item finders with no dedicated company-ID/UUID
+        # fingerprint (unlike Tile/SmartTag/Meta glasses, which have
+        # their own service-UUID checks elsewhere) -- specific enough
+        # product names to be a safe name-only match. Source:
+        # OffGridPete/Fieldwatch (MIT licensed).
+        if (name.startswith("Chipolo") or name.startswith("Pebblebee")
+                or name_lower == "moto tag"):
+            return TYPE_TRACKER
+
+        # Smart locks with no captured company ID/UUID in Fieldwatch's
+        # catalog -- name-only, but specific enough to be low-risk.
+        # Source: OffGridPete/Fieldwatch (MIT licensed).
+        if name.startswith("LOCKLY") or name.startswith("Lockly") or name.startswith("Kwikset"):
+            return TYPE_LOCK
+
+        # Helium LoRaWAN hotspot (source: OffGridPete/Fieldwatch, MIT
+        # licensed) -- off-grid mesh-adjacent infrastructure, same type
+        # as Meshtastic/MeshCore above.
+        if name.startswith("Helium"):
+            return TYPE_MESH
+
+        # Wearable AI voice recorders/pendants -- privacy-relevant in
+        # the same way BLE cameras/mics are (a device that may be
+        # recording audio nearby), name-only but specific product
+        # names. Source: OffGridPete/Fieldwatch (MIT licensed).
+        if name.startswith("Fieldy") or name.startswith("Plaud Note") or name.startswith("Plaud NotePin"):
+            return TYPE_WEARABLE
 
         # Common name patterns
         if any(x in name_lower for x in ["iphone", "android", "pixel", "galaxy s", "galaxy z"]):

@@ -137,3 +137,33 @@ a passive scanner. Fieldwatch's `DefaultCatalog.kt` was what first
 flagged that Nuki has a real UUID-based signature worth having, but
 its actual UUID values weren't captured there; the values used here
 come from Nuki's own reference implementation instead.
+
+A second batch of smart-lock/smart-home/vehicle-tracker company IDs
+in `bluewatch/classifier.py` (Tedee, igloohome, Master Lock, Kevo/
+Unikey, dormakaba, Paxton/Net2 -> `TYPE_LOCK`; Chamberlain/myQ and
+Hatch Baby -> `TYPE_SMART_HOME`; Samsara fleet telematics ->
+`TYPE_VEHICLE`) plus name-only patterns (Chipolo/Pebblebee/"moto tag"
+-> `TYPE_TRACKER`, Lockly/Kwikset -> `TYPE_LOCK`, Helium -> `TYPE_MESH`,
+Fieldy/Plaud Note/NotePin recording wearables -> `TYPE_WEARABLE`) were
+identified from OffGridPete/Fieldwatch's `DefaultCatalog.kt` (MIT
+licensed) in a second research pass. Every company ID was
+independently cross-verified against the Bluetooth SIG's own registry
+before being trusted -- all ten resolved to an exact, specific vendor
+match with no shared-chipset ambiguity.
+
+Additional smart-glasses company IDs (`TYPE_GLASSES` in
+`classify_by_manufacturer_data()`/`classify_device()`,
+`bluewatch/classifier.py`: Luxottica Group and Snapchat Inc added bare
+company-ID, matching the existing dedicated-glasses-maker tier; Sony,
+Epson, and TCL added as company-ID-plus-name combinations since those
+three are multi-product companies whose bare company ID would
+misclassify their unrelated headphones/printers/phones as glasses)
+were identified from
+[BenGeorgie55/BLE-Scanner](https://github.com/BenGeorgie55/BLE-Scanner)
+(AGPLv3 -- only the company-ID *values* were taken and independently
+verified against the Bluetooth SIG's own registry, not any of its
+code or rule-table structure, to stay clear of its copyleft/network-
+disclosure terms). That same repo's camera/microphone/recording-device
+rules were checked and found to be name-substring-only with no
+company-ID/OUI/UUID backing at all -- no stronger than BlueWatch's
+existing camera signal, so nothing from that part of it was adopted.
