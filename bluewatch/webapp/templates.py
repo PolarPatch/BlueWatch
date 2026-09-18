@@ -2257,17 +2257,16 @@ HTML_TEMPLATE = """
                 '<div class="heatmap-section" id="live-signal-section">' +
                 '<div class="heatmap-title">Live Signal</div>' +
                 '<div style="display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 0.4rem;">' +
-                '<span id="live-signal-rssi" style="font-size: 1.1rem; font-weight: 600; color: var(--text-primary);">—</span>' +
+                '<span style="display: flex; align-items: baseline; gap: 0.35rem;"><span id="live-signal-rssi" style="font-size: 1.1rem; font-weight: 600; color: var(--text-primary);">—</span><span id="live-signal-trend" style="font-size: 0.85rem; font-family: monospace; font-weight: 700;"></span></span>' +
                 '<span id="live-signal-age" style="font-size: 0.7rem; color: var(--text-muted);">waiting…</span>' +
                 '</div>' +
-                '<div class="rssi-chart" id="live-signal-chart" style="height: 50px;"></div>' +
+                '<div class="rssi-chart" id="live-signal-chart" style="height: 64px;"></div>' +
                 '<div style="margin-top: 0.5rem;">' +
                 '<div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-muted); margin-bottom: 0.25rem;">' +
                 '<span>Presence (last 15 min)</span><span id="live-signal-presence-pct">0%</span>' +
                 '</div>' +
-                '<div style="background: var(--bg-tertiary); border-radius: 3px; height: 6px; overflow: hidden;">' +
-                '<div id="live-signal-presence-bar" style="background: var(--accent-blue); height: 100%; width: 0%; transition: width 0.4s;"></div>' +
-                '</div></div></div>' +
+                '<div id="live-signal-presence-track" style="height: 16px;"></div>' +
+                '</div></div>' +
                 '<div class="heatmap-section" id="scan-unit-section" hidden>' +
                 '<div class="heatmap-title">Scan Unit Result</div>' +
                 '<div id="scan-unit-result" style="font-size: 0.75rem; font-family: monospace; white-space: pre-wrap; word-break: break-all; max-height: 300px; overflow-y: auto;"></div>' +
@@ -2784,34 +2783,59 @@ HTML_TEMPLATE = """
         }
 
         function renderRssiChart(container, rssiData) {
+            // The long-term counterpart to renderLiveSignalChart's fixed
+            // -30/-100 live scale (Fieldwatch's own device-history views
+            // use a similarly settled, gridded look, just auto-scaled to
+            // this device's actual multi-day range rather than a fixed
+            // live window -- no "current reading" dot or trend arrow here,
+            // this is a static historical read, not a live one).
             const width = container.clientWidth - 20;
             const height = 50;
-            const padding = { left: 30, right: 10, top: 5, bottom: 15 };
+            const padding = { left: 30, right: 10, top: 6, bottom: 15 };
             const rssiValues = rssiData.map(d => d.rssi);
-            const minRssi = Math.min(...rssiValues);
-            const maxRssi = Math.max(...rssiValues);
+            const dataMin = Math.min(...rssiValues);
+            const dataMax = Math.max(...rssiValues);
+            // A little headroom so the line never touches the frame, then
+            // snapped to 5 dBm so gridline labels land on round numbers.
+            const minRssi = Math.floor((dataMin - 3) / 5) * 5;
+            const maxRssi = Math.ceil((dataMax + 3) / 5) * 5;
+            const range = (maxRssi - minRssi) || 10;
             const xScale = (i) => padding.left + (i / (rssiData.length - 1)) * (width - padding.left - padding.right);
-            const yScale = (rssi) => {
-                const range = maxRssi - minRssi || 1;
-                return padding.top + (1 - (rssi - minRssi) / range) * (height - padding.top - padding.bottom);
-            };
+            const yScale = (rssi) => padding.top + (1 - (rssi - minRssi) / range) * (height - padding.top - padding.bottom);
             const linePath = rssiData.map((d, i) => (i === 0 ? 'M' : 'L') + xScale(i) + ',' + yScale(d.rssi)).join(' ');
             const areaPath = linePath + ' L' + xScale(rssiData.length - 1) + ',' + (height - padding.bottom) + ' L' + padding.left + ',' + (height - padding.bottom) + ' Z';
             const firstTime = new Date(rssiData[0].timestamp);
             const lastTime = new Date(rssiData[rssiData.length - 1].timestamp);
             const formatTime = (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
+            // 4 evenly-spaced horizontal gridlines across the device's own
+            // observed range, plus 3 dashed vertical time dividers --
+            // same "quartered grid" language as the live chart, just
+            // scaled to this device's real history instead of a fixed
+            // -30/-100 window.
+            let grid = '';
+            for (let i = 0; i <= 3; i++) {
+                const dbm = Math.round(minRssi + range * i / 3);
+                const y = yScale(dbm);
+                grid += '<line x1="' + padding.left + '" y1="' + y + '" x2="' + width + '" y2="' + y + '" stroke="var(--border-color)" stroke-width="1" opacity="' + (i === 0 || i === 3 ? '1' : '0.6') + '" stroke-dasharray="' + (i === 0 || i === 3 ? 'none' : '3,4') + '"/>';
+                grid += '<text x="2" y="' + (y + 3) + '" class="rssi-label" font-size="8">' + dbm + '</text>';
+            }
+            grid += '<line x1="' + padding.left + '" y1="' + padding.top + '" x2="' + padding.left + '" y2="' + (height - padding.bottom) + '" stroke="var(--border-color)" stroke-width="1.2"/>';
+            for (let c = 1; c < 4; c++) {
+                const x = padding.left + (width - padding.left - padding.right) * c / 4;
+                grid += '<line x1="' + x + '" y1="' + padding.top + '" x2="' + x + '" y2="' + (height - padding.bottom) + '" stroke="var(--border-color)" stroke-width="0.75" stroke-dasharray="3,5" opacity="0.5"/>';
+            }
+
             container.innerHTML = '<svg viewBox="0 0 ' + width + ' ' + height + '" preserveAspectRatio="none">' +
                 '<defs><linearGradient id="rssiGradient" x1="0%" y1="0%" x2="0%" y2="100%">' +
                 '<stop offset="0%" style="stop-color: #dc2626; stop-opacity: 0.3"/>' +
                 '<stop offset="100%" style="stop-color: #dc2626; stop-opacity: 0.05"/>' +
                 '</linearGradient></defs>' +
+                grid +
                 '<path class="rssi-area" d="' + areaPath + '"/>' +
                 '<path class="rssi-line" d="' + linePath + '"/>' +
                 '<text class="rssi-label" x="' + padding.left + '" y="' + (height - 2) + '">' + formatTime(firstTime) + '</text>' +
                 '<text class="rssi-label" x="' + (width - padding.right) + '" y="' + (height - 2) + '" text-anchor="end">' + formatTime(lastTime) + '</text>' +
-                '<text class="rssi-label" x="2" y="' + (padding.top + 6) + '">' + maxRssi + '</text>' +
-                '<text class="rssi-label" x="2" y="' + (height - padding.bottom - 2) + '">' + minRssi + '</text>' +
                 '</svg>';
         }
 
@@ -2853,12 +2877,23 @@ HTML_TEMPLATE = """
             if (liveSignalPollTimer) { clearInterval(liveSignalPollTimer); liveSignalPollTimer = null; }
         }
 
+        function liveSignalRssiColor(rssi) {
+            // Same quality bands Fieldwatch's rssiColor() uses, so the
+            // numeric readout, the chart line, and the trend arrow all
+            // agree on what "good"/"fair"/"weak" means.
+            if (rssi >= -55) return "#16a34a";
+            if (rssi >= -70) return "#d9a441";
+            if (rssi >= -85) return "#d97706";
+            return "#dc2626";
+        }
+
         async function fetchAndRenderLiveSignal(mac) {
             const rssiEl = document.getElementById("live-signal-rssi");
+            const trendEl = document.getElementById("live-signal-trend");
             const ageEl = document.getElementById("live-signal-age");
             const chartEl = document.getElementById("live-signal-chart");
             const pctEl = document.getElementById("live-signal-presence-pct");
-            const barEl = document.getElementById("live-signal-presence-bar");
+            const trackEl = document.getElementById("live-signal-presence-track");
             if (!rssiEl) return; // modal closed mid-flight
 
             let data;
@@ -2873,21 +2908,40 @@ HTML_TEMPLATE = """
             if (data.current_rssi === null || data.current_rssi === undefined) {
                 rssiEl.textContent = "—";
                 rssiEl.style.color = "var(--text-muted)";
+                if (trendEl) trendEl.textContent = "";
                 ageEl.textContent = "no signal in the last " + LIVE_SIGNAL_WINDOW_MINUTES + " min";
             } else {
                 const rssi = data.current_rssi;
-                let color = "#dc2626";
-                if (rssi > -50) color = "#16a34a";
-                else if (rssi > -60) color = "#65a30d";
-                else if (rssi > -70) color = "#d97706";
+                const color = liveSignalRssiColor(rssi);
                 rssiEl.textContent = rssi + " dBm";
                 rssiEl.style.color = color;
+                if (trendEl) {
+                    // Trend arrow: last sample vs. the average of the
+                    // previous few -- same idea as Fieldwatch's RssiTrend
+                    // (>>' /'>' / '=' / '<' / '<<'), just derived here
+                    // instead of carried from the API.
+                    const s = data.sightings || [];
+                    if (s.length >= 4) {
+                        const prevWindow = s.slice(-4, -1);
+                        const prevAvg = prevWindow.reduce((a, x) => a + x.rssi, 0) / prevWindow.length;
+                        const delta = rssi - prevAvg;
+                        let mark = "=", tint = "var(--text-muted)";
+                        if (delta >= 8) { mark = "»"; tint = "#16a34a"; }
+                        else if (delta >= 3) { mark = "›"; tint = "#16a34a"; }
+                        else if (delta <= -8) { mark = "«"; tint = "#dc2626"; }
+                        else if (delta <= -3) { mark = "‹"; tint = "#dc2626"; }
+                        trendEl.textContent = mark;
+                        trendEl.style.color = tint;
+                    } else {
+                        trendEl.textContent = "";
+                    }
+                }
                 const age = data.last_seen_seconds_ago;
                 ageEl.textContent = age === null || age === undefined ? "" : (age < 2 ? "just now" : Math.round(age) + "s ago");
             }
 
             if (pctEl) pctEl.textContent = (data.presence_pct || 0) + "%";
-            if (barEl) barEl.style.width = (data.presence_pct || 0) + "%";
+            if (trackEl) renderPresenceTrack(trackEl, data.sightings || [], LIVE_SIGNAL_WINDOW_MINUTES);
 
             if (chartEl) {
                 if (data.sightings && data.sightings.length >= 2) {
@@ -2900,30 +2954,98 @@ HTML_TEMPLATE = """
 
         function renderLiveSignalChart(container, sightings) {
             const width = container.clientWidth - 20 || 200;
-            const height = 50;
-            const padding = { left: 26, right: 6, top: 5, bottom: 5 };
+            const height = container.clientHeight || 64;
+            const padding = { left: 28, right: 6, top: 8, bottom: 14 };
             // Fixed y-axis (unlike renderRssiChart's auto-scaled one) so the
             // chart doesn't visibly rescale/jitter on every 3s poll tick as
             // new points trickle in -- matches the -30/-50/-70/-100 dBm
-            // scale Fieldwatch's own Signal trend graph uses.
+            // scale and gridline layout of Fieldwatch's own Signal trend
+            // graph (Sparkline() in its Widgets.kt).
             const minRssi = -100, maxRssi = -30;
+            const majorTicks = [-30, -50, -70, -100];
+            const minorTicks = [-40, -60, -80, -90];
             const xScale = (i) => padding.left + (i / (sightings.length - 1)) * (width - padding.left - padding.right);
             const yScale = (rssi) => {
                 const clamped = Math.max(minRssi, Math.min(maxRssi, rssi));
                 return padding.top + (1 - (clamped - minRssi) / (maxRssi - minRssi)) * (height - padding.top - padding.bottom);
             };
+            const lastRssi = sightings[sightings.length - 1].rssi;
+            const lineColor = liveSignalRssiColor(lastRssi);
             const linePath = sightings.map((s, i) => (i === 0 ? "M" : "L") + xScale(i) + "," + yScale(s.rssi)).join(" ");
             const areaPath = linePath + " L" + xScale(sightings.length - 1) + "," + (height - padding.bottom) + " L" + padding.left + "," + (height - padding.bottom) + " Z";
+
+            let grid = "";
+            majorTicks.forEach((dbm) => {
+                const y = yScale(dbm);
+                grid += '<line x1="' + padding.left + '" y1="' + y + '" x2="' + width + '" y2="' + y + '" stroke="var(--border-color)" stroke-width="1"/>';
+                grid += '<text x="2" y="' + (y + 3) + '" class="rssi-label" font-size="8">' + dbm + "</text>";
+            });
+            minorTicks.forEach((dbm) => {
+                const y = yScale(dbm);
+                grid += '<line x1="' + padding.left + '" y1="' + y + '" x2="' + width + '" y2="' + y + '" stroke="var(--border-color)" stroke-width="0.75" stroke-dasharray="3,4" opacity="0.6"/>';
+            });
+            grid += '<line x1="' + padding.left + '" y1="' + yScale(-30) + '" x2="' + padding.left + '" y2="' + yScale(-100) + '" stroke="var(--border-color)" stroke-width="1.2"/>';
+            // Three vertical dashed dividers across the time axis, same
+            // "quartered" look as Fieldwatch's own gridlines.
+            for (let c = 1; c < 4; c++) {
+                const x = padding.left + (width - padding.left - padding.right) * c / 4;
+                grid += '<line x1="' + x + '" y1="' + yScale(-30) + '" x2="' + x + '" y2="' + yScale(-100) + '" stroke="var(--border-color)" stroke-width="0.75" stroke-dasharray="3,5" opacity="0.5"/>';
+            }
+
+            const lastX = xScale(sightings.length - 1);
+            const lastY = yScale(lastRssi);
+
             container.innerHTML = '<svg viewBox="0 0 ' + width + " " + height + '" preserveAspectRatio="none">' +
                 '<defs><linearGradient id="liveSignalGradient" x1="0%" y1="0%" x2="0%" y2="100%">' +
-                '<stop offset="0%" style="stop-color: #16a34a; stop-opacity: 0.3"/>' +
-                '<stop offset="100%" style="stop-color: #16a34a; stop-opacity: 0.05"/>' +
+                '<stop offset="0%" style="stop-color: ' + lineColor + '; stop-opacity: 0.3"/>' +
+                '<stop offset="100%" style="stop-color: ' + lineColor + '; stop-opacity: 0.05"/>' +
                 "</linearGradient></defs>" +
+                grid +
                 '<path class="rssi-area" d="' + areaPath + '" style="fill: url(#liveSignalGradient); stroke: none;"/>' +
-                '<path class="rssi-line" d="' + linePath + '" style="stroke: #16a34a;"/>' +
-                '<text class="rssi-label" x="2" y="' + (padding.top + 6) + '">' + maxRssi + "</text>" +
-                '<text class="rssi-label" x="2" y="' + (height - padding.bottom) + '">' + minRssi + "</text>" +
+                '<path class="rssi-line" d="' + linePath + '" style="stroke: ' + lineColor + ';"/>' +
+                '<circle cx="' + lastX + '" cy="' + lastY + '" r="3.4" fill="' + lineColor + '"/>' +
                 "</svg>";
+        }
+
+        function renderPresenceTrack(container, sightings, windowMinutes) {
+            // Fieldwatch-style presence track (PresenceTrack() in its
+            // Widgets.kt): actual time SPANS the device was present within
+            // the window, not just a single aggregate percentage -- groups
+            // consecutive sightings less than 45s apart (3x the poll
+            // cadence) into one continuous span so brief gaps between
+            // individual adverts don't fragment into dozens of slivers.
+            const width = container.clientWidth || 260;
+            const height = container.clientHeight || 16;
+            if (!sightings.length) {
+                container.innerHTML = '<svg viewBox="0 0 ' + width + " " + height + '"><rect width="' + width + '" height="' + height + '" rx="3" fill="var(--bg-tertiary)"/></svg>';
+                return;
+            }
+            const windowMs = windowMinutes * 60 * 1000;
+            const now = Date.now();
+            const start = now - windowMs;
+            const GAP_MS = 45000;
+            const spans = [];
+            let spanStart = null, prevTs = null;
+            sightings.forEach((s) => {
+                const ts = new Date(s.timestamp).getTime();
+                if (spanStart === null) {
+                    spanStart = ts;
+                } else if (ts - prevTs > GAP_MS) {
+                    spans.push([spanStart, prevTs]);
+                    spanStart = ts;
+                }
+                prevTs = ts;
+            });
+            if (spanStart !== null) spans.push([spanStart, prevTs]);
+
+            const xOf = (ts) => ((Math.max(start, Math.min(now, ts)) - start) / windowMs) * width;
+            let bars = '<rect width="' + width + '" height="' + height + '" rx="3" fill="var(--bg-tertiary)"/>';
+            spans.forEach(([a, b]) => {
+                const x1 = xOf(a), x2 = xOf(b);
+                const w = Math.max(2, x2 - x1);
+                bars += '<rect x="' + x1 + '" y="' + (height * 0.15) + '" width="' + w + '" height="' + (height * 0.7) + '" rx="1.5" fill="var(--accent-blue)" opacity="0.85"/>';
+            });
+            container.innerHTML = '<svg viewBox="0 0 ' + width + " " + height + '" preserveAspectRatio="none">' + bars + "</svg>";
         }
 
         function closeModal() {
@@ -6754,17 +6876,16 @@ LIVE_TEMPLATE = """
                 '<div class="heatmap-section" id="live-signal-section">' +
                 '<div class="heatmap-title">Live Signal</div>' +
                 '<div style="display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 0.4rem;">' +
-                '<span id="live-signal-rssi" style="font-size: 1.1rem; font-weight: 600; color: var(--text-primary);">—</span>' +
+                '<span style="display: flex; align-items: baseline; gap: 0.35rem;"><span id="live-signal-rssi" style="font-size: 1.1rem; font-weight: 600; color: var(--text-primary);">—</span><span id="live-signal-trend" style="font-size: 0.85rem; font-family: monospace; font-weight: 700;"></span></span>' +
                 '<span id="live-signal-age" style="font-size: 0.7rem; color: var(--text-muted);">waiting…</span>' +
                 '</div>' +
-                '<div class="rssi-chart" id="live-signal-chart" style="height: 50px;"></div>' +
+                '<div class="rssi-chart" id="live-signal-chart" style="height: 64px;"></div>' +
                 '<div style="margin-top: 0.5rem;">' +
                 '<div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-muted); margin-bottom: 0.25rem;">' +
                 '<span>Presence (last 15 min)</span><span id="live-signal-presence-pct">0%</span>' +
                 '</div>' +
-                '<div style="background: var(--bg-tertiary); border-radius: 3px; height: 6px; overflow: hidden;">' +
-                '<div id="live-signal-presence-bar" style="background: var(--accent-blue); height: 100%; width: 0%; transition: width 0.4s;"></div>' +
-                '</div></div></div>' +
+                '<div id="live-signal-presence-track" style="height: 16px;"></div>' +
+                '</div></div>' +
                 '<div class="heatmap-section" id="scan-unit-section" hidden>' +
                 '<div class="heatmap-title">Scan Unit Result</div>' +
                 '<div id="scan-unit-result" style="font-size: 0.75rem; font-family: monospace; white-space: pre-wrap; word-break: break-all; max-height: 300px; overflow-y: auto;"></div>' +
@@ -7281,34 +7402,59 @@ LIVE_TEMPLATE = """
         }
 
         function renderRssiChart(container, rssiData) {
+            // The long-term counterpart to renderLiveSignalChart's fixed
+            // -30/-100 live scale (Fieldwatch's own device-history views
+            // use a similarly settled, gridded look, just auto-scaled to
+            // this device's actual multi-day range rather than a fixed
+            // live window -- no "current reading" dot or trend arrow here,
+            // this is a static historical read, not a live one).
             const width = container.clientWidth - 20;
             const height = 50;
-            const padding = { left: 30, right: 10, top: 5, bottom: 15 };
+            const padding = { left: 30, right: 10, top: 6, bottom: 15 };
             const rssiValues = rssiData.map(d => d.rssi);
-            const minRssi = Math.min(...rssiValues);
-            const maxRssi = Math.max(...rssiValues);
+            const dataMin = Math.min(...rssiValues);
+            const dataMax = Math.max(...rssiValues);
+            // A little headroom so the line never touches the frame, then
+            // snapped to 5 dBm so gridline labels land on round numbers.
+            const minRssi = Math.floor((dataMin - 3) / 5) * 5;
+            const maxRssi = Math.ceil((dataMax + 3) / 5) * 5;
+            const range = (maxRssi - minRssi) || 10;
             const xScale = (i) => padding.left + (i / (rssiData.length - 1)) * (width - padding.left - padding.right);
-            const yScale = (rssi) => {
-                const range = maxRssi - minRssi || 1;
-                return padding.top + (1 - (rssi - minRssi) / range) * (height - padding.top - padding.bottom);
-            };
+            const yScale = (rssi) => padding.top + (1 - (rssi - minRssi) / range) * (height - padding.top - padding.bottom);
             const linePath = rssiData.map((d, i) => (i === 0 ? 'M' : 'L') + xScale(i) + ',' + yScale(d.rssi)).join(' ');
             const areaPath = linePath + ' L' + xScale(rssiData.length - 1) + ',' + (height - padding.bottom) + ' L' + padding.left + ',' + (height - padding.bottom) + ' Z';
             const firstTime = new Date(rssiData[0].timestamp);
             const lastTime = new Date(rssiData[rssiData.length - 1].timestamp);
             const formatTime = (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
+            // 4 evenly-spaced horizontal gridlines across the device's own
+            // observed range, plus 3 dashed vertical time dividers --
+            // same "quartered grid" language as the live chart, just
+            // scaled to this device's real history instead of a fixed
+            // -30/-100 window.
+            let grid = '';
+            for (let i = 0; i <= 3; i++) {
+                const dbm = Math.round(minRssi + range * i / 3);
+                const y = yScale(dbm);
+                grid += '<line x1="' + padding.left + '" y1="' + y + '" x2="' + width + '" y2="' + y + '" stroke="var(--border-color)" stroke-width="1" opacity="' + (i === 0 || i === 3 ? '1' : '0.6') + '" stroke-dasharray="' + (i === 0 || i === 3 ? 'none' : '3,4') + '"/>';
+                grid += '<text x="2" y="' + (y + 3) + '" class="rssi-label" font-size="8">' + dbm + '</text>';
+            }
+            grid += '<line x1="' + padding.left + '" y1="' + padding.top + '" x2="' + padding.left + '" y2="' + (height - padding.bottom) + '" stroke="var(--border-color)" stroke-width="1.2"/>';
+            for (let c = 1; c < 4; c++) {
+                const x = padding.left + (width - padding.left - padding.right) * c / 4;
+                grid += '<line x1="' + x + '" y1="' + padding.top + '" x2="' + x + '" y2="' + (height - padding.bottom) + '" stroke="var(--border-color)" stroke-width="0.75" stroke-dasharray="3,5" opacity="0.5"/>';
+            }
+
             container.innerHTML = '<svg viewBox="0 0 ' + width + ' ' + height + '" preserveAspectRatio="none">' +
                 '<defs><linearGradient id="rssiGradient" x1="0%" y1="0%" x2="0%" y2="100%">' +
                 '<stop offset="0%" style="stop-color: #dc2626; stop-opacity: 0.3"/>' +
                 '<stop offset="100%" style="stop-color: #dc2626; stop-opacity: 0.05"/>' +
                 '</linearGradient></defs>' +
+                grid +
                 '<path class="rssi-area" d="' + areaPath + '"/>' +
                 '<path class="rssi-line" d="' + linePath + '"/>' +
                 '<text class="rssi-label" x="' + padding.left + '" y="' + (height - 2) + '">' + formatTime(firstTime) + '</text>' +
                 '<text class="rssi-label" x="' + (width - padding.right) + '" y="' + (height - 2) + '" text-anchor="end">' + formatTime(lastTime) + '</text>' +
-                '<text class="rssi-label" x="2" y="' + (padding.top + 6) + '">' + maxRssi + '</text>' +
-                '<text class="rssi-label" x="2" y="' + (height - padding.bottom - 2) + '">' + minRssi + '</text>' +
                 '</svg>';
         }
 
@@ -7350,12 +7496,23 @@ LIVE_TEMPLATE = """
             if (liveSignalPollTimer) { clearInterval(liveSignalPollTimer); liveSignalPollTimer = null; }
         }
 
+        function liveSignalRssiColor(rssi) {
+            // Same quality bands Fieldwatch's rssiColor() uses, so the
+            // numeric readout, the chart line, and the trend arrow all
+            // agree on what "good"/"fair"/"weak" means.
+            if (rssi >= -55) return "#16a34a";
+            if (rssi >= -70) return "#d9a441";
+            if (rssi >= -85) return "#d97706";
+            return "#dc2626";
+        }
+
         async function fetchAndRenderLiveSignal(mac) {
             const rssiEl = document.getElementById("live-signal-rssi");
+            const trendEl = document.getElementById("live-signal-trend");
             const ageEl = document.getElementById("live-signal-age");
             const chartEl = document.getElementById("live-signal-chart");
             const pctEl = document.getElementById("live-signal-presence-pct");
-            const barEl = document.getElementById("live-signal-presence-bar");
+            const trackEl = document.getElementById("live-signal-presence-track");
             if (!rssiEl) return; // modal closed mid-flight
 
             let data;
@@ -7370,21 +7527,40 @@ LIVE_TEMPLATE = """
             if (data.current_rssi === null || data.current_rssi === undefined) {
                 rssiEl.textContent = "—";
                 rssiEl.style.color = "var(--text-muted)";
+                if (trendEl) trendEl.textContent = "";
                 ageEl.textContent = "no signal in the last " + LIVE_SIGNAL_WINDOW_MINUTES + " min";
             } else {
                 const rssi = data.current_rssi;
-                let color = "#dc2626";
-                if (rssi > -50) color = "#16a34a";
-                else if (rssi > -60) color = "#65a30d";
-                else if (rssi > -70) color = "#d97706";
+                const color = liveSignalRssiColor(rssi);
                 rssiEl.textContent = rssi + " dBm";
                 rssiEl.style.color = color;
+                if (trendEl) {
+                    // Trend arrow: last sample vs. the average of the
+                    // previous few -- same idea as Fieldwatch's RssiTrend
+                    // (>>' /'>' / '=' / '<' / '<<'), just derived here
+                    // instead of carried from the API.
+                    const s = data.sightings || [];
+                    if (s.length >= 4) {
+                        const prevWindow = s.slice(-4, -1);
+                        const prevAvg = prevWindow.reduce((a, x) => a + x.rssi, 0) / prevWindow.length;
+                        const delta = rssi - prevAvg;
+                        let mark = "=", tint = "var(--text-muted)";
+                        if (delta >= 8) { mark = "»"; tint = "#16a34a"; }
+                        else if (delta >= 3) { mark = "›"; tint = "#16a34a"; }
+                        else if (delta <= -8) { mark = "«"; tint = "#dc2626"; }
+                        else if (delta <= -3) { mark = "‹"; tint = "#dc2626"; }
+                        trendEl.textContent = mark;
+                        trendEl.style.color = tint;
+                    } else {
+                        trendEl.textContent = "";
+                    }
+                }
                 const age = data.last_seen_seconds_ago;
                 ageEl.textContent = age === null || age === undefined ? "" : (age < 2 ? "just now" : Math.round(age) + "s ago");
             }
 
             if (pctEl) pctEl.textContent = (data.presence_pct || 0) + "%";
-            if (barEl) barEl.style.width = (data.presence_pct || 0) + "%";
+            if (trackEl) renderPresenceTrack(trackEl, data.sightings || [], LIVE_SIGNAL_WINDOW_MINUTES);
 
             if (chartEl) {
                 if (data.sightings && data.sightings.length >= 2) {
@@ -7397,30 +7573,98 @@ LIVE_TEMPLATE = """
 
         function renderLiveSignalChart(container, sightings) {
             const width = container.clientWidth - 20 || 200;
-            const height = 50;
-            const padding = { left: 26, right: 6, top: 5, bottom: 5 };
+            const height = container.clientHeight || 64;
+            const padding = { left: 28, right: 6, top: 8, bottom: 14 };
             // Fixed y-axis (unlike renderRssiChart's auto-scaled one) so the
             // chart doesn't visibly rescale/jitter on every 3s poll tick as
             // new points trickle in -- matches the -30/-50/-70/-100 dBm
-            // scale Fieldwatch's own Signal trend graph uses.
+            // scale and gridline layout of Fieldwatch's own Signal trend
+            // graph (Sparkline() in its Widgets.kt).
             const minRssi = -100, maxRssi = -30;
+            const majorTicks = [-30, -50, -70, -100];
+            const minorTicks = [-40, -60, -80, -90];
             const xScale = (i) => padding.left + (i / (sightings.length - 1)) * (width - padding.left - padding.right);
             const yScale = (rssi) => {
                 const clamped = Math.max(minRssi, Math.min(maxRssi, rssi));
                 return padding.top + (1 - (clamped - minRssi) / (maxRssi - minRssi)) * (height - padding.top - padding.bottom);
             };
+            const lastRssi = sightings[sightings.length - 1].rssi;
+            const lineColor = liveSignalRssiColor(lastRssi);
             const linePath = sightings.map((s, i) => (i === 0 ? "M" : "L") + xScale(i) + "," + yScale(s.rssi)).join(" ");
             const areaPath = linePath + " L" + xScale(sightings.length - 1) + "," + (height - padding.bottom) + " L" + padding.left + "," + (height - padding.bottom) + " Z";
+
+            let grid = "";
+            majorTicks.forEach((dbm) => {
+                const y = yScale(dbm);
+                grid += '<line x1="' + padding.left + '" y1="' + y + '" x2="' + width + '" y2="' + y + '" stroke="var(--border-color)" stroke-width="1"/>';
+                grid += '<text x="2" y="' + (y + 3) + '" class="rssi-label" font-size="8">' + dbm + "</text>";
+            });
+            minorTicks.forEach((dbm) => {
+                const y = yScale(dbm);
+                grid += '<line x1="' + padding.left + '" y1="' + y + '" x2="' + width + '" y2="' + y + '" stroke="var(--border-color)" stroke-width="0.75" stroke-dasharray="3,4" opacity="0.6"/>';
+            });
+            grid += '<line x1="' + padding.left + '" y1="' + yScale(-30) + '" x2="' + padding.left + '" y2="' + yScale(-100) + '" stroke="var(--border-color)" stroke-width="1.2"/>';
+            // Three vertical dashed dividers across the time axis, same
+            // "quartered" look as Fieldwatch's own gridlines.
+            for (let c = 1; c < 4; c++) {
+                const x = padding.left + (width - padding.left - padding.right) * c / 4;
+                grid += '<line x1="' + x + '" y1="' + yScale(-30) + '" x2="' + x + '" y2="' + yScale(-100) + '" stroke="var(--border-color)" stroke-width="0.75" stroke-dasharray="3,5" opacity="0.5"/>';
+            }
+
+            const lastX = xScale(sightings.length - 1);
+            const lastY = yScale(lastRssi);
+
             container.innerHTML = '<svg viewBox="0 0 ' + width + " " + height + '" preserveAspectRatio="none">' +
                 '<defs><linearGradient id="liveSignalGradient" x1="0%" y1="0%" x2="0%" y2="100%">' +
-                '<stop offset="0%" style="stop-color: #16a34a; stop-opacity: 0.3"/>' +
-                '<stop offset="100%" style="stop-color: #16a34a; stop-opacity: 0.05"/>' +
+                '<stop offset="0%" style="stop-color: ' + lineColor + '; stop-opacity: 0.3"/>' +
+                '<stop offset="100%" style="stop-color: ' + lineColor + '; stop-opacity: 0.05"/>' +
                 "</linearGradient></defs>" +
+                grid +
                 '<path class="rssi-area" d="' + areaPath + '" style="fill: url(#liveSignalGradient); stroke: none;"/>' +
-                '<path class="rssi-line" d="' + linePath + '" style="stroke: #16a34a;"/>' +
-                '<text class="rssi-label" x="2" y="' + (padding.top + 6) + '">' + maxRssi + "</text>" +
-                '<text class="rssi-label" x="2" y="' + (height - padding.bottom) + '">' + minRssi + "</text>" +
+                '<path class="rssi-line" d="' + linePath + '" style="stroke: ' + lineColor + ';"/>' +
+                '<circle cx="' + lastX + '" cy="' + lastY + '" r="3.4" fill="' + lineColor + '"/>' +
                 "</svg>";
+        }
+
+        function renderPresenceTrack(container, sightings, windowMinutes) {
+            // Fieldwatch-style presence track (PresenceTrack() in its
+            // Widgets.kt): actual time SPANS the device was present within
+            // the window, not just a single aggregate percentage -- groups
+            // consecutive sightings less than 45s apart (3x the poll
+            // cadence) into one continuous span so brief gaps between
+            // individual adverts don't fragment into dozens of slivers.
+            const width = container.clientWidth || 260;
+            const height = container.clientHeight || 16;
+            if (!sightings.length) {
+                container.innerHTML = '<svg viewBox="0 0 ' + width + " " + height + '"><rect width="' + width + '" height="' + height + '" rx="3" fill="var(--bg-tertiary)"/></svg>';
+                return;
+            }
+            const windowMs = windowMinutes * 60 * 1000;
+            const now = Date.now();
+            const start = now - windowMs;
+            const GAP_MS = 45000;
+            const spans = [];
+            let spanStart = null, prevTs = null;
+            sightings.forEach((s) => {
+                const ts = new Date(s.timestamp).getTime();
+                if (spanStart === null) {
+                    spanStart = ts;
+                } else if (ts - prevTs > GAP_MS) {
+                    spans.push([spanStart, prevTs]);
+                    spanStart = ts;
+                }
+                prevTs = ts;
+            });
+            if (spanStart !== null) spans.push([spanStart, prevTs]);
+
+            const xOf = (ts) => ((Math.max(start, Math.min(now, ts)) - start) / windowMs) * width;
+            let bars = '<rect width="' + width + '" height="' + height + '" rx="3" fill="var(--bg-tertiary)"/>';
+            spans.forEach(([a, b]) => {
+                const x1 = xOf(a), x2 = xOf(b);
+                const w = Math.max(2, x2 - x1);
+                bars += '<rect x="' + x1 + '" y="' + (height * 0.15) + '" width="' + w + '" height="' + (height * 0.7) + '" rx="1.5" fill="var(--accent-blue)" opacity="0.85"/>';
+            });
+            container.innerHTML = '<svg viewBox="0 0 ' + width + " " + height + '" preserveAspectRatio="none">' + bars + "</svg>";
         }
 
         function closeModal() {
