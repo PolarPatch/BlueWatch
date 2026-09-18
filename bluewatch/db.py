@@ -2334,10 +2334,15 @@ async def get_watched_devices() -> list[Device]:
 
 async def get_priority_devices(type_alert_types: tuple[str, ...], minutes: int = 30, limit: int = 25) -> list[Device]:
     """Devices that should always surface regardless of the main table's
-    active filters: everything explicitly watched, plus devices whose type
-    is on the operator's Type-Based Alerts list (Config > Alerts) that have
-    been seen within the last `minutes` -- e.g. a brand-new drone MAC that
-    was never individually watched still needs to jump out immediately.
+    active filters: watched devices AND type-alert-listed devices (Config
+    > Alerts), both gated to the last `minutes` -- this is meant to read
+    as "here's what just showed up", not a permanent watch-list display
+    (that already exists separately in Config > Alerts' own Watched
+    Devices list, with no recency filter, by design). A watched device
+    that hasn't been seen in hours has nothing urgent to surface right
+    now, so it drops out of this box until it's actually seen again --
+    confirmed with the operator after the box kept showing two watched
+    Flipper Zeros hours after they were last nearby.
 
     The type-alert half classifies candidates in Python
     (classify_device()) rather than filtering on the devices.device_type
@@ -2353,16 +2358,17 @@ async def get_priority_devices(type_alert_types: tuple[str, ...], minutes: int =
     """
     from .classifier import classify_device
 
+    cutoff = (datetime.now() - timedelta(minutes=minutes)).isoformat()
     async with _connect() as db:
         db.row_factory = aiosqlite.Row
         async with db.execute(
-            "SELECT * FROM devices WHERE watched = 1 ORDER BY last_seen DESC"
+            "SELECT * FROM devices WHERE watched = 1 AND last_seen >= ? ORDER BY last_seen DESC",
+            (cutoff,),
         ) as cursor:
             result = [_parse_device_row(row) for row in await cursor.fetchall()]
         result_macs = {d.mac for d in result}
 
         if type_alert_types:
-            cutoff = (datetime.now() - timedelta(minutes=minutes)).isoformat()
             async with db.execute(
                 "SELECT * FROM devices WHERE ignored = 0 AND watched = 0 "
                 "AND last_seen >= ? ORDER BY last_seen DESC LIMIT 200",
