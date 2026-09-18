@@ -724,6 +724,19 @@ HTML_TEMPLATE = """
         .detail-value.mono { font-family: var(--font-mono); }
         .detail-value.highlight { color: var(--accent-amber); }
 
+        /* Editable fields (Identifier/Type/Vendor OUI/Group) inside the
+        detail grid -- flattened to look like plain text (no visible
+        box/border/background), matching Address's plain label+value
+        look, while staying fully editable underneath. */
+        .detail-item .form-input {
+            border: none;
+            background: transparent;
+            padding: 0;
+            width: auto;
+            max-width: 100%;
+        }
+        .detail-item select.form-input { cursor: pointer; }
+
         /* Heatmaps */
         .heatmap-section {
             margin-top: 1rem;
@@ -750,14 +763,11 @@ HTML_TEMPLATE = """
         }
 
         .dwell-stat-card {
-            background: var(--bg-tertiary);
-            border: 1px solid var(--border-color);
-            border-radius: 4px;
-            padding: 0.6rem 0.4rem;
+            padding: 0.2rem 0;
+            border-bottom: 1px solid var(--border-color);
             display: flex;
             flex-direction: column;
-            align-items: center;
-            gap: 0.2rem;
+            gap: 0.15rem;
         }
         .dwell-stat-value { font-size: 1.15rem; font-weight: 700; line-height: 1; }
         .dwell-stat-label {
@@ -767,10 +777,6 @@ HTML_TEMPLATE = """
         }
 
         .heatmap {
-            background: var(--bg-tertiary);
-            border: 1px solid var(--border-color);
-            border-radius: 3px;
-            padding: 0.5rem 0.6rem;
             font-size: 0.8rem;
         }
 
@@ -2272,17 +2278,14 @@ HTML_TEMPLATE = """
                 '<div class="detail-item full"><div class="detail-label">Assign to Group</div><select class="form-input" id="device-group" onchange="setDeviceGroup(\\'' + d.mac + '\\', this.value)" style="font-size: 0.8rem;"><option value="">No group</option></select></div>' +
                 '<div class="detail-item full"><div class="detail-label">Notes</div><textarea class="form-input" id="device-notes" rows="2" style="font-size: 0.8rem; resize: vertical;" placeholder="Add notes...">' + (d.notes || '') + '</textarea><button class="btn" style="margin-top: 0.5rem;" onclick="saveNotes(\\'' + d.mac + '\\')">Save Notes</button></div>' +
                 '</div>' +
+                '<div class="heatmap-grid-2col">' +
                 '<div class="heatmap-section" id="live-signal-section">' +
                 '<div class="heatmap-title">Live Signal</div>' +
-                '<div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">' +
-                '<span id="live-signal-icon" style="width: 26px; height: 26px; border-radius: 50%; background: var(--bg-tertiary); display: flex; align-items: center; justify-content: center; font-size: 0.65rem; flex-shrink: 0;">' + escapeHtml(d.type_icon || '') + '</span>' +
-                '<span style="font-family: monospace; font-weight: 600; font-size: 0.8rem; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">' + escapeHtml(d.friendly_name || d.mac) + '</span>' +
-                '<span style="display: flex; flex-direction: column; align-items: flex-end; gap: 0.1rem;">' +
+                '<div style="display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 0.3rem;">' +
                 '<span style="display: flex; align-items: baseline; gap: 0.3rem;"><span id="live-signal-rssi" style="font-size: 1rem; font-weight: 600; color: var(--text-primary);">—</span><span id="live-signal-trend" style="font-size: 0.8rem; font-family: monospace; font-weight: 700;"></span></span>' +
                 '<span id="live-signal-avg" style="font-size: 0.65rem; color: var(--text-muted);">avg —</span>' +
-                '</span></div>' +
-                '<div style="margin-bottom: 0.4rem;"><span class="type-badge ' + getTypeClass(d.device_type) + '" style="font-size: 0.65rem; padding: 0.15rem 0.5rem;">' + escapeHtml(d.type_label || 'Unknown') + '</span></div>' +
-                '<div class="rssi-chart" id="live-signal-chart" style="height: 56px;"></div>' +
+                '</div>' +
+                '<div class="rssi-chart" id="live-signal-chart" style="height: 90px;"></div>' +
                 '<div style="display: flex; justify-content: space-between; font-size: 0.65rem; color: var(--text-muted); margin-top: 0.2rem;">' +
                 '<span id="live-signal-footer">first — · last —</span>' +
                 '<span id="live-signal-age">waiting…</span>' +
@@ -2293,6 +2296,11 @@ HTML_TEMPLATE = """
                 '</div>' +
                 '<div id="live-signal-presence-track" style="height: 10px;"></div>' +
                 '</div></div>' +
+                '<div class="heatmap-section" id="rssi-section">' +
+                '<div class="heatmap-title">Signal History (7d)</div>' +
+                '<div class="rssi-chart" id="rssi-chart" style="height: 90px;"><div style="color: var(--text-muted); font-size: 0.75rem; text-align: center; padding-top: 1.5rem;">Loading...</div></div>' +
+                '</div>' +
+                '</div>' +
                 '<div class="heatmap-section" id="scan-unit-section" hidden>' +
                 '<div class="heatmap-title">Scan Unit Result</div>' +
                 '<div id="scan-unit-result" style="font-size: 0.75rem; font-family: monospace; white-space: pre-wrap; word-break: break-all; max-height: 300px; overflow-y: auto;"></div>' +
@@ -2314,10 +2322,6 @@ HTML_TEMPLATE = """
                 '<div class="heatmap-title">Timeline (30d)</div>' +
                 renderTimeline(data.timeline) +
                 '</div>' +
-                '</div>' +
-                '<div class="heatmap-section" id="rssi-section">' +
-                '<div class="heatmap-title">Signal History (7d)</div>' +
-                '<div class="rssi-chart" id="rssi-chart" style="height: 90px;"><div style="color: var(--text-muted); font-size: 0.75rem; text-align: center; padding-top: 1.5rem;">Loading...</div></div>' +
                 '</div>' +
                 (d.identity_id ? (
                     '<div class="heatmap-section">' +
@@ -5229,6 +5233,19 @@ LIVE_TEMPLATE = """
         .detail-value.mono { font-family: var(--font-mono); }
         .detail-value.highlight { color: var(--accent-amber); }
 
+        /* Editable fields (Identifier/Type/Vendor OUI/Group) inside the
+        detail grid -- flattened to look like plain text (no visible
+        box/border/background), matching Address's plain label+value
+        look, while staying fully editable underneath. */
+        .detail-item .form-input {
+            border: none;
+            background: transparent;
+            padding: 0;
+            width: auto;
+            max-width: 100%;
+        }
+        .detail-item select.form-input { cursor: pointer; }
+
         /* Heatmaps */
         .heatmap-section {
             margin-top: 1rem;
@@ -5255,14 +5272,11 @@ LIVE_TEMPLATE = """
         }
 
         .dwell-stat-card {
-            background: var(--bg-tertiary);
-            border: 1px solid var(--border-color);
-            border-radius: 4px;
-            padding: 0.6rem 0.4rem;
+            padding: 0.2rem 0;
+            border-bottom: 1px solid var(--border-color);
             display: flex;
             flex-direction: column;
-            align-items: center;
-            gap: 0.2rem;
+            gap: 0.15rem;
         }
         .dwell-stat-value { font-size: 1.15rem; font-weight: 700; line-height: 1; }
         .dwell-stat-label {
@@ -5272,10 +5286,6 @@ LIVE_TEMPLATE = """
         }
 
         .heatmap {
-            background: var(--bg-tertiary);
-            border: 1px solid var(--border-color);
-            border-radius: 3px;
-            padding: 0.5rem 0.6rem;
             font-size: 0.8rem;
         }
 
@@ -6945,17 +6955,14 @@ LIVE_TEMPLATE = """
                 '<div class="detail-item full"><div class="detail-label">Assign to Group</div><select class="form-input" id="device-group" onchange="setDeviceGroup(\\'' + d.mac + '\\', this.value)" style="font-size: 0.8rem;"><option value="">No group</option></select></div>' +
                 '<div class="detail-item full"><div class="detail-label">Notes</div><textarea class="form-input" id="device-notes" rows="2" style="font-size: 0.8rem; resize: vertical;" placeholder="Add notes...">' + (d.notes || '') + '</textarea><button class="btn" style="margin-top: 0.5rem;" onclick="saveNotes(\\'' + d.mac + '\\')">Save Notes</button></div>' +
                 '</div>' +
+                '<div class="heatmap-grid-2col">' +
                 '<div class="heatmap-section" id="live-signal-section">' +
                 '<div class="heatmap-title">Live Signal</div>' +
-                '<div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">' +
-                '<span id="live-signal-icon" style="width: 26px; height: 26px; border-radius: 50%; background: var(--bg-tertiary); display: flex; align-items: center; justify-content: center; font-size: 0.65rem; flex-shrink: 0;">' + escapeHtml(d.type_icon || '') + '</span>' +
-                '<span style="font-family: monospace; font-weight: 600; font-size: 0.8rem; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">' + escapeHtml(d.friendly_name || d.mac) + '</span>' +
-                '<span style="display: flex; flex-direction: column; align-items: flex-end; gap: 0.1rem;">' +
+                '<div style="display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 0.3rem;">' +
                 '<span style="display: flex; align-items: baseline; gap: 0.3rem;"><span id="live-signal-rssi" style="font-size: 1rem; font-weight: 600; color: var(--text-primary);">—</span><span id="live-signal-trend" style="font-size: 0.8rem; font-family: monospace; font-weight: 700;"></span></span>' +
                 '<span id="live-signal-avg" style="font-size: 0.65rem; color: var(--text-muted);">avg —</span>' +
-                '</span></div>' +
-                '<div style="margin-bottom: 0.4rem;"><span class="type-badge ' + getTypeClass(d.device_type) + '" style="font-size: 0.65rem; padding: 0.15rem 0.5rem;">' + escapeHtml(d.type_label || 'Unknown') + '</span></div>' +
-                '<div class="rssi-chart" id="live-signal-chart" style="height: 56px;"></div>' +
+                '</div>' +
+                '<div class="rssi-chart" id="live-signal-chart" style="height: 90px;"></div>' +
                 '<div style="display: flex; justify-content: space-between; font-size: 0.65rem; color: var(--text-muted); margin-top: 0.2rem;">' +
                 '<span id="live-signal-footer">first — · last —</span>' +
                 '<span id="live-signal-age">waiting…</span>' +
@@ -6966,6 +6973,11 @@ LIVE_TEMPLATE = """
                 '</div>' +
                 '<div id="live-signal-presence-track" style="height: 10px;"></div>' +
                 '</div></div>' +
+                '<div class="heatmap-section" id="rssi-section">' +
+                '<div class="heatmap-title">Signal History (7d)</div>' +
+                '<div class="rssi-chart" id="rssi-chart" style="height: 90px;"><div style="color: var(--text-muted); font-size: 0.75rem; text-align: center; padding-top: 1.5rem;">Loading...</div></div>' +
+                '</div>' +
+                '</div>' +
                 '<div class="heatmap-section" id="scan-unit-section" hidden>' +
                 '<div class="heatmap-title">Scan Unit Result</div>' +
                 '<div id="scan-unit-result" style="font-size: 0.75rem; font-family: monospace; white-space: pre-wrap; word-break: break-all; max-height: 300px; overflow-y: auto;"></div>' +
@@ -6987,10 +6999,6 @@ LIVE_TEMPLATE = """
                 '<div class="heatmap-title">Timeline (30d)</div>' +
                 renderTimeline(data.timeline) +
                 '</div>' +
-                '</div>' +
-                '<div class="heatmap-section" id="rssi-section">' +
-                '<div class="heatmap-title">Signal History (7d)</div>' +
-                '<div class="rssi-chart" id="rssi-chart" style="height: 90px;"><div style="color: var(--text-muted); font-size: 0.75rem; text-align: center; padding-top: 1.5rem;">Loading...</div></div>' +
                 '</div>' +
                 (d.identity_id ? (
                     '<div class="heatmap-section">' +
