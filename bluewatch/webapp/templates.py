@@ -2874,16 +2874,6 @@ HTML_TEMPLATE = """
             if (liveSignalPollTimer) { clearInterval(liveSignalPollTimer); liveSignalPollTimer = null; }
         }
 
-        function liveSignalRssiColor(rssi) {
-            // Same quality bands Fieldwatch's rssiColor() uses, so the
-            // numeric readout, the chart line, and the trend arrow all
-            // agree on what "good"/"fair"/"weak" means.
-            if (rssi >= -55) return "#16a34a";
-            if (rssi >= -70) return "#d9a441";
-            if (rssi >= -85) return "#d97706";
-            return "#dc2626";
-        }
-
         function formatDurationCompact(seconds) {
             // "1h 10m" / "14s" style -- matches Fieldwatch's own
             // "first Xh Xm · last Xs" card footer.
@@ -2923,26 +2913,26 @@ HTML_TEMPLATE = """
                 ageEl.textContent = "no signal in the last " + LIVE_SIGNAL_WINDOW_MINUTES + " min";
             } else {
                 const rssi = data.current_rssi;
-                const color = liveSignalRssiColor(rssi);
                 rssiEl.textContent = rssi + " dBm";
-                rssiEl.style.color = color;
+                rssiEl.style.color = "#ffffff";
                 if (trendEl) {
                     // Trend arrow: last sample vs. the average of the
                     // previous few -- same idea as Fieldwatch's RssiTrend
-                    // (>>' /'>' / '=' / '<' / '<<'), just derived here
-                    // instead of carried from the API.
+                    // (>>/>/=/</<<), just derived here instead of carried
+                    // from the API. White throughout, matching the
+                    // reference card exactly -- no quality-color coding.
                     const s = data.sightings || [];
                     if (s.length >= 4) {
                         const prevWindow = s.slice(-4, -1);
                         const prevAvg = prevWindow.reduce((a, x) => a + x.rssi, 0) / prevWindow.length;
                         const delta = rssi - prevAvg;
-                        let mark = "=", tint = "var(--text-muted)";
-                        if (delta >= 8) { mark = "»"; tint = "#16a34a"; }
-                        else if (delta >= 3) { mark = "›"; tint = "#16a34a"; }
-                        else if (delta <= -8) { mark = "«"; tint = "#dc2626"; }
-                        else if (delta <= -3) { mark = "‹"; tint = "#dc2626"; }
+                        let mark = "=";
+                        if (delta >= 8) mark = "»";
+                        else if (delta >= 3) mark = "›";
+                        else if (delta <= -8) mark = "«";
+                        else if (delta <= -3) mark = "‹";
                         trendEl.textContent = mark;
-                        trendEl.style.color = tint;
+                        trendEl.style.color = "#ffffff";
                     } else {
                         trendEl.textContent = "";
                     }
@@ -3002,7 +2992,7 @@ HTML_TEMPLATE = """
                 return padding.top + (1 - (clamped - minRssi) / (maxRssi - minRssi)) * (height - padding.top - padding.bottom);
             };
             const lastRssi = sightings[sightings.length - 1].rssi;
-            const lineColor = liveSignalRssiColor(lastRssi);
+            const lineColor = "#ffffff";  // matches the reference card exactly -- no quality-color coding
             const linePath = sightings.map((s, i) => (i === 0 ? "M" : "L") + xScale(i) + "," + yScale(s.rssi)).join(" ");
             const areaPath = linePath + " L" + xScale(sightings.length - 1) + "," + (height - padding.bottom) + " L" + padding.left + "," + (height - padding.bottom) + " Z";
 
@@ -7525,16 +7515,6 @@ LIVE_TEMPLATE = """
             if (liveSignalPollTimer) { clearInterval(liveSignalPollTimer); liveSignalPollTimer = null; }
         }
 
-        function liveSignalRssiColor(rssi) {
-            // Same quality bands Fieldwatch's rssiColor() uses, so the
-            // numeric readout, the chart line, and the trend arrow all
-            // agree on what "good"/"fair"/"weak" means.
-            if (rssi >= -55) return "#16a34a";
-            if (rssi >= -70) return "#d9a441";
-            if (rssi >= -85) return "#d97706";
-            return "#dc2626";
-        }
-
         function formatDurationCompact(seconds) {
             // "1h 10m" / "14s" style -- matches Fieldwatch's own
             // "first Xh Xm · last Xs" card footer.
@@ -7574,26 +7554,26 @@ LIVE_TEMPLATE = """
                 ageEl.textContent = "no signal in the last " + LIVE_SIGNAL_WINDOW_MINUTES + " min";
             } else {
                 const rssi = data.current_rssi;
-                const color = liveSignalRssiColor(rssi);
                 rssiEl.textContent = rssi + " dBm";
-                rssiEl.style.color = color;
+                rssiEl.style.color = "#ffffff";
                 if (trendEl) {
                     // Trend arrow: last sample vs. the average of the
                     // previous few -- same idea as Fieldwatch's RssiTrend
-                    // (>>' /'>' / '=' / '<' / '<<'), just derived here
-                    // instead of carried from the API.
+                    // (>>/>/=/</<<), just derived here instead of carried
+                    // from the API. White throughout, matching the
+                    // reference card exactly -- no quality-color coding.
                     const s = data.sightings || [];
                     if (s.length >= 4) {
                         const prevWindow = s.slice(-4, -1);
                         const prevAvg = prevWindow.reduce((a, x) => a + x.rssi, 0) / prevWindow.length;
                         const delta = rssi - prevAvg;
-                        let mark = "=", tint = "var(--text-muted)";
-                        if (delta >= 8) { mark = "»"; tint = "#16a34a"; }
-                        else if (delta >= 3) { mark = "›"; tint = "#16a34a"; }
-                        else if (delta <= -8) { mark = "«"; tint = "#dc2626"; }
-                        else if (delta <= -3) { mark = "‹"; tint = "#dc2626"; }
+                        let mark = "=";
+                        if (delta >= 8) mark = "»";
+                        else if (delta >= 3) mark = "›";
+                        else if (delta <= -8) mark = "«";
+                        else if (delta <= -3) mark = "‹";
                         trendEl.textContent = mark;
-                        trendEl.style.color = tint;
+                        trendEl.style.color = "#ffffff";
                     } else {
                         trendEl.textContent = "";
                     }
@@ -7653,7 +7633,7 @@ LIVE_TEMPLATE = """
                 return padding.top + (1 - (clamped - minRssi) / (maxRssi - minRssi)) * (height - padding.top - padding.bottom);
             };
             const lastRssi = sightings[sightings.length - 1].rssi;
-            const lineColor = liveSignalRssiColor(lastRssi);
+            const lineColor = "#ffffff";  // matches the reference card exactly -- no quality-color coding
             const linePath = sightings.map((s, i) => (i === 0 ? "M" : "L") + xScale(i) + "," + yScale(s.rssi)).join(" ");
             const areaPath = linePath + " L" + xScale(sightings.length - 1) + "," + (height - padding.bottom) + " L" + padding.left + "," + (height - padding.bottom) + " Z";
 
