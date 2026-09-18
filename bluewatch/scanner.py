@@ -181,8 +181,15 @@ VENDOR_DB_UPDATE_TIMEOUT = 30
 _PROCESS_START = time.monotonic()
 _MIN_UPTIME_FOR_EXIT = 180  # 3 min — prevents crash loops after failed recovery
 _BACKOFF_SLEEP = 300  # 5 min sleep if restart didn't help
+# 30 scan cycles at SCAN_INTERVAL=10s ≈ 5 min -- see check_zero_ble_streak().
+_ZERO_BLE_STREAK_LIMIT = 30
 
-RFKILL_SYSFS = "/sys/class/rfkill/rfkill0/state"
+# /soft, not /state -- both are writable but only /soft reliably toggles
+# the radio in practice (confirmed repeatedly live: this exact adapter
+# has gone soft-blocked and needed recovery several times, and /soft is
+# the file that's actually worked every time; /state's write appears
+# accepted but doesn't reliably clear the block).
+RFKILL_SYSFS = "/sys/class/rfkill/rfkill0/soft"
 
 
 class BluetoothScanner:
@@ -206,6 +213,7 @@ class BluetoothScanner:
         self._vendor_update_task: Optional[asyncio.Task] = None
         self._ble_stuck = False
         self._recovery_cooldown_until = 0.0  # monotonic time; see _recover_and_exit()
+        self._consecutive_zero_ble = 0
         # maclookup.app CSV: prefix (no colons, uppercase hex, variable
         # length -- 6/7/9 hex chars for MA-L/MA-M/MA-S) -> vendor name.
         self._maclookup_table: dict[str, str] = {}
@@ -508,6 +516,34 @@ class BluetoothScanner:
         )
         self._rfkill_toggle()
         os._exit(0)
+
+    def check_zero_ble_streak(self, ble_count: int) -> None:
+        """Catches the OTHER way the adapter goes bad -- unlike
+        _recover_and_exit() above (triggered by a loud bleak exception,
+        e.g. org.bluez.Error.InProgress), this is for the silent failure
+        mode confirmed live more than once: the continuous scanner keeps
+        reporting scan cycles as "successful" with zero BLE devices,
+        no exception at all, because BlueZ's discovery session is
+        wedged (seen after a competing discovery-session owner collided
+        with it, or after rfkill soft-blocked the radio outside
+        BlueWatch's own control). A real neighborhood is never
+        genuinely BLE-silent for _ZERO_BLE_STREAK_LIMIT scan cycles in a
+        row -- phones, earbuds, watches, IoT gear are constantly
+        advertising somewhere in range -- so a streak that long is
+        treated as a hang, not as "it's just quiet," and recovered the
+        same way a loud stuck-adapter exception is."""
+        if ble_count > 0:
+            self._consecutive_zero_ble = 0
+            return
+        self._consecutive_zero_ble += 1
+        if self._consecutive_zero_ble >= _ZERO_BLE_STREAK_LIMIT:
+            logger.critical(
+                f"BLE scan has returned 0 devices for "
+                f"{self._consecutive_zero_ble} consecutive cycles -- "
+                f"treating as a silent hang, not real silence."
+            )
+            self._consecutive_zero_ble = 0
+            self._recover_and_exit()
 
     def _on_ble_detection(self, device: BLEDevice, adv_data: AdvertisementData) -> None:
         """Detection callback for the continuous scanner -- just records
