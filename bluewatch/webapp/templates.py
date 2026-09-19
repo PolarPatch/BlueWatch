@@ -5931,7 +5931,7 @@ LIVE_TEMPLATE = """
                     </div>
                     <div class="filter-sliders">
                         <span class="stat-cap">Seen within</span>
-                        <input type="range" id="seen-within-slider" min="1" max="5" step="1" value="5" oninput="onSeenWithinChange()">
+                        <input type="range" id="seen-within-slider" min="1" max="7" step="1" value="7" oninput="onSeenWithinChange()">
                         <span id="seen-within-value" class="slider-value">24 h</span>
                         <span class="stat-cap">First seen within</span>
                         <input type="range" id="first-seen-slider" min="1" max="7" step="1" value="1" oninput="onFirstSeenSliderChange()">
@@ -6109,23 +6109,26 @@ LIVE_TEMPLATE = """
         }
 
         // "Seen within": how far back the list reaches. Devices are sorted by last
-        // seen, so what is here now is on page 1 and older ones follow.
+        // seen, so what is here now is on page 1 and older ones follow. "off" =
+        // no time limit (every known device).
         const SEEN_WITHIN_LEVELS = [
-            { seconds: 60, label: '1 min' }, { seconds: 900, label: '15 min' },
-            { seconds: 3600, label: '1 h' }, { seconds: 21600, label: '6 h' },
-            { seconds: 86400, label: '24 h' },
+            { seconds: 0, label: 'off' }, { seconds: 60, label: '1 min' }, { seconds: 300, label: '5 min' },
+            { seconds: 900, label: '15 min' }, { seconds: 3600, label: '1 h' },
+            { seconds: 21600, label: '6 h' }, { seconds: 86400, label: '24 h' },
         ];
-        let seenWithinLevel = 5;
+        let seenWithinLevel = SEEN_WITHIN_LEVELS.length;  // default: 24 h
         try {
-            const saved = parseInt(localStorage.getItem('bluewatch_seen_within'), 10);
-            if (saved >= 1 && saved <= SEEN_WITHIN_LEVELS.length) seenWithinLevel = saved;
+            const savedSeconds = parseInt(localStorage.getItem('bluewatch_seen_within_s'), 10);
+            const idx = SEEN_WITHIN_LEVELS.findIndex(l => l.seconds === savedSeconds);
+            if (idx >= 0) seenWithinLevel = idx + 1;
         } catch (e) {}
 
         function onSeenWithinChange() {
             const slider = document.getElementById('seen-within-slider');
             seenWithinLevel = parseInt(slider.value, 10);
-            document.getElementById('seen-within-value').textContent = SEEN_WITHIN_LEVELS[seenWithinLevel - 1].label;
-            try { localStorage.setItem('bluewatch_seen_within', String(seenWithinLevel)); } catch (e) {}
+            const level = SEEN_WITHIN_LEVELS[seenWithinLevel - 1];
+            document.getElementById('seen-within-value').textContent = level.label;
+            try { localStorage.setItem('bluewatch_seen_within_s', String(level.seconds)); } catch (e) {}
             selectedMacs.clear();
             lastSelectedIndex = null;
             pagination.page = 1;
@@ -6151,13 +6154,16 @@ LIVE_TEMPLATE = """
             const hidingAnything = hideClassified || hideGrouped;
             const viewingSpecificCategory = !hidingAnything && currentGroupId !== null && currentGroupId !== '__all__';
             if (!viewingSpecificCategory) {
-                params.set('active_within', String(SEEN_WITHIN_LEVELS[seenWithinLevel - 1].seconds));
+                const seenSeconds = SEEN_WITHIN_LEVELS[seenWithinLevel - 1].seconds;
+                if (seenSeconds > 0) params.set('active_within', String(seenSeconds));
             }
             if (hidingAnything) {
                 if (hideClassified) params.set('hide_classified', '1');
                 if (hideGrouped) params.set('hide_grouped', '1');
             } else if (currentGroupId !== null) {
                 params.set('group_id', currentGroupId);
+            } else if (SEEN_WITHIN_LEVELS[seenWithinLevel - 1].seconds === 0) {
+                params.set('group_id', '__all__');  // "off": every device, categorized ones too
             }
             if (hideNameless && !viewingSpecificCategory) params.set('hide_nameless', '1');
             params.set('sort', sortState.column);
