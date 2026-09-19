@@ -5118,31 +5118,27 @@ LIVE_TEMPLATE = """
         .category-node.active { background: var(--bg-tertiary); box-shadow: inset 2px 0 0 var(--accent-blue); }
         .category-node.category-drop-target { outline: 2px dashed var(--accent-blue); outline-offset: -2px; }
         .category-children { margin-left: 1.1rem; border-left: 1px solid var(--border-color); }
-        /* Sidebar: category tiles + smart views */
-        .cat-tile { --c: #3b82f6; display: flex; align-items: center; gap: 0.6rem; padding: 0.45rem 0.5rem; margin-bottom: 0.15rem; border-radius: 8px; position: relative; }
+        /* Sidebar: compact one-line category rows */
+        .cat-tile { --c: #3b82f6; display: flex; align-items: center; gap: 0.5rem; padding: 0.2rem 0.4rem 0.2rem 0.5rem; margin-bottom: 0; border-radius: 5px; border-left: 2px solid color-mix(in srgb, var(--c) 55%, transparent); }
         .cat-tile:hover { background: var(--bg-tertiary); }
-        .cat-tile.active { background: color-mix(in srgb, var(--c) 12%, var(--bg-tertiary)); box-shadow: inset 2px 0 0 var(--c); }
-        .cat-icon { position: relative; flex: none; width: 1.9rem; height: 1.9rem; border-radius: 8px; display: grid; place-items: center; font-size: 0.95rem; line-height: 1; color: var(--c); background: color-mix(in srgb, var(--c) 18%, transparent); }
-        .cat-child .cat-icon { width: 1.5rem; height: 1.5rem; font-size: 0.8rem; border-radius: 6px; }
-        .cat-pulse { position: absolute; top: -2px; right: -2px; width: 0.55rem; height: 0.55rem; border-radius: 50%; background: #3fb950; outline: 2px solid var(--bg-panel); animation: catPulse 2.2s ease-in-out infinite; }
-        @keyframes catPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
-        .cat-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.18rem; cursor: pointer; }
-        .cat-top { display: flex; align-items: baseline; justify-content: space-between; gap: 0.4rem; }
-        .cat-name { font-size: 0.78rem; font-weight: 600; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .cat-count { font-size: 0.72rem; font-variant-numeric: tabular-nums; color: var(--text-secondary); white-space: nowrap; }
-        .cat-count .cat-alert { color: #f59e0b; margin-right: 0.25rem; }
-        .cat-sub { font-size: 0.6rem; color: var(--text-muted); }
-        .cat-sub b { color: #3fb950; font-weight: 600; }
-        .cat-strip { display: grid; grid-template-columns: repeat(24, 1fr); gap: 1px; height: 0.4rem; margin-top: 0.1rem; }
+        .cat-tile.active { background: color-mix(in srgb, var(--c) 14%, var(--bg-tertiary)); border-left-color: var(--c); }
+        .cat-body { flex: 1; min-width: 0; display: flex; align-items: center; gap: 0.5rem; cursor: pointer; }
+        .cat-name { flex: 1; min-width: 0; font-size: 0.74rem; font-weight: 600; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .cat-strip { flex: none; display: grid; grid-template-columns: repeat(24, 2px); gap: 1px; height: 0.55rem; }
         .cat-strip i { border-radius: 1px; background: var(--bg-hover); }
         .cat-strip i.a1 { background: color-mix(in srgb, var(--c) 32%, var(--bg-hover)); }
         .cat-strip i.a2 { background: color-mix(in srgb, var(--c) 58%, var(--bg-hover)); }
         .cat-strip i.a3 { background: color-mix(in srgb, var(--c) 82%, var(--bg-hover)); }
         .cat-strip i.a4 { background: var(--c); }
-        .cat-tile .category-delete { opacity: 0; }
+        .cat-count { flex: none; min-width: 1.4rem; text-align: right; font-size: 0.72rem; font-variant-numeric: tabular-nums; color: var(--text-secondary); }
+        .cat-dots { flex: none; display: inline-flex; align-items: center; gap: 0.25rem; min-width: 0.5rem; }
+        .cat-dot { width: 0.5rem; height: 0.5rem; border-radius: 50%; }
+        .cat-dot.now { background: #3fb950; animation: catPulse 2.2s ease-in-out infinite; }
+        .cat-dot.alert { background: #f59e0b; }
+        @keyframes catPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+        .cat-tile .category-delete { opacity: 0; padding: 0 0.15rem; }
         .cat-tile:hover .category-delete { opacity: 1; }
-        .cat-view { cursor: pointer; }
-        .cat-view .cat-icon { font-size: 0.85rem; }
+        .cat-child { margin-left: 0; }
         .category-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .category-delete {
             background: transparent;
@@ -5880,11 +5876,6 @@ LIVE_TEMPLATE = """
 
     <div class="main">
         <aside class="sidebar">
-            <div class="panel" id="views-panel">
-                <div class="panel-header">Views</div>
-                <div id="smart-views" style="padding: 0.5rem;"></div>
-            </div>
-
             <div class="panel" id="categories-panel">
                 <div class="panel-header">Categories</div>
                 <div id="categories-tree" style="padding: 0.5rem;"></div>
@@ -6678,7 +6669,6 @@ LIVE_TEMPLATE = """
                 const res = await fetch('/api/categories/stats');
                 if (!res.ok) return;
                 categoryStats = await res.json();
-                renderSmartViews();
                 renderCategoryTree();
             } catch (e) { console.error('Category stats error:', e); }
         }
@@ -6712,76 +6702,23 @@ LIVE_TEMPLATE = """
             const isActive = currentGroupId === group.id;
             const st = categoryAggregate(group);
             const color = group.color || '#3b82f6';
-            const now = st.present > 0 ? '<b>' + st.present + ' now</b>' : 'none now';
+            const dots = (st.present > 0 ? '<i class="cat-dot now" title="' + st.present + ' here now"></i>' : '') +
+                (st.alerts ? '<i class="cat-dot alert" title="' + st.alerts + ' open alert(s)"></i>' : '');
             return (
                 '<div class="category-node cat-tile' + (depth ? ' cat-child' : '') + (isActive ? ' active' : '') + '" style="--c:' + escapeHtml(color) + '" draggable="true" data-id="' + group.id + '" ' +
                 'ondragstart="onCategoryDragStart(event, ' + group.id + ')" ' +
                 'ondragover="onCategoryDragOver(event)" ' +
                 'ondragleave="onCategoryDragLeave(event)" ' +
                 'ondrop="onCategoryDrop(event, ' + group.id + ')">' +
-                '<span class="cat-icon">' + escapeHtml(group.icon || '📁') + (st.present > 0 ? '<i class="cat-pulse"></i>' : '') + '</span>' +
                 '<span class="cat-body" onclick="selectCategory(' + group.id + ')" title="Click to show only this category\\'s devices, drag onto another category to nest it">' +
-                '<span class="cat-top"><span class="cat-name">' + escapeHtml(obfuscateName(group.name)) + '</span>' +
-                '<span class="cat-count">' + (st.alerts ? '<span class="cat-alert" title="' + st.alerts + ' open alert(s)">●</span>' : '') + st.total + '</span></span>' +
-                '<span class="cat-sub">' + now + '</span>' +
+                '<span class="cat-name">' + escapeHtml(obfuscateName(group.name)) + '</span>' +
                 activityStrip(st.activity) +
                 '</span>' +
+                '<span class="cat-count">' + st.total + '</span>' +
+                '<span class="cat-dots">' + dots + '</span>' +
                 '<button class="category-delete" onclick="deleteCategory(' + group.id + ')" title="Delete category">×</button>' +
                 '</div>' + childrenHtml
             );
-        }
-
-        // ---- Smart views: what is worth checking, in one click ----
-        function renderSmartViews() {
-            const el = document.getElementById('smart-views');
-            if (!el) return;
-            const v = categoryStats.views || {};
-            const watched = v.watched || { total: 0, present: 0 };
-            const noCategory = currentGroupId === null;
-            const items = [
-                { id: 'present', icon: '●', color: '#3fb950', name: 'Present now', sub: 'seen in the last minute',
-                  count: v.present_now || 0, active: noCategory && seenWithinLevel === 2 && currentFilter === 'all' },
-                { id: 'unsorted', icon: '◌', color: '#5b6cf0', name: 'Unsorted', sub: 'not in a category, last 24 h',
-                  count: v.unsorted || 0, active: noCategory && hideGrouped && currentFilter === 'all' },
-                { id: 'watched', icon: '★', color: '#f5c518', name: 'Watched', sub: watched.present ? '<b>' + watched.present + ' now</b>' : 'none now',
-                  count: watched.total, active: currentFilter === 'watched' },
-                { id: 'alerts', icon: '▲', color: '#f59e0b', name: 'Alerts', sub: v.alerts ? 'waiting for you' : 'all clear',
-                  count: v.alerts || 0, active: false },
-            ];
-            el.innerHTML = items.map(i =>
-                '<div class="cat-tile cat-view' + (i.active ? ' active' : '') + '" style="--c:' + i.color + '" onclick="applyView(\\'' + i.id + '\\')">' +
-                '<span class="cat-icon">' + i.icon + '</span>' +
-                '<span class="cat-body"><span class="cat-top"><span class="cat-name">' + i.name + '</span>' +
-                '<span class="cat-count"' + (i.id === 'alerts' && i.count ? ' style="color:#f59e0b"' : '') + '>' + i.count + '</span></span>' +
-                '<span class="cat-sub">' + i.sub + '</span></span></div>'
-            ).join('');
-        }
-
-        function applyView(view) {
-            if (view === 'alerts') {
-                const box = document.getElementById('priority-box');
-                if (box) box.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                return;
-            }
-            currentGroupId = null;
-            currentFilter = 'all';
-            if (view === 'present') {
-                seenWithinLevel = 2;
-                const slider = document.getElementById('seen-within-slider');
-                if (slider) slider.value = '2';
-                document.getElementById('seen-within-value').textContent = SEEN_WITHIN_LEVELS[1].label;
-                try { localStorage.setItem('bluewatch_seen_within_s', String(SEEN_WITHIN_LEVELS[1].seconds)); } catch (e) {}
-            } else if (view === 'unsorted') {
-                setHideGrouped(true);
-            } else if (view === 'watched') {
-                currentFilter = 'watched';
-            }
-            renderCategoryTree();
-            renderSmartViews();
-            selectedMacs.clear();
-            lastSelectedIndex = null;
-            pagination.page = 1;
-            refreshDevices();
         }
 
         function selectCategory(groupId) {
@@ -6796,7 +6733,6 @@ LIVE_TEMPLATE = """
             const allBtn = document.getElementById('all-devices-btn');
             if (allBtn) allBtn.classList.remove('active');
             renderCategoryTree();
-            renderSmartViews();
             selectedMacs.clear();
             lastSelectedIndex = null;
             pagination.page = 1;
