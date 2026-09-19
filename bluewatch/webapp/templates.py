@@ -1083,7 +1083,7 @@ HTML_TEMPLATE = """
                         <input type="text" inputmode="numeric" maxlength="16" autocomplete="off" class="search-input" id="search-end" placeholder="dd.mm.yyyy hh:mm" title="To (dd.mm.yyyy hh:mm)" oninput="maskDateTime(this)">
                     </div>
                     <div class="range-row" style="margin-top: 0.4rem;">
-                        <button class="btn" onclick="clearDateFilters()">Clear</button>
+                        <button class="btn" onclick="clearSearchAll()">Clear</button>
                         <button class="btn" onclick="searchByDateRange()">Search</button>
                     </div>
                 </div>
@@ -2094,6 +2094,11 @@ HTML_TEMPLATE = """
                 console.error('Query error:', error);
                 alert('Date query failed: ' + error.message);
             }
+        }
+
+        function clearSearchAll() {
+            document.getElementById('search').value = '';
+            clearDateFilters();
         }
 
         function clearDateFilters() {
@@ -6134,7 +6139,7 @@ LIVE_TEMPLATE = """
                         <input type="text" inputmode="numeric" maxlength="16" autocomplete="off" class="search-input" id="search-end" placeholder="dd.mm.yyyy hh:mm" title="To (dd.mm.yyyy hh:mm)" oninput="maskDateTime(this)">
                     </div>
                     <div class="range-row" style="margin-top: 0.4rem;">
-                        <button class="btn" onclick="clearDateFilters()">Clear</button>
+                        <button class="btn" onclick="clearSearchAll()">Clear</button>
                         <button class="btn" onclick="searchByDateRange()">Search</button>
                     </div>
                 </div>
@@ -7325,6 +7330,11 @@ LIVE_TEMPLATE = """
                 console.error('Query error:', error);
                 alert('Date query failed: ' + error.message);
             }
+        }
+
+        function clearSearchAll() {
+            document.getElementById('search').value = '';
+            clearDateFilters();
         }
 
         function clearDateFilters() {
