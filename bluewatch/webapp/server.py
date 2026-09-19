@@ -3,6 +3,7 @@
 import asyncio
 import csv
 import hashlib
+import hmac
 import io
 import json
 import logging
@@ -11,6 +12,7 @@ import re
 import secrets
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Optional
 
 from aiohttp import web
 
@@ -103,7 +105,20 @@ def verify_password(password: str, stored_hash: str) -> bool:
         return False
     salt, hash_value = stored_hash.split(":", 1)
     hash_obj = hashlib.sha256((salt + password).encode())
-    return hash_obj.hexdigest() == hash_value
+    return hmac.compare_digest(hash_obj.hexdigest(), hash_value)
+
+
+def usernames_match(entered: str, stored: Optional[str]) -> bool:
+    """Compare a typed username with the stored one ignoring case and
+    surrounding spaces: phone keyboards capitalize the first letter of a
+    text field ("Steve" for "steve"), which made a correct login fail with
+    "Invalid credentials"."""
+    if not stored:
+        return False
+    return hmac.compare_digest(
+        (entered or "").strip().casefold().encode(),
+        stored.strip().casefold().encode(),
+    )
 
 
 class WebServer:
@@ -1780,7 +1795,7 @@ class WebServer:
             if not settings.auth_enabled:
                 return web.json_response({"error": "Auth not enabled"}, status=400)
 
-            if (username == settings.auth_username and
+            if (usernames_match(username, settings.auth_username) and
                 verify_password(password, settings.auth_password_hash)):
                 # Create session
                 token = self._create_session()
@@ -1829,7 +1844,7 @@ class WebServer:
         try:
             data = await request.json()
             enabled = data.get("enabled", False)
-            username = data.get("username", "")
+            username = str(data.get("username", "")).strip()
             password = data.get("password", "")
 
             if enabled:
