@@ -1094,24 +1094,6 @@ HTML_TEMPLATE = """
                 <div id="priority-list" style="display: flex; flex-wrap: wrap; gap: 0.5rem;"></div>
             </div>
             <div class="table-container" id="devices-container">
-                <div class="table-header">
-                    <span class="table-count"><span id="visible-count">--</span> devices <span id="selected-count" class="selected-summary" style="display: none;">· 0 selected</span></span>
-                    <div class="table-actions">
-                        <select class="form-input bulk-select" id="bulk-group-select">
-                            <option value="">Assign group...</option>
-                        </select>
-                        <button class="btn" id="bulk-group-apply" onclick="applyBulkGroup()">Assign Group</button>
-                        <select class="form-input bulk-select" id="bulk-watch-select">
-                            <option value="">Watch...</option>
-                            <option value="on">Watch ON</option>
-                            <option value="off">Watch OFF</option>
-                        </select>
-                        <button class="btn" id="bulk-watch-apply" onclick="applyBulkWatch()">Apply Watch</button>
-                        <button class="btn" id="bulk-merge-apply" onclick="applyBulkMerge()" title="Cluster the selected MAC-rotation siblings into one device">Merge as One Device</button>
-                        <button class="btn" id="clear-selection-btn" onclick="clearSelection()">Clear Selection</button>
-                        <button class="btn" onclick="resetSort()">Reset Sort</button>
-                    </div>
-                </div>
                 <table class="device-table">
                     <thead>
                         <tr>
@@ -2368,9 +2350,11 @@ HTML_TEMPLATE = """
                     return true;
                 });
                 visibleDevices = applySort(visibleDevices);
-                document.getElementById('visible-count').textContent = visibleDevices.length;
+                const visibleCountEl = document.getElementById('visible-count');
+                if (visibleCountEl) visibleCountEl.textContent = visibleDevices.length;
             } else {
-                document.getElementById('visible-count').textContent = pagination.totalMatching || visibleDevices.length;
+                const visibleCountEl = document.getElementById('visible-count');
+                if (visibleCountEl) visibleCountEl.textContent = pagination.totalMatching || visibleDevices.length;
             }
 
             currentVisibleDevices = visibleDevices;
