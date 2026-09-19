@@ -1031,16 +1031,6 @@ HTML_TEMPLATE = """
 
     <div class="main">
         <aside class="sidebar">
-            <div class="panel" id="categories-panel">
-                <div class="panel-header">Categories</div>
-                <button class="filter-btn" id="all-devices-btn" onclick="showAllDevices()" style="width: 100%; justify-content: flex-start; gap: 0.4rem; margin-bottom: 0.5rem;">All devices <span id="count-all" class="filter-count" style="color: inherit; font-size: inherit;">--</span></button>
-                <div id="categories-tree" style="padding: 0.25rem;"></div>
-                <div class="new-cat">
-                    <button type="button" class="new-cat-link" id="new-cat-link" onclick="showNewCategory()">+ New category</button>
-                    <input type="text" class="search-input" id="new-category-name" placeholder="Category name, Enter to save" hidden onkeydown="newCategoryKey(event)" onblur="hideNewCategory()">
-                </div>
-            </div>
-
             <div class="panel" id="filters-panel">
                 <div class="panel-header">Filters</div>
                 <div class="filter-checks">
@@ -1070,6 +1060,16 @@ HTML_TEMPLATE = """
                     <span class="stat-cap">RSSI &ge;</span>
                     <input type="range" id="rssi-threshold" min="-100" max="-20" value="-100" step="1" oninput="onRssiThresholdChange()">
                     <span id="rssi-threshold-value" class="slider-value">-100 dBm</span>
+                </div>
+            </div>
+
+            <div class="panel" id="categories-panel">
+                <div class="panel-header">Categories</div>
+                <button class="filter-btn" id="all-devices-btn" onclick="showAllDevices()" style="width: 100%; justify-content: flex-start; gap: 0.4rem; margin-bottom: 0.5rem;">All devices <span id="count-all" class="filter-count" style="color: inherit; font-size: inherit;">--</span></button>
+                <div id="categories-tree" style="padding: 0.25rem;"></div>
+                <div class="new-cat">
+                    <button type="button" class="new-cat-link" id="new-cat-link" onclick="showNewCategory()">+ New category</button>
+                    <input type="text" class="search-input" id="new-category-name" placeholder="Category name, Enter to save" hidden onkeydown="newCategoryKey(event)" onblur="hideNewCategory()">
                 </div>
             </div>
 
