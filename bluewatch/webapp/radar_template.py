@@ -156,6 +156,7 @@ RADAR_TEMPLATE = r"""<!DOCTYPE html>
     const hiddenTypes = new Set();
     let W = 0, H = 0, cx = 0, cy = 0, maxR = 0, dpr = 1;
     let drawn = [];
+    const history = {};   // mac -> last RSSI readings (for the echo tail)
 
     // Fixed pseudo-angle per device (carries no meaning, see the note on the page).
     function angleOf(mac) {
@@ -220,30 +221,59 @@ RADAR_TEMPLATE = r"""<!DOCTYPE html>
         ctx.strokeStyle = theme.ring;
         ctx.beginPath(); ctx.moveTo(cx - maxR, cy); ctx.lineTo(cx + maxR, cy); ctx.moveTo(cx, cy - maxR); ctx.lineTo(cx, cy + maxR); ctx.stroke();
 
-        // sweep trail: slices that fade out behind the beam (flat colors, no gradient)
-        const SLICES = 28, STEP = 0.04;
+        // sweep: a wide wedge of fine radial stripes that fades out behind the beam
+        // (flat colors only, no gradient), bright leading edge and rim
+        const SLICES = 64, STEP = 0.0135;
         for (let i = 0; i < SLICES; i++) {
-            const a1 = sweep - i * STEP, a0 = a1 - STEP;
-            ctx.fillStyle = 'rgba(63,185,80,' + (0.22 * (1 - i / SLICES)).toFixed(3) + ')';
+            const a1 = sweep - i * STEP, a0 = a1 - STEP * 0.62;      // the gap between slices makes the stripes
+            let al = 0.34 * Math.pow(1 - i / SLICES, 1.4);
+            if (i % 2) al *= 0.6;
+            ctx.fillStyle = 'rgba(63,185,80,' + al.toFixed(3) + ')';
             ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, maxR, a0, a1); ctx.closePath(); ctx.fill();
         }
-        ctx.strokeStyle = 'rgba(63,185,80,0.9)';
-        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = 'rgba(120,235,140,0.95)';
+        ctx.lineWidth = 1.6;
         ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(sweep) * maxR, cy + Math.sin(sweep) * maxR); ctx.stroke();
+        ctx.strokeStyle = 'rgba(63,185,80,0.55)';
+        ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(cx, cy, maxR, sweep - 0.22, sweep); ctx.stroke();
 
-        // dots
+        // dots: bright when the beam has just painted them, glowing out until the
+        // next pass (phosphor afterglow), an echo ring spreads out from each new hit,
+        // and a short tail shows how the signal strength has moved
         const list = visible();
         drawn = [];
         list.forEach(d => {
             const r = radiusOf(d.rssi);
             if (r > maxR + 0.5) return;               // too weak for this zoom: leaves the disc
             const a = angleOf(d.mac);
-            const x = cx + Math.cos(a) * r, y = cy + Math.sin(a) * r;
+            const ux = Math.cos(a), uy = Math.sin(a);
+            const x = cx + ux * r, y = cy + uy * r;
             const onAir = d.age <= 90;
-            let alpha = onAir ? 0.95 : Math.max(0.22, 0.55 - (d.age - 90) / windowSec * 0.4);
-            let rad = 4;
-            const behind = (sweep - a + Math.PI * 2) % (Math.PI * 2);   // how far the beam has passed it
-            if (onAir && behind < 0.6) { const boost = 1 - behind / 0.6; rad += 2 * boost; alpha = Math.min(1, alpha + 0.25 * boost); }
+            const behind = (sweep - a + Math.PI * 2) % (Math.PI * 2);   // radians since the beam passed
+            const glow = Math.exp(-behind / 2.4);
+            let alpha = onAir ? 0.32 + 0.68 * glow : Math.max(0.16, (0.5 - (d.age - 90) / windowSec * 0.35)) * (0.6 + 0.4 * glow);
+            const rad = 3.6 + (onAir ? 2 * Math.max(0, 1 - behind / 0.5) : 0);
+
+            // tail (older readings along the same radius)
+            const hist = history[d.mac];
+            if (onAir && hist && hist.length > 1) {
+                for (let k = 0; k < hist.length - 1; k++) {
+                    const rr = radiusOf(hist[k]);
+                    if (Math.abs(rr - r) < 1.5 || rr > maxR + 0.5) continue;
+                    ctx.globalAlpha = 0.10 + 0.28 * (k / hist.length);
+                    ctx.fillStyle = colorFor(d.type);
+                    ctx.beginPath(); ctx.arc(cx + ux * rr, cy + uy * rr, 1.9, 0, Math.PI * 2); ctx.fill();
+                }
+            }
+            // echo ring right after the beam hits
+            if (onAir && behind < 1.0) {
+                ctx.globalAlpha = 0.55 * (1 - behind);
+                ctx.strokeStyle = colorFor(d.type);
+                ctx.lineWidth = 1.2;
+                ctx.beginPath(); ctx.arc(x, y, rad + 2 + 16 * behind, 0, Math.PI * 2); ctx.stroke();
+            }
+
             ctx.globalAlpha = alpha;
             ctx.fillStyle = colorFor(d.type);
             ctx.beginPath(); ctx.arc(x, y, rad, 0, Math.PI * 2); ctx.fill();
@@ -262,11 +292,10 @@ RADAR_TEMPLATE = r"""<!DOCTYPE html>
             if (s) { ctx.strokeStyle = theme.textStrong; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(s.x, s.y, s.rad + 6, 0, Math.PI * 2); ctx.stroke(); }
         }
 
-        // labels: important and strong first, skip whatever would overlap
-        ctx.font = '10px ui-monospace, Menlo, monospace';
-        ctx.textAlign = 'left';
+        // labels: name on the first line, RSSI smaller underneath; important and
+        // strong first, skip whatever would overlap
         const placed = [];
-        const maxLabels = Math.round(28 * zoom * zoom);
+        const maxLabels = Math.round(22 * zoom * zoom);
         const order = drawn.slice().sort((p, q) =>
             ((q.d.alert ? 2 : 0) + (q.d.watched ? 1 : 0)) - ((p.d.alert ? 2 : 0) + (p.d.watched ? 1 : 0)) || q.d.rssi - p.d.rssi);
         let count = 0;
@@ -274,21 +303,34 @@ RADAR_TEMPLATE = r"""<!DOCTYPE html>
             if (count >= maxLabels) break;
             if (!p.onAir && !p.d.alert && !p.d.watched && zoom < 1.5) continue;
             const text = p.d.name || p.d.vendor || p.d.type_label;
-            const w = ctx.measureText(text).width, h = 11;
-            const box = { x: p.x + 8, y: p.y - 5, w, h };
+            const sub = p.d.rssi + ' dBm';
+            ctx.font = '10px ui-monospace, Menlo, monospace';
+            const w1 = ctx.measureText(text).width;
+            ctx.font = '8px ui-monospace, Menlo, monospace';
+            const w2 = ctx.measureText(sub).width;
+            const w = Math.max(w1, w2), h = 20;
+            const box = { x: p.x + 8, y: p.y - 7, w, h };
             if (placed.some(b => box.x < b.x + b.w + 3 && box.x + box.w + 3 > b.x && box.y < b.y + b.h + 1 && box.y + box.h + 1 > b.y)) continue;
-            if (box.x + box.w > W - 4) continue;
+            if (box.x + box.w > W - 4 || box.y < 2 || box.y + box.h > H - 2) continue;
             placed.push(box);
             ctx.globalAlpha = p.onAir ? 1 : 0.55;
+            ctx.textAlign = 'left';
+            ctx.font = '10px ui-monospace, Menlo, monospace';
             ctx.fillStyle = (p.d.alert || p.d.watched) ? theme.textStrong : theme.text;
             ctx.fillText(text, box.x, box.y + 9);
+            ctx.font = '8px ui-monospace, Menlo, monospace';
+            ctx.fillStyle = theme.muted;
+            ctx.fillText(sub, box.x, box.y + 18);
             ctx.globalAlpha = 1;
             count++;
         }
 
         // YOU
+        ctx.strokeStyle = '#3fb950';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.moveTo(cx - 8, cy); ctx.lineTo(cx + 8, cy); ctx.moveTo(cx, cy - 8); ctx.lineTo(cx, cy + 8); ctx.stroke();
         ctx.fillStyle = '#3fb950';
-        ctx.beginPath(); ctx.arc(cx, cy, 4, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(cx, cy, 3, 0, Math.PI * 2); ctx.fill();
         ctx.font = 'bold 10px ui-monospace, Menlo, monospace';
         ctx.textAlign = 'left';
         ctx.fillText('YOU', cx + 8, cy + 14);
@@ -332,6 +374,15 @@ RADAR_TEMPLATE = r"""<!DOCTYPE html>
             if (!res.ok) return;
             const data = await res.json();
             devices = data.devices || [];
+            const seen = new Set();
+            devices.forEach(d => {
+                if (d.rssi == null) return;
+                seen.add(d.mac);
+                const h = history[d.mac] = history[d.mac] || [];
+                h.push(d.rssi);
+                if (h.length > 7) h.shift();
+            });
+            Object.keys(history).forEach(mac => { if (!seen.has(mac)) delete history[mac]; });
             updateSummary();
             if (selected) showInfo(selected);
         } catch (e) { console.error('Radar error:', e); }
