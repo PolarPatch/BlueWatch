@@ -9,22 +9,22 @@ HTML_TEMPLATE = """
     <title>BlueWatch</title>
     <style>
         :root {
-            --bg-primary: #0d0d0d;
-            --bg-secondary: #141414;
-            --bg-tertiary: #1a1a1a;
-            --bg-hover: #242424;
-            --bg-panel: #111111;
-            --text-primary: #e0e0e0;
-            --text-secondary: #888888;
-            --text-muted: #555555;
+            --bg-primary: #0d1117;
+            --bg-secondary: #161b22;
+            --bg-tertiary: #1c232c;
+            --bg-hover: #242c37;
+            --bg-panel: #161b22;
+            --text-primary: #e6edf3;
+            --text-secondary: #a6afb9;
+            --text-muted: #7d8590;
             --accent-red: #2563eb;
             --accent-orange: #ea580c;
             --accent-amber: #d97706;
             --accent-green: #16a34a;
             --accent-blue: #2563eb;
             --accent-cyan: #0891b2;
-            --border-color: #2a2a2a;
-            --border-active: #404040;
+            --border-color: #30363d;
+            --border-active: #484f58;
             --font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', 'Cascadia Code', Consolas, monospace;
         }
 
@@ -124,7 +124,7 @@ HTML_TEMPLATE = """
             text-decoration: none;
             font-size: 0.75rem;
             padding: 0.4rem 0.75rem;
-            border-radius: 3px;
+            border-radius: 6px;
             
             letter-spacing: 0.05em;
             transition: all 0.1s;
@@ -224,7 +224,7 @@ HTML_TEMPLATE = """
         .stat-item {
             background: var(--bg-tertiary);
             border: 1px solid var(--border-color);
-            border-radius: 4px;
+            border-radius: 10px;
             padding: 0.75rem;
             display: flex;
             justify-content: space-between;
@@ -260,7 +260,7 @@ HTML_TEMPLATE = """
             align-items: center;
             justify-content: space-between;
             padding: 0.35rem 0.5rem;
-            border-radius: 3px;
+            border-radius: 6px;
             cursor: grab;
             font-size: 0.78rem;
         }
@@ -289,7 +289,7 @@ HTML_TEMPLATE = """
             padding: 0.5rem 0.75rem;
             text-align: left;
             cursor: pointer;
-            border-radius: 3px;
+            border-radius: 6px;
             transition: all 0.1s;
             display: flex;
             justify-content: space-between;
@@ -328,7 +328,7 @@ HTML_TEMPLATE = """
             flex: 1;
             background: var(--bg-tertiary);
             border: 1px solid var(--border-color);
-            border-radius: 3px;
+            border-radius: 6px;
             padding: 0.6rem 0.75rem;
             color: var(--text-primary);
             font-family: var(--font-mono);
@@ -345,7 +345,7 @@ HTML_TEMPLATE = """
         .form-input {
             background: var(--bg-tertiary);
             border: 1px solid var(--border-color);
-            border-radius: 3px;
+            border-radius: 6px;
             padding: 0.6rem 0.75rem;
             color: var(--text-primary);
             font-family: var(--font-mono);
@@ -376,7 +376,7 @@ HTML_TEMPLATE = """
             font-size: 0.7rem;
             padding: 0.6rem 1rem;
             cursor: pointer;
-            border-radius: 3px;
+            border-radius: 6px;
             
             letter-spacing: 0.05em;
             transition: all 0.1s;
@@ -399,10 +399,27 @@ HTML_TEMPLATE = """
         }
 
         /* Device Table */
+        /* Statistics graphs at the top of All devices */
+        .stats-panels { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; margin-bottom: 0.75rem; }
+        .stats-card { background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 10px; padding: 0.8rem 1rem; min-width: 0; }
+        .stats-title { font-size: 0.65rem; letter-spacing: 0.1em; color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.6rem; }
+        .stats-chart svg { width: 100%; height: auto; display: block; }
+        .stats-note { font-size: 0.6rem; color: var(--text-muted); margin-top: 0.5rem; line-height: 1.4; }
+        .stats-empty { font-size: 0.75rem; color: var(--text-muted); padding: 2rem 0; text-align: center; }
+        .stats-legend { display: flex; flex-wrap: wrap; gap: 0.25rem 1rem; font-size: 0.65rem; color: var(--text-secondary); margin-top: 0.6rem; }
+        .legend-dot { display: inline-block; width: 0.55rem; height: 0.55rem; border-radius: 2px; margin-right: 0.35rem; vertical-align: baseline; }
+        .type-row { display: grid; grid-template-columns: 7.5rem 1fr 4.2rem; gap: 0.6rem; align-items: center; font-size: 0.7rem; margin-bottom: 0.4rem; color: var(--text-secondary); }
+        .type-row .type-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-primary); }
+        .type-row .type-count { text-align: right; white-space: nowrap; }
+        .type-bar-track { background: var(--bg-tertiary); border-radius: 3px; height: 0.8rem; }
+        .type-bar { height: 100%; border-radius: 3px; }
+        .stats-axis { font-size: 8px; fill: var(--text-muted); font-family: var(--font-mono); }
+        @media (max-width: 1200px) { .stats-panels { grid-template-columns: 1fr; } }
+
         .table-container {
             background: var(--bg-panel);
             border: 1px solid var(--border-color);
-            border-radius: 4px;
+            border-radius: 10px;
             overflow: hidden;
         }
 
@@ -581,7 +598,7 @@ HTML_TEMPLATE = """
             align-items: center;
             gap: 0.35rem;
             padding: 0.2rem 0.5rem;
-            border-radius: 2px;
+            border-radius: 4px;
             font-size: 0.7rem;
             font-weight: 500;
 
@@ -656,7 +673,7 @@ HTML_TEMPLATE = """
         .modal {
             background: var(--bg-panel);
             border: 1px solid var(--border-color);
-            border-radius: 4px;
+            border-radius: 10px;
             width: 90%;
             max-width: 700px;
             max-height: 85vh;
@@ -762,6 +779,29 @@ HTML_TEMPLATE = """
             .heatmap-grid-2col { grid-template-columns: 1fr; }
         }
 
+        /* Two independent columns (instead of grid rows that couple the two
+        sides): each column stacks tightly, so e.g. Daily Activity sits right
+        under Signal History. The last section in each column is pushed to
+        the bottom, so the bottom lines (Hourly hours / Timeline dates) line
+        up. On narrow screens the columns dissolve and `order` restores a
+        single stacked list. */
+        .heatmap-cols {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0 1.25rem;
+        }
+        .heatmap-col {
+            display: flex;
+            flex-direction: column;
+        }
+        .heatmap-col .heatmap-section { margin-top: 1rem; }
+        .heatmap-col .heatmap-section:last-child { margin-top: auto; padding-top: 1rem; }
+        @media (max-width: 640px) {
+            .heatmap-cols { grid-template-columns: 1fr; }
+            .heatmap-col { display: contents; }
+            .heatmap-col .heatmap-section:last-child { margin-top: 1rem; padding-top: 0; }
+        }
+
         .dwell-stat-card {
             padding: 0.2rem 0;
             border-bottom: 1px solid var(--border-color);
@@ -853,9 +893,9 @@ HTML_TEMPLATE = """
         .timeline-labels {
             display: flex;
             justify-content: space-between;
-            font-size: 0.6rem;
+            font-size: 0.55rem;
             color: var(--text-muted);
-            margin-top: 0.25rem;
+            margin-top: 2px;
         }
 
         /* RSSI Chart */
@@ -864,7 +904,7 @@ HTML_TEMPLATE = """
             height: 70px;
             background: var(--bg-tertiary);
             border: 1px solid var(--border-color);
-            border-radius: 3px;
+            border-radius: 8px;
             padding: 0.5rem;
             overflow: hidden;
         }
@@ -909,7 +949,7 @@ HTML_TEMPLATE = """
             font-size: 0.75rem;
             padding: 0.3rem 0.5rem;
             cursor: pointer;
-            border-radius: 3px;
+            border-radius: 6px;
             transition: all 0.1s;
         }
 
@@ -975,17 +1015,35 @@ HTML_TEMPLATE = """
                 <div style="display: flex; flex-direction: column; gap: 0.5rem;">
                     <input type="datetime-local" class="search-input" id="search-start" style="font-size: 0.7rem;">
                     <input type="datetime-local" class="search-input" id="search-end" style="font-size: 0.7rem;">
+                    <input type="text" class="search-input" id="search" placeholder="Search MAC, vendor, or identifier..." style="font-size: 0.75rem;">
                     <div style="display: flex; gap: 0.5rem;">
                         <button class="btn" style="flex:1;" onclick="clearDateFilters()">Clear</button>
-                        <button class="btn btn-primary" style="flex:1;" onclick="searchByDateRange()">Query</button>
+                        <button class="btn btn-primary" style="flex:1;" onclick="searchByDateRange()">Search</button>
                     </div>
-                    <input type="text" class="search-input" id="search" placeholder="Search MAC, vendor, or identifier..." style="font-size: 0.75rem;">
                 </div>
             </div>
 
         </aside>
 
         <main class="content">
+            <section class="stats-panels" id="stats-panels">
+                <div class="stats-card">
+                    <div class="stats-title">Devices detected each hour</div>
+                    <div class="stats-chart" id="chart-hourly"><div class="stats-empty">Loading&hellip;</div></div>
+                    <div class="stats-note">unique addresses per hour, last 24 h (randomized addresses count once each)</div>
+                </div>
+                <div class="stats-card">
+                    <div class="stats-title">Who's active when</div>
+                    <div class="stats-chart" id="chart-stacked"><div class="stats-empty">Loading&hellip;</div></div>
+                    <div class="stats-legend" id="legend-stacked"></div>
+                    <div class="stats-note">by type, last 24 h &mdash; hover a bar for the breakdown</div>
+                </div>
+                <div class="stats-card">
+                    <div class="stats-title">Device types seen</div>
+                    <div id="chart-types"><div class="stats-empty">Loading&hellip;</div></div>
+                    <div class="stats-note" id="types-note">devices active in the last 15 minutes</div>
+                </div>
+            </section>
             <div class="table-container" id="priority-box" style="margin-bottom: 0.75rem; padding: 0.6rem 0.75rem; display: none;">
                 <div style="display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.4rem;">
                     <span style="color: #f5c518; font-size: 0.9rem;">★</span>
@@ -1021,9 +1079,9 @@ HTML_TEMPLATE = """
                         <tr>
                             <th class="select-col"><input type="checkbox" id="select-all-checkbox" class="row-select-checkbox" aria-label="Select all rows"></th>
                             <th class="sortable" data-sort="class">Class<span class="sort-indicator"></span></th>
-                            <th class="sortable" data-sort="vendor">Vendor<span class="sort-indicator"></span></th>
                             <th class="sortable" data-sort="mac">Address<span class="sort-indicator"></span></th>
                             <th class="sortable" data-sort="identifier">Identifier<span class="sort-indicator"></span></th>
+                            <th class="sortable" data-sort="vendor">Vendor<span class="sort-indicator"></span></th>
                             <th>RSSI</th>
                             <th class="sortable" data-sort="sightings">Sightings<span class="sort-indicator"></span></th>
                             <th class="sortable" data-sort="last_seen">Last seen<span class="sort-indicator"></span></th>
@@ -2208,13 +2266,13 @@ HTML_TEMPLATE = """
                 return '<tr class="' + rowClass + '" draggable="true" ondragstart="onDeviceDragStart(event, \\'' + d.mac + '\\')" onclick="handleRowClick(event, \\'' + d.mac + '\\', ' + index + ')" ondblclick="showDevice(\\'' + d.mac + '\\')">' +
                     '<td class="select-col"><input type="checkbox" class="row-select-checkbox" ' + checkedAttr + ' onclick="toggleRowCheckbox(event, \\'' + d.mac + '\\', ' + index + ')"></td>' +
                     '<td><span class="type-badge ' + typeClass + '">' + watchedStar + d.type_icon + ' ' + d.type_label + '</span></td>' +
-                    '<td class="vendor-name">' + (d.vendor ? obfuscateName(d.vendor) : '—') + '</td>' +
                     '<td class="mac-addr" title="' + d.mac + '">' + (isMacOSUUID(d.mac) ? obfuscateMAC(d.mac).substring(0, 13) + '...' : obfuscateMAC(d.mac)) +
                     (d.name_conflict_at ? ' <span class="name-conflict-badge" style="color: var(--accent-red, #dc2626);" title="Possible spoofing: this MAC previously advertised a different name (now: ' + escapeHtml(d.name_conflict_name || '') + ')">⚠</span>' : '') +
                     '</td>' +
                     '<td class="device-name">' + (d.friendly_name ? obfuscateName(d.friendly_name) : '—') +
                     (d.identity_mac_count > 1 ? ' <span class="identity-badge" title="' + d.identity_mac_count + ' MAC addresses clustered as one device (rotation)">×' + d.identity_mac_count + '</span>' : '') +
                     '</td>' +
+                    '<td class="vendor-name">' + (d.vendor ? obfuscateName(d.vendor) : '—') + '</td>' +
                     '<td class="rssi-value">' + (d.last_rssi != null ? d.last_rssi + ' dBm' : '—') + '</td>' +
                     '<td class="sighting-count">' + d.total_sightings + '</td>' +
                     '<td class="last-seen ' + (isRecent ? 'recent' : '') + '" title="Last seen: ' + lastSeenTooltip + (d.first_seen ? ' \\u2022 First seen: ' + new Date(d.first_seen).toLocaleString() : '') + '">' + lastSeen + '</td>' +
@@ -2222,6 +2280,106 @@ HTML_TEMPLATE = """
                     '</tr>';
             }).join('');
             updateSelectionUI();
+        }
+
+        // ==================== Statistics graphs ====================
+        const STATS_PALETTE = ['#5b6cf0', '#3fb9a5', '#d9a441', '#b083c9', '#e0707a'];
+        const STATS_GREY = '#6e7681';
+        const STATS_OTHER = '#4b5563';
+        let statsColors = {};
+
+        function statsAssignColors(data) {
+            statsColors = {};
+            const ranked = Object.entries(data.types_24h || {}).sort((a, b) => b[1] - a[1]).map(e => e[0]);
+            let next = 0;
+            ranked.forEach(t => {
+                if (t === 'unknown') { statsColors[t] = STATS_GREY; return; }
+                statsColors[t] = next < STATS_PALETTE.length ? STATS_PALETTE[next++] : STATS_OTHER;
+            });
+            Object.keys((data.active_now || {}).types || {}).forEach(t => {
+                if (!(t in statsColors)) statsColors[t] = t === 'unknown' ? STATS_GREY : STATS_OTHER;
+            });
+        }
+
+        function statsNiceMax(v) {
+            if (v <= 4) return 4;
+            const pow = Math.pow(10, Math.floor(Math.log10(v)));
+            for (const m of [1, 2, 2.5, 5, 10]) { if (m * pow >= v) return m * pow; }
+            return 10 * pow;
+        }
+
+        // Shared bar-chart frame: y grid + labels, x labels every 6 hours.
+        function statsBarChart(container, hours, drawBar) {
+            const W = 360, H = 150, L = 26, T = 8, B = 16, R = 4;
+            const max = statsNiceMax(Math.max(1, ...hours.map(h => h.unique)));
+            const plotW = W - L - R, plotH = H - T - B;
+            const slot = plotW / hours.length, bw = slot * 0.68;
+            let svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img">';
+            [0, 0.5, 1].forEach(f => {
+                const y = T + plotH - f * plotH;
+                svg += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + y + '" y2="' + y + '" stroke="var(--border-color)" stroke-width="1"' + (f === 0 ? '' : ' stroke-dasharray="2 3"') + '/>';
+                svg += '<text class="stats-axis" x="' + (L - 4) + '" y="' + (y + 3) + '" text-anchor="end">' + Math.round(max * f) + '</text>';
+            });
+            hours.forEach((h, i) => {
+                const x = L + i * slot + (slot - bw) / 2;
+                svg += drawBar(h, x, bw, T, plotH, max, i === hours.length - 1);
+                if (parseInt(h.label, 10) % 6 === 0) {
+                    svg += '<text class="stats-axis" x="' + (x + bw / 2) + '" y="' + (H - 3) + '" text-anchor="middle">' + h.label + '</text>';
+                }
+            });
+            container.innerHTML = svg + '</svg>';
+        }
+
+        function renderStatsHourly(data) {
+            statsBarChart(document.getElementById('chart-hourly'), data.hours, (h, x, bw, T, plotH, max, isNow) => {
+                const bh = Math.max(h.unique > 0 ? 1.5 : 0, (h.unique / max) * plotH);
+                const fill = isNow ? 'var(--accent-blue, #2563eb)' : 'var(--text-muted)';
+                return '<rect x="' + x + '" y="' + (T + plotH - bh) + '" width="' + bw + '" height="' + bh + '" rx="2" fill="' + fill + '" opacity="' + (isNow ? 1 : 0.55) + '"><title>' + h.label + ':00 \u2014 ' + h.unique + ' devices</title></rect>';
+            });
+        }
+
+        function renderStatsStacked(data) {
+            const order = Object.entries(data.types_24h || {}).sort((a, b) => b[1] - a[1]).map(e => e[0]);
+            statsBarChart(document.getElementById('chart-stacked'), data.hours, (h, x, bw, T, plotH, max) => {
+                let y = T + plotH, out = '';
+                const parts = order.filter(t => h.types[t]).map(t => [t, h.types[t]]);
+                const tip = h.label + ':00 \u2014 ' + h.unique + ' devices\\n' + parts.map(p => (data.type_labels[p[0]] || p[0]) + ': ' + p[1]).join('\\n');
+                parts.slice().reverse().forEach(([t, n], idx, arr) => {
+                    const sh = (n / max) * plotH;
+                    y -= sh;
+                    out += '<rect x="' + x + '" y="' + y + '" width="' + bw + '" height="' + Math.max(sh - 0.5, 0.5) + '" fill="' + statsColors[t] + '"/>';
+                });
+                return '<g>' + out + '<rect x="' + x + '" y="' + T + '" width="' + bw + '" height="' + plotH + '" fill="transparent"><title>' + escapeHtml(tip) + '</title></rect></g>';
+            });
+            const legend = order.slice(0, 6).map(t => '<span><span class="legend-dot" style="background:' + statsColors[t] + '"></span>' + escapeHtml(data.type_labels[t] || t) + '</span>');
+            document.getElementById('legend-stacked').innerHTML = legend.join('');
+        }
+
+        function renderStatsTypes(data) {
+            const now = data.active_now || { total: 0, types: {} };
+            const rows = Object.entries(now.types).sort((a, b) => b[1] - a[1]).slice(0, 8);
+            const el = document.getElementById('chart-types');
+            if (!rows.length) { el.innerHTML = '<div class="stats-empty">No devices active right now</div>'; return; }
+            const top = rows[0][1];
+            el.innerHTML = rows.map(([t, n]) => {
+                const pct = now.total ? Math.round(n * 100 / now.total) : 0;
+                return '<div class="type-row"><span class="type-name" title="' + escapeHtml(data.type_labels[t] || t) + '">' + escapeHtml(data.type_labels[t] || t) + '</span>' +
+                    '<div class="type-bar-track"><div class="type-bar" style="width:' + Math.max(2, n * 100 / top) + '%; background:' + statsColors[t] + '"></div></div>' +
+                    '<span class="type-count">' + n + ' (' + pct + '%)</span></div>';
+            }).join('');
+            document.getElementById('types-note').textContent = Object.keys(now.types).length + ' types, ' + now.total + ' devices active in the last ' + now.window_minutes + ' minutes';
+        }
+
+        async function loadStatsOverview() {
+            try {
+                const response = await fetch('/api/stats/overview');
+                if (!response.ok) return;
+                const data = await response.json();
+                statsAssignColors(data);
+                renderStatsHourly(data);
+                renderStatsStacked(data);
+                renderStatsTypes(data);
+            } catch (error) { console.error('Stats error:', error); }
         }
 
         function getTypeClass(type) {
@@ -2307,8 +2465,13 @@ HTML_TEMPLATE = """
                 '<div class="detail-item full"><div class="detail-label">Assign to Group</div><select class="form-input" id="device-group" onchange="setDeviceGroup(\\'' + d.mac + '\\', this.value)" style="font-size: 0.8rem;"><option value="">No group</option></select></div>' +
                 '<div class="detail-item full"><div class="detail-label">Notes</div><textarea class="form-input" id="device-notes" rows="2" style="font-size: 0.8rem; resize: vertical;" placeholder="Add notes...">' + (d.notes || '') + '</textarea><button class="btn" style="margin-top: 0.35rem; padding: 0.3rem 0.6rem; display: block;" onclick="saveNotes(\\'' + d.mac + '\\')">Save Notes</button></div>' +
                 '</div>' +
-                '<div class="heatmap-grid-2col">' +
-                '<div class="heatmap-section" id="live-signal-section">' +
+                '<div class="heatmap-section" id="scan-unit-section" hidden>' +
+                '<div class="heatmap-title">Scan Unit Result</div>' +
+                '<div id="scan-unit-result" style="font-size: 0.75rem; font-family: monospace; white-space: pre-wrap; word-break: break-all; max-height: 300px; overflow-y: auto;"></div>' +
+                '</div>' +
+                '<div class="heatmap-cols">' +
+                '<div class="heatmap-col">' +
+                '<div class="heatmap-section" style="order:1;" id="live-signal-section">' +
                 '<div class="heatmap-title">Live Signal</div>' +
                 '<div class="rssi-chart" id="live-signal-chart" style="height: 90px;"></div>' +
                 '<div style="display: flex; justify-content: space-between; align-items: baseline; font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">' +
@@ -2321,31 +2484,28 @@ HTML_TEMPLATE = """
                 '</div>' +
                 '<div id="live-signal-presence-track" style="height: 10px;"></div>' +
                 '</div></div>' +
-                '<div class="heatmap-section" id="rssi-section">' +
-                '<div class="heatmap-title">Signal History (7d)</div>' +
-                '<div class="rssi-chart" id="rssi-chart" style="height: 90px;"><div style="color: var(--text-muted); font-size: 0.75rem; text-align: center; padding-top: 1.5rem;">Loading...</div></div>' +
-                '</div>' +
-                '</div>' +
-                '<div class="heatmap-section" id="scan-unit-section" hidden>' +
-                '<div class="heatmap-title">Scan Unit Result</div>' +
-                '<div id="scan-unit-result" style="font-size: 0.75rem; font-family: monospace; white-space: pre-wrap; word-break: break-all; max-height: 300px; overflow-y: auto;"></div>' +
-                '</div>' +
-                '<div class="heatmap-grid-2col">' +
-                '<div class="heatmap-section">' +
+                '<div class="heatmap-section" style="order:3;">' +
                 '<div class="heatmap-title">Time Nearby (30d)</div>' +
                 '<div id="dwell-stats" class="heatmap" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem;"><div style="color: var(--text-muted);">Loading...</div></div>' +
                 '</div>' +
-                '<div class="heatmap-section">' +
-                '<div class="heatmap-title">Daily Activity</div>' +
-                '<div class="heatmap">' + renderDailyHeatmap(data.daily_data) + '</div>' +
-                '</div>' +
-                '<div class="heatmap-section">' +
+                '<div class="heatmap-section" style="order:5;">' +
                 '<div class="heatmap-title">Hourly Activity (30d)</div>' +
                 '<div class="heatmap">' + renderHourlyHeatmap(data.hourly_data) + '</div>' +
                 '</div>' +
-                '<div class="heatmap-section">' +
+                '</div>' +
+                '<div class="heatmap-col">' +
+                '<div class="heatmap-section" style="order:2;" id="rssi-section">' +
+                '<div class="heatmap-title">Signal History (7d)</div>' +
+                '<div class="rssi-chart" id="rssi-chart" style="height: 90px;"><div style="color: var(--text-muted); font-size: 0.75rem; text-align: center; padding-top: 1.5rem;">Loading...</div></div>' +
+                '</div>' +
+                '<div class="heatmap-section" style="order:4;">' +
+                '<div class="heatmap-title">Daily Activity</div>' +
+                '<div class="heatmap">' + renderDailyHeatmap(data.daily_data) + '</div>' +
+                '</div>' +
+                '<div class="heatmap-section" style="order:6;">' +
                 '<div class="heatmap-title">Timeline (30d)</div>' +
                 renderTimeline(data.timeline) +
+                '</div>' +
                 '</div>' +
                 '</div>' +
                 (d.identity_id ? (
@@ -3227,6 +3387,8 @@ HTML_TEMPLATE = """
         updatePaginationUI();
         refreshDevices();
         setInterval(refreshDevices, 10000);
+        loadStatsOverview();
+        setInterval(loadStatsOverview, 300000);
         loadPriorityDevices();
         setInterval(loadPriorityDevices, 10000);
         startLiveEventStream();
@@ -3244,17 +3406,17 @@ SETTINGS_TEMPLATE = """
     <title>BlueWatch</title>
     <style>
         :root {
-            --bg-primary: #0d0d0d;
-            --bg-secondary: #141414;
-            --bg-tertiary: #1a1a1a;
-            --bg-hover: #242424;
-            --text-primary: #e0e0e0;
-            --text-secondary: #888888;
-            --text-muted: #555555;
+            --bg-primary: #0d1117;
+            --bg-secondary: #161b22;
+            --bg-tertiary: #1c232c;
+            --bg-hover: #242c37;
+            --text-primary: #e6edf3;
+            --text-secondary: #a6afb9;
+            --text-muted: #7d8590;
             --accent-red: #2563eb;
             --accent-blue: #2563eb;
             --accent-green: #16a34a;
-            --border-color: #2a2a2a;
+            --border-color: #30363d;
             --font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', Consolas, monospace;
         }
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -3267,12 +3429,12 @@ SETTINGS_TEMPLATE = """
         .brand-text { font-weight: 700; font-size: 0.9rem; letter-spacing: 0.05em;  color: var(--accent-blue); }
         .brand-text span { color: #ffffff; }
         .nav { display: flex; gap: 0.25rem; }
-        .nav-link { color: var(--text-secondary); text-decoration: none; font-size: 0.75rem; padding: 0.4rem 0.75rem; border-radius: 3px;  letter-spacing: 0.05em; transition: all 0.1s; }
+        .nav-link { color: var(--text-secondary); text-decoration: none; font-size: 0.75rem; padding: 0.4rem 0.75rem; border-radius: 6px;  letter-spacing: 0.05em; transition: all 0.1s; }
         .nav-link:hover, .nav-link.active { color: var(--text-primary); background: var(--bg-tertiary); }
 
         [data-theme="light"] { --bg-primary: #f5f5f5; --bg-secondary: #e8e8e8; --bg-tertiary: #ffffff; --bg-hover: #d8d8d8; --text-primary: #1a1a1a; --text-secondary: #555555; --text-muted: #888888; --accent-red: #2563eb; --accent-green: #16a34a; --border-color: #cccccc; }
 
-        .theme-toggle { background: transparent; border: 1px solid var(--border-color); color: var(--text-secondary); font-family: var(--font-mono); font-size: 0.75rem; padding: 0.3rem 0.5rem; cursor: pointer; border-radius: 3px; transition: all 0.1s; }
+        .theme-toggle { background: transparent; border: 1px solid var(--border-color); color: var(--text-secondary); font-family: var(--font-mono); font-size: 0.75rem; padding: 0.3rem 0.5rem; cursor: pointer; border-radius: 6px; transition: all 0.1s; }
         .theme-toggle:hover { color: var(--text-primary); border-color: var(--border-active, #999); }
 
         .config-nav { background: var(--bg-secondary); border-bottom: 1px solid var(--border-color); display: flex; justify-content: center; gap: 0; }
@@ -3285,16 +3447,16 @@ SETTINGS_TEMPLATE = """
         .page-title { font-size: 0.75rem;  letter-spacing: 0.15em; color: var(--text-muted); margin-bottom: 0.5rem; }
         .page-heading { font-size: 1.25rem; font-weight: 700; }
 
-        .panel { background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 4px; margin-bottom: 1.5rem; }
+        .panel { background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 10px; margin-bottom: 1.5rem; }
         .panel-header { padding: 0.75rem 1rem; background: var(--bg-tertiary); border-bottom: 1px solid var(--border-color); font-size: 0.7rem;  letter-spacing: 0.1em; color: var(--text-secondary); }
         .panel-body { padding: 1rem; }
 
         .form-group { margin-bottom: 1rem; }
         .form-label { display: block; font-size: 0.7rem;  letter-spacing: 0.1em; color: var(--text-muted); margin-bottom: 0.5rem; }
-        .form-input { width: 100%; padding: 0.6rem 0.75rem; border: 1px solid var(--border-color); border-radius: 3px; background: var(--bg-tertiary); color: var(--text-primary); font-family: var(--font-mono); font-size: 0.8rem; }
+        .form-input { width: 100%; padding: 0.6rem 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-tertiary); color: var(--text-primary); font-family: var(--font-mono); font-size: 0.8rem; }
         .form-input:focus { outline: none; border-color: var(--accent-red); }
 
-        .form-check { display: flex; align-items: flex-start; gap: 0.75rem; padding: 0.75rem; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 3px; margin-bottom: 0.5rem; cursor: pointer; }
+        .form-check { display: flex; align-items: flex-start; gap: 0.75rem; padding: 0.75rem; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 6px; margin-bottom: 0.5rem; cursor: pointer; }
         .form-check:hover { border-color: var(--accent-red); }
         .form-check input { width: 16px; height: 16px; accent-color: var(--accent-red); margin-top: 2px; }
         .form-check-label { font-size: 0.8rem; }
@@ -3303,16 +3465,17 @@ SETTINGS_TEMPLATE = """
         .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
         .form-hint { font-size: 0.7rem; color: var(--text-muted); margin-top: 0.25rem; }
 
-        .btn { padding: 0.6rem 1.25rem; border-radius: 3px; font-family: var(--font-mono); font-size: 0.7rem; font-weight: 500; cursor: pointer; border: 1px solid var(--border-color); background: var(--bg-tertiary); color: var(--text-secondary);  letter-spacing: 0.05em; text-decoration: none; display: inline-block; transition: all 0.1s; }
+        .btn { padding: 0.6rem 1.25rem; border-radius: 6px; font-family: var(--font-mono); font-size: 0.7rem; font-weight: 500; cursor: pointer; border: 1px solid var(--border-color); background: var(--bg-tertiary); color: var(--text-secondary);  letter-spacing: 0.05em; text-decoration: none; display: inline-block; transition: all 0.1s; }
         .btn:hover { background: var(--bg-hover); color: var(--text-primary); }
         .btn-primary { background: var(--accent-red); border-color: var(--accent-red); color: white; }
         .btn-primary:hover { background: #1d4ed8; }
 
         .btn-row { display: flex; gap: 0.75rem; margin-top: 1.5rem; }
 
-        .status-msg { padding: 0.75rem 1rem; border-radius: 3px; font-size: 0.8rem; margin-bottom: 1rem; display: none; border: 1px solid; }
+        .status-msg { padding: 0.75rem 1rem; border-radius: 6px; font-size: 0.8rem; margin-bottom: 1rem; display: none; border: 1px solid; }
         .status-msg.success { background: rgba(22, 163, 74, 0.1); color: var(--accent-green); border-color: var(--accent-green); display: block; }
         .status-msg.error { background: rgba(220, 38, 38, 0.1); color: var(--accent-red); border-color: var(--accent-red); display: block; }
+        .status-msg.inline { margin: 0.75rem 0; }
 
         .config-tab { display: none; }
 
@@ -3565,7 +3728,7 @@ SETTINGS_TEMPLATE = """
                     <div id="auth-fields" style="display: none; margin-top: 1rem;">
                         <div class="form-group">
                             <label class="form-label">Username</label>
-                            <input type="text" class="form-input" id="auth_username" autocomplete="username">
+                            <input type="text" class="form-input" id="auth_username" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="username">
                         </div>
                         <div class="form-group">
                             <label class="form-label">Password</label>
@@ -3681,6 +3844,29 @@ SETTINGS_TEMPLATE = """
                         </select>
                         <button type="button" class="btn btn-primary" id="export-btn" onclick="exportData()">Export</button>
                     </div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">Automatic Export &amp; Cleanup</div>
+                <div class="panel-body">
+                    <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 1rem;">Every night, observations older than the number of days below are written to CSV files (one per day) on this device and then removed from the database, which keeps BlueWatch fast. The device list and the hourly overview behind the statistics graphs are kept.</p>
+                    <div class="form-group">
+                        <label class="form-check" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                            <input type="checkbox" id="auto_export_enabled"> Export and remove old observations automatically
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Older than (days)</label>
+                        <input type="number" class="form-input" id="auto_export_days" value="14" min="1" max="3650" style="width: 160px;">
+                        <div class="form-hint">Files are saved in <span id="auto_export_dir" style="font-family: var(--font-mono);">&hellip;</span></div>
+                    </div>
+                    <div class="btn-row">
+                        <button type="button" class="btn btn-primary" onclick="saveAutoExport()">Save</button>
+                        <button type="button" class="btn" id="auto-export-run-btn" onclick="runAutoExport()">Export now</button>
+                    </div>
+                    <div id="auto-export-summary" style="font-size: 0.75rem; color: var(--text-muted); margin-top: 1rem;"></div>
+                    <div id="auto-export-files" style="margin-top: 0.75rem;"></div>
                 </div>
             </div>
         </div>
@@ -3872,11 +4058,38 @@ SETTINGS_TEMPLATE = """
             } catch (error) { showStatus('Error saving configuration', 'error'); }
         }
 
+        // The status message used to sit at the very top of the page, out of
+        // sight when you press a Save button further down. Track the button
+        // that was last pressed and show the message directly above its
+        // button row (between the last settings box and Save / Cancel).
+        let lastActionBtn = null;
+        document.addEventListener('click', function(e) {
+            const btn = e.target.closest ? e.target.closest('button') : null;
+            if (btn) lastActionBtn = btn;
+        }, true);
+        document.addEventListener('submit', function(e) {
+            lastActionBtn = e.submitter || e.target.querySelector('[type="submit"]') || lastActionBtn;
+        }, true);
+
+        let statusTimer = null;
         function showStatus(message, type) {
             const el = document.getElementById('status-msg');
+            const btn = lastActionBtn;
+            let inline = false;
+            if (btn && btn.isConnected && btn.offsetParent !== null) {
+                const anchor = btn.closest('.btn-row') || btn.parentElement;
+                if (anchor && anchor.previousElementSibling !== el) anchor.insertAdjacentElement('beforebegin', el);
+                inline = true;
+            } else {
+                // No button context (e.g. a page-load message): back to the top.
+                const main = document.querySelector('main.main');
+                if (main && main.firstElementChild !== el) main.insertBefore(el, main.firstChild);
+            }
             el.textContent = message;
-            el.className = 'status-msg ' + type;
-            if (type === 'success') setTimeout(function() { el.className = 'status-msg'; }, 3000);
+            el.className = 'status-msg ' + (inline ? 'inline ' : '') + type;
+            el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            clearTimeout(statusTimer);
+            if (type === 'success') statusTimer = setTimeout(function() { el.className = 'status-msg'; }, 4000);
         }
 
         async function loadAuthStatus() {
@@ -4291,6 +4504,86 @@ SETTINGS_TEMPLATE = """
             } catch (error) { showStatus('Error deleting group', 'error'); }
         }
 
+        // ---- Automatic export & cleanup ----
+        function fmtBytes(n) {
+            if (n >= 1073741824) return (n / 1073741824).toFixed(1) + ' GB';
+            if (n >= 1048576) return (n / 1048576).toFixed(1) + ' MB';
+            if (n >= 1024) return Math.round(n / 1024) + ' KB';
+            return n + ' B';
+        }
+
+        let autoExportPoll = null;
+
+        async function loadAutoExport() {
+            try {
+                const response = await fetch('/api/export/auto');
+                if (!response.ok) return;
+                const d = await response.json();
+                if (document.activeElement !== document.getElementById('auto_export_days')) {
+                    document.getElementById('auto_export_days').value = d.days;
+                }
+                document.getElementById('auto_export_enabled').checked = d.enabled;
+                document.getElementById('auto_export_dir').textContent = d.directory;
+                const btn = document.getElementById('auto-export-run-btn');
+                btn.disabled = d.running;
+                btn.textContent = d.running ? 'Exporting\u2026' : 'Export now';
+
+                let summary = 'Free space: ' + fmtBytes(d.free_bytes) + ' \u00b7 Exported files: ' + d.files.length + ' (' + fmtBytes(d.total_bytes) + ')';
+                if (d.last_run) {
+                    const r = d.last_result || {};
+                    const what = r.ok === false ? 'failed: ' + (r.error || 'unknown error')
+                        : (r.days ? r.rows + ' observations from ' + r.days + ' day(s) exported and removed' : 'nothing older than the limit');
+                    summary += '<br>Last run: ' + new Date(d.last_run).toLocaleString() + ' \u2014 ' + what;
+                    if (r.remaining_days) summary += ' (' + r.remaining_days + ' more day(s) will follow)';
+                }
+                document.getElementById('auto-export-summary').innerHTML = summary;
+
+                document.getElementById('auto-export-files').innerHTML = d.files.length ? (
+                    '<table class="device-table" style="width:100%; font-size:0.75rem;"><thead><tr><th>File</th><th>Size</th><th>Written</th><th></th></tr></thead><tbody>' +
+                    d.files.slice(0, 60).map(function(f) {
+                        return '<tr><td style="font-family: var(--font-mono);">' + f.name + '</td><td>' + fmtBytes(f.size) + '</td><td>' + new Date(f.modified).toLocaleString() + '</td>' +
+                            '<td><a href="/api/export/files/' + encodeURIComponent(f.name) + '" download>Download</a></td></tr>';
+                    }).join('') + '</tbody></table>'
+                ) : '';
+
+                if (d.running && !autoExportPoll) {
+                    autoExportPoll = setInterval(loadAutoExport, 3000);
+                } else if (!d.running && autoExportPoll) {
+                    clearInterval(autoExportPoll);
+                    autoExportPoll = null;
+                }
+            } catch (error) { console.error('Auto export status error:', error); }
+        }
+
+        async function saveAutoExport() {
+            try {
+                const response = await fetch('/api/export/auto', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        enabled: document.getElementById('auto_export_enabled').checked,
+                        days: parseInt(document.getElementById('auto_export_days').value, 10)
+                    })
+                });
+                const data = await response.json();
+                if (!response.ok) { showStatus(data.error || 'Could not save', 'error'); return; }
+                showStatus('Automatic export saved', 'success');
+                loadAutoExport();
+            } catch (error) { showStatus('Could not save automatic export', 'error'); }
+        }
+
+        async function runAutoExport() {
+            if (!confirm('Write every day of observations older than the limit to CSV files and remove them from the database now?')) return;
+            try {
+                const response = await fetch('/api/export/auto/run', { method: 'POST' });
+                const data = await response.json();
+                if (!response.ok) { showStatus(data.error || 'Could not start export', 'error'); return; }
+                showStatus('Export started', 'success');
+                loadAutoExport();
+                setTimeout(loadAutoExport, 1000);
+            } catch (error) { showStatus('Could not start export', 'error'); }
+        }
+
         function exportData() {
             const exportBtn = document.getElementById('export-btn');
             const originalLabel = exportBtn ? exportBtn.textContent : null;
@@ -4339,6 +4632,7 @@ SETTINGS_TEMPLATE = """
 
         loadSettings();
         loadAuthStatus();
+        loadAutoExport();
         loadGroups();
         loadCustomTypes();
         loadIrkKeys();
@@ -4360,16 +4654,16 @@ ABOUT_TEMPLATE = """
     <title>BlueWatch</title>
     <style>
         :root {
-            --bg-primary: #0d0d0d;
-            --bg-secondary: #141414;
-            --bg-tertiary: #1a1a1a;
-            --text-primary: #e0e0e0;
-            --text-secondary: #888888;
-            --text-muted: #555555;
+            --bg-primary: #0d1117;
+            --bg-secondary: #161b22;
+            --bg-tertiary: #1c232c;
+            --text-primary: #e6edf3;
+            --text-secondary: #a6afb9;
+            --text-muted: #7d8590;
             --accent-red: #2563eb;
             --accent-blue: #2563eb;
             --accent-amber: #d97706;
-            --border-color: #2a2a2a;
+            --border-color: #30363d;
             --font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', Consolas, monospace;
         }
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -4382,23 +4676,25 @@ ABOUT_TEMPLATE = """
         .brand-text { font-weight: 700; font-size: 0.9rem; letter-spacing: 0.05em;  color: var(--accent-blue); }
         .brand-text span { color: #ffffff; }
         .nav { display: flex; gap: 0.25rem; }
-        .nav-link { color: var(--text-secondary); text-decoration: none; font-size: 0.75rem; padding: 0.4rem 0.75rem; border-radius: 3px;  letter-spacing: 0.05em; transition: all 0.1s; }
+        .nav-link { color: var(--text-secondary); text-decoration: none; font-size: 0.75rem; padding: 0.4rem 0.75rem; border-radius: 6px;  letter-spacing: 0.05em; transition: all 0.1s; }
         .nav-link:hover, .nav-link.active { color: var(--text-primary); background: var(--bg-tertiary); }
 
         [data-theme="light"] { --bg-primary: #f5f5f5; --bg-secondary: #e8e8e8; --bg-tertiary: #ffffff; --bg-hover: #d8d8d8; --text-primary: #1a1a1a; --text-secondary: #555555; --text-muted: #888888; --accent-red: #2563eb; --accent-amber: #d97706; --border-color: #cccccc; }
 
-        .theme-toggle { background: transparent; border: 1px solid var(--border-color); color: var(--text-secondary); font-family: var(--font-mono); font-size: 0.75rem; padding: 0.3rem 0.5rem; cursor: pointer; border-radius: 3px; transition: all 0.1s; }
+        .theme-toggle { background: transparent; border: 1px solid var(--border-color); color: var(--text-secondary); font-family: var(--font-mono); font-size: 0.75rem; padding: 0.3rem 0.5rem; cursor: pointer; border-radius: 6px; transition: all 0.1s; }
         .theme-toggle:hover { color: var(--text-primary); border-color: var(--border-active, #999); }
 
         .main { max-width: 800px; margin: 0 auto; padding: 2rem 1rem; }
 
-        .hero { text-align: center; margin-bottom: 2.5rem; padding: 2rem; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 4px; }
-        .hero-icon { color: var(--accent-red); font-size: 2.5rem; margin-bottom: 1rem; }
-        .hero-title { font-size: 1.5rem; font-weight: 700; letter-spacing: 0.1em; margin-bottom: 0.5rem; }
-        .hero-title span { color: var(--accent-red); }
-        .hero-tagline { font-size: 0.8rem; color: var(--text-muted);  letter-spacing: 0.15em; }
+        .hero { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0.5rem 0.7rem; text-align: center; margin-bottom: 2.5rem; padding: 2rem; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 10px; }
+        .hero-icon { color: var(--accent-blue, #2563eb); line-height: 0; }
+        .hero-icon svg { width: 2rem; height: 2rem; }
+        .hero-title { font-size: 1.75rem; font-weight: 700; letter-spacing: 0.05em; color: var(--accent-blue, #2563eb); line-height: 1; }
+        .hero-title span { color: #ffffff; }
+        [data-theme="light"] .hero-title span { color: var(--text-primary); }
+        .hero-tagline { flex-basis: 100%; font-size: 0.8rem; color: var(--text-muted);  letter-spacing: 0.15em; }
 
-        .panel { background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 4px; margin-bottom: 1.5rem; }
+        .panel { background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 10px; margin-bottom: 1.5rem; }
         .panel-header { padding: 0.75rem 1rem; background: var(--bg-tertiary); border-bottom: 1px solid var(--border-color); font-size: 0.7rem;  letter-spacing: 0.1em; color: var(--accent-red); }
         .panel-body { padding: 1rem; }
         .panel-body p { color: var(--text-secondary); line-height: 1.8; margin-bottom: 0.75rem; font-size: 0.85rem; }
@@ -4407,12 +4703,12 @@ ABOUT_TEMPLATE = """
         .panel-body a:hover { text-decoration: underline; }
 
         .capability-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; }
-        .capability { background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 3px; padding: 1rem; text-align: center; }
+        .capability { background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 6px; padding: 1rem; text-align: center; }
         .capability-icon { font-size: 1.25rem; margin-bottom: 0.5rem; }
         .capability-name { font-size: 0.7rem; font-weight: 600;  letter-spacing: 0.05em; margin-bottom: 0.25rem; }
         .capability-desc { font-size: 0.65rem; color: var(--text-muted); }
 
-        .warning { background: rgba(220, 38, 38, 0.1); border: 1px solid var(--accent-red); border-radius: 3px; padding: 1rem; margin-top: 1rem; }
+        .warning { background: rgba(220, 38, 38, 0.1); border: 1px solid var(--accent-red); border-radius: 6px; padding: 1rem; margin-top: 1rem; }
         .warning-title { color: var(--accent-red); font-size: 0.7rem;  letter-spacing: 0.1em; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem; }
         .warning p { color: var(--text-secondary); font-size: 0.8rem; line-height: 1.6; }
 
@@ -4439,8 +4735,8 @@ ABOUT_TEMPLATE = """
 
     <main class="main">
         <div class="hero">
-            <div class="hero-icon">◉</div>
-            <h1 class="hero-title">BLUE<span>HOOD</span></h1>
+            <div class="hero-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 7 10 10-5 5V2l5 5L7 17"/></svg></div>
+            <h1 class="hero-title">Blue<span>Watch</span></h1>
             <p class="hero-tagline">Bluetooth Reconnaissance Framework</p>
         </div>
 
@@ -4532,22 +4828,22 @@ LIVE_TEMPLATE = """
     <title>BlueWatch - Live</title>
     <style>
         :root {
-            --bg-primary: #0d0d0d;
-            --bg-secondary: #141414;
-            --bg-tertiary: #1a1a1a;
-            --bg-hover: #242424;
-            --bg-panel: #111111;
-            --text-primary: #e0e0e0;
-            --text-secondary: #888888;
-            --text-muted: #555555;
+            --bg-primary: #0d1117;
+            --bg-secondary: #161b22;
+            --bg-tertiary: #1c232c;
+            --bg-hover: #242c37;
+            --bg-panel: #161b22;
+            --text-primary: #e6edf3;
+            --text-secondary: #a6afb9;
+            --text-muted: #7d8590;
             --accent-red: #2563eb;
             --accent-orange: #ea580c;
             --accent-amber: #d97706;
             --accent-green: #16a34a;
             --accent-blue: #2563eb;
             --accent-cyan: #0891b2;
-            --border-color: #2a2a2a;
-            --border-active: #404040;
+            --border-color: #30363d;
+            --border-active: #484f58;
             --font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', 'Cascadia Code', Consolas, monospace;
         }
 
@@ -4647,7 +4943,7 @@ LIVE_TEMPLATE = """
             text-decoration: none;
             font-size: 0.75rem;
             padding: 0.4rem 0.75rem;
-            border-radius: 3px;
+            border-radius: 6px;
             
             letter-spacing: 0.05em;
             transition: all 0.1s;
@@ -4747,7 +5043,7 @@ LIVE_TEMPLATE = """
         .stat-item {
             background: var(--bg-tertiary);
             border: 1px solid var(--border-color);
-            border-radius: 4px;
+            border-radius: 10px;
             padding: 0.75rem;
             display: flex;
             justify-content: space-between;
@@ -4783,7 +5079,7 @@ LIVE_TEMPLATE = """
             align-items: center;
             justify-content: space-between;
             padding: 0.35rem 0.5rem;
-            border-radius: 3px;
+            border-radius: 6px;
             cursor: grab;
             font-size: 0.78rem;
         }
@@ -4812,7 +5108,7 @@ LIVE_TEMPLATE = """
             padding: 0.5rem 0.75rem;
             text-align: left;
             cursor: pointer;
-            border-radius: 3px;
+            border-radius: 6px;
             transition: all 0.1s;
             display: flex;
             justify-content: space-between;
@@ -4851,7 +5147,7 @@ LIVE_TEMPLATE = """
             flex: 1;
             background: var(--bg-tertiary);
             border: 1px solid var(--border-color);
-            border-radius: 3px;
+            border-radius: 6px;
             padding: 0.6rem 0.75rem;
             color: var(--text-primary);
             font-family: var(--font-mono);
@@ -4868,7 +5164,7 @@ LIVE_TEMPLATE = """
         .form-input {
             background: var(--bg-tertiary);
             border: 1px solid var(--border-color);
-            border-radius: 3px;
+            border-radius: 6px;
             padding: 0.6rem 0.75rem;
             color: var(--text-primary);
             font-family: var(--font-mono);
@@ -4899,7 +5195,7 @@ LIVE_TEMPLATE = """
             font-size: 0.7rem;
             padding: 0.6rem 1rem;
             cursor: pointer;
-            border-radius: 3px;
+            border-radius: 6px;
             
             letter-spacing: 0.05em;
             transition: all 0.1s;
@@ -4922,7 +5218,33 @@ LIVE_TEMPLATE = """
         }
 
         /* Live stats */
-        .stat-card { background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 4px; padding: 0.5rem 0.6rem; }
+        .stat-card { background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 10px; padding: 0.5rem 0.6rem; }
+        /* Two equal boxes side by side: key numbers | most seen */
+        .stat-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem; align-items: stretch; }
+        .stat-box { padding: 0.7rem 1rem; min-width: 0; }
+        .stat-numbers { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; align-items: start; }
+        .stat-cell { display: flex; flex-direction: column; min-width: 0; }
+        .stat-num { font-size: 1.4rem; font-weight: 700; line-height: 1.15; font-variant-numeric: tabular-nums; }
+        .stat-cap { font-size: 0.55rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 0.3rem; line-height: 1.3; }
+        .stat-seen { display: flex; flex-direction: column; }
+        .stat-seen-title { margin: 0 0 0.45rem 0; }
+        .most-seen-list { display: flex; flex-wrap: wrap; gap: 0.4rem 1.25rem; align-content: flex-start; }
+        .filters-box, .priority-card { display: flex; flex-direction: column; }
+        .filters-head { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; margin-bottom: 0.55rem; }
+        .filters-title, .priority-title { margin: 0; }
+        .filter-checks { display: flex; flex-wrap: wrap; gap: 0.4rem 1.25rem; margin-bottom: 0.55rem; }
+        .filter-check { display: flex; align-items: center; gap: 0.4rem; font-size: 0.75rem; color: var(--text-secondary); cursor: pointer; }
+        .filter-sliders { display: grid; grid-template-columns: max-content 1fr 4.5rem; gap: 0.45rem 0.75rem; align-items: center; }
+        .filter-sliders .stat-cap { margin: 0; }
+        .filter-sliders input[type="range"] { width: 100%; min-width: 0; }
+        .slider-value { font-size: 0.75rem; color: var(--text-primary); text-align: right; white-space: nowrap; }
+        .priority-head { display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.55rem; flex-wrap: wrap; }
+        .priority-hint { font-size: 0.65rem; color: var(--text-muted); }
+        .priority-list { display: flex; flex-wrap: wrap; gap: 0.5rem; align-content: flex-start; max-height: 9rem; overflow-y: auto; }
+        .priority-empty { font-size: 0.75rem; color: var(--text-muted); }
+        @media (max-width: 900px) {
+            .stat-pair { grid-template-columns: 1fr; }
+        }
         .stat-sub { font-size: 0.6rem; color: var(--text-secondary); margin-top: 0.15rem; }
         /* No bulk-select/merge toolbar on the live dashboard -- the checkbox
            column it drove has nothing left to trigger. */
@@ -4932,7 +5254,7 @@ LIVE_TEMPLATE = """
         .table-container {
             background: var(--bg-panel);
             border: 1px solid var(--border-color);
-            border-radius: 4px;
+            border-radius: 10px;
             overflow: hidden;
         }
 
@@ -5111,7 +5433,7 @@ LIVE_TEMPLATE = """
             align-items: center;
             gap: 0.35rem;
             padding: 0.2rem 0.5rem;
-            border-radius: 2px;
+            border-radius: 4px;
             font-size: 0.7rem;
             font-weight: 500;
 
@@ -5186,7 +5508,7 @@ LIVE_TEMPLATE = """
         .modal {
             background: var(--bg-panel);
             border: 1px solid var(--border-color);
-            border-radius: 4px;
+            border-radius: 10px;
             width: 90%;
             max-width: 700px;
             max-height: 85vh;
@@ -5292,6 +5614,29 @@ LIVE_TEMPLATE = """
             .heatmap-grid-2col { grid-template-columns: 1fr; }
         }
 
+        /* Two independent columns (instead of grid rows that couple the two
+        sides): each column stacks tightly, so e.g. Daily Activity sits right
+        under Signal History. The last section in each column is pushed to
+        the bottom, so the bottom lines (Hourly hours / Timeline dates) line
+        up. On narrow screens the columns dissolve and `order` restores a
+        single stacked list. */
+        .heatmap-cols {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0 1.25rem;
+        }
+        .heatmap-col {
+            display: flex;
+            flex-direction: column;
+        }
+        .heatmap-col .heatmap-section { margin-top: 1rem; }
+        .heatmap-col .heatmap-section:last-child { margin-top: auto; padding-top: 1rem; }
+        @media (max-width: 640px) {
+            .heatmap-cols { grid-template-columns: 1fr; }
+            .heatmap-col { display: contents; }
+            .heatmap-col .heatmap-section:last-child { margin-top: 1rem; padding-top: 0; }
+        }
+
         .dwell-stat-card {
             padding: 0.2rem 0;
             border-bottom: 1px solid var(--border-color);
@@ -5383,9 +5728,9 @@ LIVE_TEMPLATE = """
         .timeline-labels {
             display: flex;
             justify-content: space-between;
-            font-size: 0.6rem;
+            font-size: 0.55rem;
             color: var(--text-muted);
-            margin-top: 0.25rem;
+            margin-top: 2px;
         }
 
         /* RSSI Chart */
@@ -5394,7 +5739,7 @@ LIVE_TEMPLATE = """
             height: 70px;
             background: var(--bg-tertiary);
             border: 1px solid var(--border-color);
-            border-radius: 3px;
+            border-radius: 8px;
             padding: 0.5rem;
             overflow: hidden;
         }
@@ -5439,7 +5784,7 @@ LIVE_TEMPLATE = """
             font-size: 0.75rem;
             padding: 0.3rem 0.5rem;
             cursor: pointer;
-            border-radius: 3px;
+            border-radius: 6px;
             transition: all 0.1s;
         }
 
@@ -5489,11 +5834,11 @@ LIVE_TEMPLATE = """
                 <div style="display: flex; flex-direction: column; gap: 0.5rem;">
                     <input type="datetime-local" class="search-input" id="search-start" style="font-size: 0.7rem;">
                     <input type="datetime-local" class="search-input" id="search-end" style="font-size: 0.7rem;">
+                    <input type="text" class="search-input" id="search" placeholder="Search MAC, vendor, or identifier..." style="font-size: 0.75rem;">
                     <div style="display: flex; gap: 0.5rem;">
                         <button class="btn" style="flex:1;" onclick="clearDateFilters()">Clear</button>
-                        <button class="btn btn-primary" style="flex:1;" onclick="searchByDateRange()">Query</button>
+                        <button class="btn btn-primary" style="flex:1;" onclick="searchByDateRange()">Search</button>
                     </div>
-                    <input type="text" class="search-input" id="search" placeholder="Search MAC, vendor, or identifier..." style="font-size: 0.75rem;">
                 </div>
             </div>
 
@@ -5517,56 +5862,54 @@ LIVE_TEMPLATE = """
         </aside>
 
         <main class="content">
-            <div class="stat-card" style="display: flex; align-items: center; justify-content: space-between; gap: 2rem; margin-bottom: 0.75rem;">
-                <div style="display: flex; gap: 2rem;">
-                    <div><div class="stat-label">ACTIVE NOW</div><div class="stat-value" id="stat-active-now">--</div></div>
-                    <div><div class="stat-label">ALL KNOWN DEVICES</div><div class="stat-value" id="stat-total-devices">--</div></div>
-                    <div><div class="stat-label">NEW TODAY (INC. MAC-CHANGE)</div><div class="stat-value" id="stat-new-today">--</div></div>
-                    <div><div class="stat-label">NEW TODAY (FIXED)</div><div class="stat-value" id="stat-new-today-fixed">--</div></div>
+            <div class="stat-pair">
+                <div class="stat-card stat-box stat-numbers">
+                    <div class="stat-cell"><div class="stat-num" id="stat-active-now">--</div><div class="stat-cap">Active now</div></div>
+                    <div class="stat-cell"><div class="stat-num" id="stat-total-devices">--</div><div class="stat-cap">All known devices</div></div>
+                    <div class="stat-cell"><div class="stat-num" id="stat-new-today">--</div><div class="stat-cap">New today (inc. MAC-change)</div></div>
+                    <div class="stat-cell"><div class="stat-num" id="stat-new-today-fixed">--</div><div class="stat-cap">New today (fixed)</div></div>
                 </div>
-                <div style="border-left: 1px solid var(--border-color); padding-left: 2rem;">
-                    <div class="stat-label" style="margin-bottom: 0.35rem;">MOST SEEN (ACTIVE)</div>
-                    <div id="most-seen-list" style="display: flex; gap: 1.5rem; flex-wrap: wrap;">--</div>
+                <div class="stat-card stat-box stat-seen">
+                    <div class="stat-cap stat-seen-title">Most seen (active)</div>
+                    <div id="most-seen-list" class="most-seen-list">--</div>
                 </div>
             </div>
-            <div class="stat-card" style="margin-bottom: 0.75rem;">
-                <div style="display: flex; align-items: center; gap: 1.25rem; margin-bottom: 0.6rem;">
-                    <span class="stat-label">FILTERS</span>
-                    <button class="filter-btn" id="all-devices-btn" onclick="showAllDevices()" style="gap: 0.4rem; padding: 0.3rem 0.6rem;">All devices <span id="count-all" class="filter-count" style="color: inherit; font-size: inherit;">--</span></button>
-                </div>
-                <div style="display: flex; align-items: center; gap: 1.25rem; flex-wrap: wrap;">
-                    <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.75rem; color: var(--text-secondary); cursor: pointer;" title="Hides devices BlueWatch has already identified with a known Class (e.g. Tracker, Phone) -- independent of whether they've been filed into a Group.">
+            <div class="stat-pair">
+                <div class="stat-card stat-box filters-box">
+                    <div class="filters-head">
+                        <span class="stat-cap filters-title">Filters</span>
+                        <button class="filter-btn" id="all-devices-btn" onclick="showAllDevices()" style="gap: 0.4rem; padding: 0.3rem 0.6rem;">All devices <span id="count-all" class="filter-count" style="color: inherit; font-size: inherit;">--</span></button>
+                    </div>
+                    <div class="filter-checks">
+                        <label class="filter-check" title="Hides devices BlueWatch has already identified with a known Class (e.g. Tracker, Phone) -- independent of whether they've been filed into a Group.">
                         <input type="checkbox" id="hide-classified-toggle" onchange="toggleHideClassified()">
                         Hide classified
                     </label>
-                    <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.75rem; color: var(--text-secondary); cursor: pointer;" title="Hides devices already sorted into a category folder -- independent of whether their Class is known.">
+                        <label class="filter-check" title="Hides devices already sorted into a category folder -- independent of whether their Class is known.">
                         <input type="checkbox" id="hide-grouped-toggle" onchange="toggleHideGrouped()">
                         Hide grouped
                     </label>
-                    <div style="display: flex; align-items: center; gap: 0.75rem;">
-                        <span class="stat-label">First seen within</span>
-                        <input type="range" id="first-seen-slider" min="1" max="7" step="1" value="1" oninput="onFirstSeenSliderChange()" style="width: 120px;">
-                        <span id="first-seen-slider-value" style="font-size: 0.75rem; color: var(--text-primary); min-width: 4rem;">off</span>
                     </div>
-                    <div style="display: flex; align-items: center; gap: 0.75rem;">
-                        <span class="stat-label">Sightings &ge;</span>
-                        <input type="range" id="sightings-threshold" min="1" max="50" value="1" step="1" oninput="onSightingsThresholdChange()" style="width: 140px;">
-                        <span id="sightings-threshold-value" style="font-size: 0.75rem; color: var(--text-primary); min-width: 2.5rem;">1</span>
-                    </div>
-                    <div style="display: flex; align-items: center; gap: 0.75rem;">
-                        <span class="stat-label">RSSI &ge;</span>
-                        <input type="range" id="rssi-threshold" min="-100" max="-20" value="-100" step="1" oninput="onRssiThresholdChange()" style="width: 160px;">
-                        <span id="rssi-threshold-value" style="font-size: 0.75rem; color: var(--text-primary); min-width: 4.5rem;">-100 dBm</span>
+                    <div class="filter-sliders">
+                        <span class="stat-cap">First seen within</span>
+                        <input type="range" id="first-seen-slider" min="1" max="7" step="1" value="1" oninput="onFirstSeenSliderChange()">
+                        <span id="first-seen-slider-value" class="slider-value">off</span>
+                        <span class="stat-cap">Sightings &ge;</span>
+                        <input type="range" id="sightings-threshold" min="1" max="50" value="1" step="1" oninput="onSightingsThresholdChange()">
+                        <span id="sightings-threshold-value" class="slider-value">1</span>
+                        <span class="stat-cap">RSSI &ge;</span>
+                        <input type="range" id="rssi-threshold" min="-100" max="-20" value="-100" step="1" oninput="onRssiThresholdChange()">
+                        <span id="rssi-threshold-value" class="slider-value">-100 dBm</span>
                     </div>
                 </div>
-            </div>
-            <div class="table-container" id="priority-box" style="margin-bottom: 0.75rem; padding: 0.6rem 0.75rem; display: none;">
-                <div style="display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.4rem;">
-                    <span style="color: #f5c518; font-size: 0.9rem;">★</span>
-                    <span class="table-title" style="font-size: 0.8rem;">Priority</span>
-                    <span style="font-size: 0.7rem; color: var(--text-muted);">watched devices and type alerts &mdash; always shown, ignores filters</span>
+                <div class="stat-card stat-box priority-card" id="priority-box">
+                    <div class="priority-head">
+                        <span style="color: #f5c518; font-size: 0.9rem;">&#9733;</span>
+                        <span class="stat-cap priority-title">Priority</span>
+                        <span class="priority-hint">watched devices and type alerts &mdash; always shown, ignores filters</span>
+                    </div>
+                    <div id="priority-list" class="priority-list"></div>
                 </div>
-                <div id="priority-list" style="display: flex; flex-wrap: wrap; gap: 0.5rem;"></div>
             </div>
             <div class="table-container" id="devices-container">
                 <table class="device-table">
@@ -6134,11 +6477,11 @@ LIVE_TEMPLATE = """
             const box = document.getElementById('priority-box');
             const list = document.getElementById('priority-list');
             if (!box || !list) return;
+            box.style.display = '';
             if (devices.length === 0) {
-                box.style.display = 'none';
+                list.innerHTML = '<span class="priority-empty">No watched devices or type alerts right now</span>';
                 return;
             }
-            box.style.display = '';
             list.innerHTML = devices.map(d => {
                 const name = obfuscateName(d.friendly_name || d.vendor || d.mac);
                 const badge = d.reason === 'watched'
@@ -7006,8 +7349,13 @@ LIVE_TEMPLATE = """
                 '<div class="detail-item full"><div class="detail-label">Assign to Group</div><select class="form-input" id="device-group" onchange="setDeviceGroup(\\'' + d.mac + '\\', this.value)" style="font-size: 0.8rem;"><option value="">No group</option></select></div>' +
                 '<div class="detail-item full"><div class="detail-label">Notes</div><textarea class="form-input" id="device-notes" rows="2" style="font-size: 0.8rem; resize: vertical;" placeholder="Add notes...">' + (d.notes || '') + '</textarea><button class="btn" style="margin-top: 0.35rem; padding: 0.3rem 0.6rem; display: block;" onclick="saveNotes(\\'' + d.mac + '\\')">Save Notes</button></div>' +
                 '</div>' +
-                '<div class="heatmap-grid-2col">' +
-                '<div class="heatmap-section" id="live-signal-section">' +
+                '<div class="heatmap-section" id="scan-unit-section" hidden>' +
+                '<div class="heatmap-title">Scan Unit Result</div>' +
+                '<div id="scan-unit-result" style="font-size: 0.75rem; font-family: monospace; white-space: pre-wrap; word-break: break-all; max-height: 300px; overflow-y: auto;"></div>' +
+                '</div>' +
+                '<div class="heatmap-cols">' +
+                '<div class="heatmap-col">' +
+                '<div class="heatmap-section" style="order:1;" id="live-signal-section">' +
                 '<div class="heatmap-title">Live Signal</div>' +
                 '<div class="rssi-chart" id="live-signal-chart" style="height: 90px;"></div>' +
                 '<div style="display: flex; justify-content: space-between; align-items: baseline; font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">' +
@@ -7020,31 +7368,28 @@ LIVE_TEMPLATE = """
                 '</div>' +
                 '<div id="live-signal-presence-track" style="height: 10px;"></div>' +
                 '</div></div>' +
-                '<div class="heatmap-section" id="rssi-section">' +
-                '<div class="heatmap-title">Signal History (7d)</div>' +
-                '<div class="rssi-chart" id="rssi-chart" style="height: 90px;"><div style="color: var(--text-muted); font-size: 0.75rem; text-align: center; padding-top: 1.5rem;">Loading...</div></div>' +
-                '</div>' +
-                '</div>' +
-                '<div class="heatmap-section" id="scan-unit-section" hidden>' +
-                '<div class="heatmap-title">Scan Unit Result</div>' +
-                '<div id="scan-unit-result" style="font-size: 0.75rem; font-family: monospace; white-space: pre-wrap; word-break: break-all; max-height: 300px; overflow-y: auto;"></div>' +
-                '</div>' +
-                '<div class="heatmap-grid-2col">' +
-                '<div class="heatmap-section">' +
+                '<div class="heatmap-section" style="order:3;">' +
                 '<div class="heatmap-title">Time Nearby (30d)</div>' +
                 '<div id="dwell-stats" class="heatmap" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem;"><div style="color: var(--text-muted);">Loading...</div></div>' +
                 '</div>' +
-                '<div class="heatmap-section">' +
-                '<div class="heatmap-title">Daily Activity</div>' +
-                '<div class="heatmap">' + renderDailyHeatmap(data.daily_data) + '</div>' +
-                '</div>' +
-                '<div class="heatmap-section">' +
+                '<div class="heatmap-section" style="order:5;">' +
                 '<div class="heatmap-title">Hourly Activity (30d)</div>' +
                 '<div class="heatmap">' + renderHourlyHeatmap(data.hourly_data) + '</div>' +
                 '</div>' +
-                '<div class="heatmap-section">' +
+                '</div>' +
+                '<div class="heatmap-col">' +
+                '<div class="heatmap-section" style="order:2;" id="rssi-section">' +
+                '<div class="heatmap-title">Signal History (7d)</div>' +
+                '<div class="rssi-chart" id="rssi-chart" style="height: 90px;"><div style="color: var(--text-muted); font-size: 0.75rem; text-align: center; padding-top: 1.5rem;">Loading...</div></div>' +
+                '</div>' +
+                '<div class="heatmap-section" style="order:4;">' +
+                '<div class="heatmap-title">Daily Activity</div>' +
+                '<div class="heatmap">' + renderDailyHeatmap(data.daily_data) + '</div>' +
+                '</div>' +
+                '<div class="heatmap-section" style="order:6;">' +
                 '<div class="heatmap-title">Timeline (30d)</div>' +
                 renderTimeline(data.timeline) +
+                '</div>' +
                 '</div>' +
                 '</div>' +
                 (d.identity_id ? (
@@ -7945,14 +8290,14 @@ LOGIN_TEMPLATE = """
     <title>BlueWatch</title>
     <style>
         :root {
-            --bg-primary: #0d0d0d;
-            --bg-secondary: #141414;
-            --bg-tertiary: #1a1a1a;
-            --text-primary: #e0e0e0;
-            --text-secondary: #888888;
-            --text-muted: #555555;
+            --bg-primary: #0d1117;
+            --bg-secondary: #161b22;
+            --bg-tertiary: #1c232c;
+            --text-primary: #e6edf3;
+            --text-secondary: #a6afb9;
+            --text-muted: #7d8590;
             --accent-red: #2563eb;
-            --border-color: #2a2a2a;
+            --border-color: #30363d;
             --font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', Consolas, monospace;
         }
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -7960,28 +8305,31 @@ LOGIN_TEMPLATE = """
 
         .login-container { width: 100%; max-width: 380px; padding: 1rem; }
 
-        .login-box { background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 4px; padding: 2rem; }
+        .login-box { background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 10px; padding: 2rem; }
 
-        .login-header { text-align: center; margin-bottom: 2rem; }
-        .login-icon { color: var(--accent-red); font-size: 2rem; margin-bottom: 0.75rem; }
-        .login-title { font-size: 1.25rem; font-weight: 700; letter-spacing: 0.1em; }
-        .login-title span { color: var(--accent-red); }
-        .login-subtitle { font-size: 0.7rem; color: var(--text-muted);  letter-spacing: 0.15em; margin-top: 0.5rem; }
+        /* Icon and name on one line, like the top menu; subtitle below. */
+        .login-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0.5rem 0.6rem; text-align: center; margin-bottom: 2rem; }
+        .login-icon { color: var(--accent-blue, #2563eb); line-height: 0; }
+        .login-icon svg { width: 1.75rem; height: 1.75rem; }
+        .login-title { font-size: 1.5rem; font-weight: 700; letter-spacing: 0.05em; color: var(--accent-blue, #2563eb); line-height: 1; }
+        .login-title span { color: #ffffff; }
+        [data-theme="light"] .login-title span { color: var(--text-primary); }
+        .login-subtitle { flex-basis: 100%; font-size: 0.7rem; color: var(--text-muted);  letter-spacing: 0.15em; margin-top: 0.25rem; }
 
         .form-group { margin-bottom: 1rem; }
         .form-label { display: block; font-size: 0.65rem;  letter-spacing: 0.1em; color: var(--text-muted); margin-bottom: 0.5rem; }
-        .form-input { width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 3px; background: var(--bg-tertiary); color: var(--text-primary); font-family: var(--font-mono); font-size: 0.9rem; }
+        .form-input { width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-tertiary); color: var(--text-primary); font-family: var(--font-mono); font-size: 0.9rem; }
         .form-input:focus { outline: none; border-color: var(--accent-red); }
 
-        .btn { width: 100%; padding: 0.75rem; border: none; border-radius: 3px; background: var(--accent-red); color: white; font-family: var(--font-mono); font-size: 0.8rem; font-weight: 600;  letter-spacing: 0.1em; cursor: pointer; transition: background 0.1s; }
+        .btn { width: 100%; padding: 0.75rem; border: none; border-radius: 6px; background: var(--accent-red); color: white; font-family: var(--font-mono); font-size: 0.8rem; font-weight: 600;  letter-spacing: 0.1em; cursor: pointer; transition: background 0.1s; }
         .btn:hover { background: #1d4ed8; }
 
-        .error-msg { background: rgba(220, 38, 38, 0.1); border: 1px solid var(--accent-red); border-radius: 3px; padding: 0.75rem; margin-bottom: 1rem; color: var(--accent-red); font-size: 0.8rem; text-align: center; display: none; }
+        .error-msg { background: rgba(220, 38, 38, 0.1); border: 1px solid var(--accent-red); border-radius: 6px; padding: 0.75rem; margin-bottom: 1rem; color: var(--accent-red); font-size: 0.8rem; text-align: center; display: none; }
         .error-msg.show { display: block; }
 
         [data-theme="light"] { --bg-primary: #f5f5f5; --bg-secondary: #e8e8e8; --bg-tertiary: #ffffff; --text-primary: #1a1a1a; --text-secondary: #555555; --text-muted: #888888; --accent-red: #2563eb; --border-color: #cccccc; }
 
-        .theme-toggle { position: fixed; top: 1rem; right: 1rem; background: transparent; border: 1px solid var(--border-color); color: var(--text-secondary); font-family: var(--font-mono); font-size: 0.75rem; padding: 0.3rem 0.5rem; cursor: pointer; border-radius: 3px; transition: all 0.1s; }
+        .theme-toggle { position: fixed; top: 1rem; right: 1rem; background: transparent; border: 1px solid var(--border-color); color: var(--text-secondary); font-family: var(--font-mono); font-size: 0.75rem; padding: 0.3rem 0.5rem; cursor: pointer; border-radius: 6px; transition: all 0.1s; }
         .theme-toggle:hover { color: var(--text-primary); border-color: var(--border-active, #999); }
     </style>
 </head>
@@ -7990,8 +8338,8 @@ LOGIN_TEMPLATE = """
     <div class="login-container">
         <div class="login-box">
             <div class="login-header">
-                <div class="login-icon">◉</div>
-                <h1 class="login-title">BLUE<span>HOOD</span></h1>
+                <div class="login-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 7 10 10-5 5V2l5 5L7 17"/></svg></div>
+                <h1 class="login-title">Blue<span>Watch</span></h1>
                 <p class="login-subtitle">Authentication Required</p>
             </div>
 
@@ -8000,7 +8348,7 @@ LOGIN_TEMPLATE = """
             <form id="login-form">
                 <div class="form-group">
                     <label class="form-label">Username</label>
-                    <input type="text" class="form-input" id="username" name="username" autocomplete="username" required>
+                    <input type="text" class="form-input" id="username" name="username" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" required>
                 </div>
                 <div class="form-group">
                     <label class="form-label">Password</label>
@@ -8040,10 +8388,16 @@ LOGIN_TEMPLATE = """
                 if (response.ok) {
                     window.location.href = '/';
                 } else {
-                    document.getElementById('error-msg').classList.add('show');
+                    let msg = 'Invalid credentials';
+                    try { const d = await response.json(); if (d && d.error) msg = d.error; } catch (e) {}
+                    const el = document.getElementById('error-msg');
+                    el.textContent = msg;
+                    el.classList.add('show');
                 }
             } catch (error) {
-                document.getElementById('error-msg').classList.add('show');
+                const el = document.getElementById('error-msg');
+                el.textContent = 'Could not reach the server';
+                el.classList.add('show');
             }
         });
     </script>
