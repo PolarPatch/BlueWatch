@@ -221,22 +221,25 @@ RADAR_TEMPLATE = r"""<!DOCTYPE html>
         ctx.strokeStyle = theme.ring;
         ctx.beginPath(); ctx.moveTo(cx - maxR, cy); ctx.lineTo(cx + maxR, cy); ctx.moveTo(cx, cy - maxR); ctx.lineTo(cx, cy + maxR); ctx.stroke();
 
-        // sweep: a wide wedge of fine radial stripes that fades out behind the beam
-        // (flat colors only, no gradient), bright leading edge and rim
-        const SLICES = 64, STEP = 0.0135;
-        for (let i = 0; i < SLICES; i++) {
-            const a1 = sweep - i * STEP, a0 = a1 - STEP * 0.62;      // the gap between slices makes the stripes
-            let al = 0.34 * Math.pow(1 - i / SLICES, 1.4);
-            if (i % 2) al *= 0.6;
-            ctx.fillStyle = 'rgba(63,185,80,' + al.toFixed(3) + ')';
+        // sweep, modelled on Fieldwatch's: a ~37 degree wedge of about 16 fine radial
+        // stripes with dark gaps, brightest at the leading edge and fading out behind it.
+        // The leading edge is a solid bright line with a soft halo.
+        const WEDGE = 0.64, STRIPES = 16, PITCH = WEDGE / STRIPES;
+        for (let i = 0; i < STRIPES; i++) {
+            const t = i / (STRIPES - 1);
+            const a1 = sweep - i * PITCH, a0 = a1 - PITCH * 0.64;    // the gap between stripes stays dark
+            const al = 0.06 + 0.72 * Math.pow(1 - t, 1.2);
+            const rC = Math.round(96 - 60 * t), gC = Math.round(232 - 92 * t), bC = Math.round(128 - 58 * t);
+            ctx.fillStyle = 'rgba(' + rC + ',' + gC + ',' + bC + ',' + al.toFixed(3) + ')';
             ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, maxR, a0, a1); ctx.closePath(); ctx.fill();
         }
-        ctx.strokeStyle = 'rgba(120,235,140,0.95)';
-        ctx.lineWidth = 1.6;
-        ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(sweep) * maxR, cy + Math.sin(sweep) * maxR); ctx.stroke();
-        ctx.strokeStyle = 'rgba(63,185,80,0.55)';
-        ctx.lineWidth = 3;
-        ctx.beginPath(); ctx.arc(cx, cy, maxR, sweep - 0.22, sweep); ctx.stroke();
+        const ex = cx + Math.cos(sweep) * maxR, ey = cy + Math.sin(sweep) * maxR;
+        ctx.strokeStyle = 'rgba(110,235,140,0.22)';
+        ctx.lineWidth = 6;
+        ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(ex, ey); ctx.stroke();
+        ctx.strokeStyle = 'rgba(150,255,170,0.95)';
+        ctx.lineWidth = 1.8;
+        ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(ex, ey); ctx.stroke();
 
         // dots: bright when the beam has just painted them, glowing out until the
         // next pass (phosphor afterglow), an echo ring spreads out from each new hit,
