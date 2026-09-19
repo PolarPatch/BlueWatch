@@ -334,9 +334,6 @@ RADAR_TEMPLATE = r"""<!DOCTYPE html>
         ctx.beginPath(); ctx.moveTo(cx - 8, cy); ctx.lineTo(cx + 8, cy); ctx.moveTo(cx, cy - 8); ctx.lineTo(cx, cy + 8); ctx.stroke();
         ctx.fillStyle = '#3fb950';
         ctx.beginPath(); ctx.arc(cx, cy, 3, 0, Math.PI * 2); ctx.fill();
-        ctx.font = 'bold 10px ui-monospace, Menlo, monospace';
-        ctx.textAlign = 'left';
-        ctx.fillText('YOU', cx + 8, cy + 14);
 
         requestAnimationFrame(drawFrame);
     }
