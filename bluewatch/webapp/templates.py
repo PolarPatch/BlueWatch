@@ -5150,6 +5150,8 @@ LIVE_TEMPLATE = """
         .new-cat .search-input { width: 100%; font-size: 0.72rem; padding: 0.3rem 0.5rem; }
         .range-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; }
         .range-row .search-input { min-width: 0; font-size: 0.62rem; padding: 0.35rem 0.3rem; }
+        /* Type the date and time directly (day, month, year, hour, minute): no calendar icon */
+        .range-row input[type="datetime-local"]::-webkit-calendar-picker-indicator { display: none; }
         .range-row .btn { padding: 0.35rem 0.5rem; font-size: 0.68rem; }
         .category-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .category-delete {
