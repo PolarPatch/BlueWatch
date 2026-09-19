@@ -62,6 +62,17 @@ RADAR_TEMPLATE = r"""<!DOCTYPE html>
     .legend { display: flex; flex-wrap: wrap; gap: 0.3rem 1rem; margin-top: 0.5rem; font-size: 0.7rem; color: var(--text-secondary); }
     .legend span { cursor: pointer; user-select: none; }
     .legend span.off { opacity: 0.35; }
+    .feed-title { margin-top: 1rem; font-size: 0.65rem; letter-spacing: 0.1em; color: var(--text-muted); text-transform: uppercase; }
+    .feed { max-height: 9.5rem; overflow-y: auto; margin-top: 0.4rem; font-size: 0.72rem; }
+    .feed .ev { display: flex; align-items: baseline; gap: 0.6rem; padding: 0.15rem 0.2rem; color: var(--text-secondary); border-radius: 4px; cursor: pointer; }
+    .feed .ev:hover { background: var(--bg-tertiary); }
+    .feed .ev time { color: var(--text-muted); font-variant-numeric: tabular-nums; flex: none; }
+    .feed .ev i { flex: none; width: 0.5rem; height: 0.5rem; border-radius: 50%; align-self: center; }
+    .feed .ev .kind { flex: none; width: 4.2rem; color: var(--text-muted); }
+    .feed .ev.arrive .kind { color: #3fb950; }
+    .feed .ev.alert { color: #f85149; }
+    .feed .ev.alert .kind { color: #f85149; }
+    .feed .empty { color: var(--text-muted); padding: 0.15rem 0.2rem; }
     .legend i { display: inline-block; width: 0.6rem; height: 0.6rem; border-radius: 50%; margin-right: 0.35rem; vertical-align: baseline; }
 </style>
 </head>
@@ -111,7 +122,9 @@ RADAR_TEMPLATE = r"""<!DOCTYPE html>
     </div>
     <div class="radar-foot" id="foot">Loading&hellip;</div>
     <div class="legend" id="legend"></div>
-    <div class="radar-foot" style="margin-top: 0.9rem;">Distance from the centre is signal strength (rings: -40, -60, -80 and -100 dBm). The direction of a dot means nothing: one receiver cannot tell where a device is, so each dot just keeps a fixed angle.</div>
+    <div class="feed-title">Live events</div>
+    <div class="feed" id="feed"><div class="empty">Watching for arrivals and departures&hellip;</div></div>
+    <div class="radar-foot" style="margin-top: 0.9rem;">Distance from the centre is signal strength (rings: -40, -60, -80 and -100 dBm). The direction of a dot means nothing: one receiver cannot tell where a device is, so each dot just keeps a fixed angle. &#9650; / &#9660; next to the signal means it is getting stronger / weaker.</div>
 </main>
 
 <script>
@@ -159,6 +172,12 @@ RADAR_TEMPLATE = r"""<!DOCTYPE html>
     let W = 0, H = 0, cx = 0, cy = 0, maxR = 0, dpr = 1;
     let drawn = [];
     const history = {};   // mac -> last RSSI readings (for the echo tail)
+    const presentSet = new Set();     // devices counted as here (with hysteresis, see trackEvents)
+    const lastInfo = {};              // mac -> last data seen while present
+    const arrivedAt = {};             // mac -> when it arrived (drives the NEW pulse)
+    const ghosts = [];                // devices that just left (fading ring)
+    const events = [];                // newest first
+    let baselineReady = false;
 
     // Fixed pseudo-angle per device (carries no meaning, see the note on the page).
     function angleOf(mac) {
@@ -172,14 +191,71 @@ RADAR_TEMPLATE = r"""<!DOCTYPE html>
         return maxR * (0.12 + t * 0.88) * zoom;
     }
 
-    function visible() {
-        return devices.filter(d => {
-            if (d.rssi == null || d.lan) return false;
-            if (hiddenTypes.has(d.type)) return false;
-            if (document.getElementById('hide-unknown').checked && d.type === 'unknown' && !d.name && !d.vendor && !d.watched && !d.grouped) return false;
-            if (document.getElementById('hide-random').checked && d.random) return false;
-            return true;
-        });
+    function passes(d) {
+        if (d.rssi == null || d.lan) return false;
+        if (hiddenTypes.has(d.type)) return false;
+        if (document.getElementById('hide-unknown').checked && d.type === 'unknown' && !d.name && !d.vendor && !d.watched && !d.grouped) return false;
+        if (document.getElementById('hide-random').checked && d.random) return false;
+        return true;
+    }
+    function visible() { return devices.filter(passes); }
+
+    // Signal getting stronger (+1, approaching) or weaker (-1) over the last readings.
+    function trendOf(mac) {
+        const h = history[mac];
+        if (!h || h.length < 4) return 0;
+        const n = h.length;
+        const recent = (h[n - 1] + h[n - 2]) / 2, older = (h[0] + h[1]) / 2;
+        return recent - older >= 4 ? 1 : (recent - older <= -4 ? -1 : 0);
+    }
+
+    // Arrivals and departures. A device counts as "here" once seen within 60 s and as
+    // "gone" only after 180 s (or when it drops out of the window), so devices that
+    // advertise now and then do not flip back and forth.
+    function labelOf(d) { return d.name || d.vendor || d.type_label; }
+    function pushEvent(kind, d) {
+        events.unshift({ t: new Date(), kind, mac: d.mac, type: d.type, label: labelOf(d), rssi: d.rssi, alert: !!d.alert });
+        if (events.length > 60) events.pop();
+        if (kind === 'arrive') arrivedAt[d.mac] = Date.now();
+        if (kind === 'leave') ghosts.push({ mac: d.mac, type: d.type, rssi: d.rssi, alert: !!d.alert, at: Date.now() });
+    }
+    function trackEvents() {
+        const byMac = new Map(devices.filter(d => d.rssi != null && !d.lan).map(d => [d.mac, d]));
+        const arrivals = [], departures = [];
+        byMac.forEach((d, mac) => { if (!presentSet.has(mac) && d.age <= 60) arrivals.push(d); });
+        presentSet.forEach(mac => { const d = byMac.get(mac); if (!d || d.age > 180) departures.push(mac); });
+        if (baselineReady) {
+            const shown = arrivals.filter(passes);
+            if (shown.length > 12) {
+                events.unshift({ t: new Date(), kind: 'batch', text: shown.length + ' devices appeared' });
+            } else {
+                shown.forEach(d => pushEvent('arrive', d));
+            }
+            departures.forEach(mac => { const d = lastInfo[mac]; if (d && passes(d)) pushEvent('leave', d); });
+        }
+        arrivals.forEach(d => presentSet.add(d.mac));
+        departures.forEach(mac => { presentSet.delete(mac); delete lastInfo[mac]; });
+        byMac.forEach((d, mac) => { if (presentSet.has(mac)) lastInfo[mac] = d; });
+        baselineReady = true;
+        renderFeed();
+    }
+    function resetBaseline() {
+        presentSet.clear(); ghosts.length = 0; baselineReady = false;
+    }
+
+    function renderFeed() {
+        const el = document.getElementById('feed');
+        if (!events.length) { el.innerHTML = '<div class="empty">Watching for arrivals and departures\u2026</div>'; return; }
+        const pad = n => String(n).padStart(2, '0');
+        el.innerHTML = events.slice(0, 40).map(e => {
+            const time = pad(e.t.getHours()) + ':' + pad(e.t.getMinutes()) + ':' + pad(e.t.getSeconds());
+            if (e.kind === 'batch') return '<div class="ev"><time>' + time + '</time><i style="background:var(--text-muted)"></i><span class="kind">many</span><span>' + esc(e.text) + '</span></div>';
+            const what = e.kind === 'arrive' ? 'appeared' : 'left';
+            const detail = e.kind === 'arrive' ? e.rssi + ' dBm' : 'last ' + e.rssi + ' dBm';
+            return '<div class="ev ' + e.kind + (e.alert ? ' alert' : '') + '" data-mac="' + esc(e.mac) + '"><time>' + time + '</time><i style="background:' + colorFor(e.type) + '"></i>' +
+                '<span class="kind">' + (e.alert ? 'ALERT' : what) + '</span><span>' + esc(e.label) + ' ' + (e.alert ? what + ' \u00b7 ' : '\u00b7 ') + detail + '</span></div>';
+        }).join('');
+        el.querySelectorAll('.ev[data-mac]').forEach(row => { row.onclick = () => { if (devices.some(d => d.mac === row.dataset.mac)) showInfo(row.dataset.mac); }; });
     }
 
     function resize() {
@@ -269,6 +345,16 @@ RADAR_TEMPLATE = r"""<!DOCTYPE html>
                     ctx.beginPath(); ctx.arc(cx + ux * rr, cy + uy * rr, 1.9, 0, Math.PI * 2); ctx.fill();
                 }
             }
+            // NEW: a larger ring that keeps pulsing for a few seconds after arrival
+            const na = arrivedAt[d.mac];
+            const isNew = na && Date.now() - na < 6000;
+            if (isNew) {
+                const ph = ((Date.now() - na) % 1500) / 1500;
+                ctx.globalAlpha = 0.85 * (1 - ph);
+                ctx.strokeStyle = d.alert ? '#f85149' : '#3fb950';
+                ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.arc(x, y, rad + 4 + 30 * ph, 0, Math.PI * 2); ctx.stroke();
+            }
             // echo ring right after the beam hits
             if (onAir && behind < 1.0) {
                 ctx.globalAlpha = 0.55 * (1 - behind);
@@ -286,8 +372,24 @@ RADAR_TEMPLATE = r"""<!DOCTYPE html>
                 ctx.beginPath(); ctx.arc(x, y, rad + 3, 0, Math.PI * 2); ctx.stroke();
             }
             ctx.globalAlpha = 1;
-            drawn.push({ x, y, d, rad, onAir });
+            drawn.push({ x, y, d, rad, onAir, isNew });
         });
+
+        // departures: a dashed ring that fades where the device was
+        for (let g = ghosts.length - 1; g >= 0; g--) {
+            const gh = ghosts[g], ga = Date.now() - gh.at;
+            if (ga > 4000) { ghosts.splice(g, 1); continue; }
+            const gr = radiusOf(gh.rssi);
+            if (gr > maxR + 0.5) continue;
+            const an = angleOf(gh.mac);
+            ctx.globalAlpha = 0.7 * (1 - ga / 4000);
+            ctx.strokeStyle = gh.alert ? '#f85149' : colorFor(gh.type);
+            ctx.lineWidth = 1.4;
+            ctx.setLineDash([3, 3]);
+            ctx.beginPath(); ctx.arc(cx + Math.cos(an) * gr, cy + Math.sin(an) * gr, 6 + 10 * (ga / 4000), 0, Math.PI * 2); ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.globalAlpha = 1;
+        }
 
         // selected marker
         if (selected) {
@@ -306,7 +408,8 @@ RADAR_TEMPLATE = r"""<!DOCTYPE html>
             if (count >= maxLabels) break;
             if (!p.onAir && !p.d.alert && !p.d.watched && zoom < 1.5) continue;
             const text = p.d.name || p.d.vendor || p.d.type_label;
-            const sub = p.d.rssi + ' dBm';
+            const tr = trendOf(p.d.mac);
+            const sub = p.d.rssi + ' dBm' + (tr > 0 ? ' \u25B2' : (tr < 0 ? ' \u25BC' : ''));
             ctx.font = '10px ui-monospace, Menlo, monospace';
             const w1 = ctx.measureText(text).width;
             ctx.font = '8px ui-monospace, Menlo, monospace';
@@ -321,6 +424,11 @@ RADAR_TEMPLATE = r"""<!DOCTYPE html>
             ctx.font = '10px ui-monospace, Menlo, monospace';
             ctx.fillStyle = (p.d.alert || p.d.watched) ? theme.textStrong : theme.text;
             ctx.fillText(text, box.x, box.y + 9);
+            if (p.isNew) {
+                ctx.font = 'bold 8px ui-monospace, Menlo, monospace';
+                ctx.fillStyle = p.d.alert ? '#f85149' : '#3fb950';
+                ctx.fillText('NEW', box.x + w1 + 5, box.y + 9);
+            }
             ctx.font = '8px ui-monospace, Menlo, monospace';
             ctx.fillStyle = theme.muted;
             ctx.fillText(sub, box.x, box.y + 18);
@@ -383,6 +491,7 @@ RADAR_TEMPLATE = r"""<!DOCTYPE html>
                 if (h.length > 7) h.shift();
             });
             Object.keys(history).forEach(mac => { if (!seen.has(mac)) delete history[mac]; });
+            trackEvents();
             updateSummary();
             if (selected) showInfo(selected);
         } catch (e) { console.error('Radar error:', e); }
@@ -433,8 +542,8 @@ RADAR_TEMPLATE = r"""<!DOCTYPE html>
     document.getElementById('btn-zoom-out').onclick = () => setZoom(zoom / 1.25);
     document.getElementById('btn-reset').onclick = () => setZoom(1);
     const pauseBtn = document.getElementById('btn-pause');
-    pauseBtn.onclick = () => { paused = !paused; pauseBtn.textContent = paused ? 'Resume' : 'Pause'; pauseBtn.classList.toggle('on', paused); if (!paused) load(); };
-    document.getElementById('window').onchange = ev => { windowSec = parseInt(ev.target.value, 10); load(); };
+    pauseBtn.onclick = () => { paused = !paused; pauseBtn.textContent = paused ? 'Resume' : 'Pause'; pauseBtn.classList.toggle('on', paused); if (!paused) { resetBaseline(); load(); } };
+    document.getElementById('window').onchange = ev => { windowSec = parseInt(ev.target.value, 10); resetBaseline(); load(); };
     document.getElementById('hide-unknown').onchange = updateSummary;
     document.getElementById('hide-random').onchange = updateSummary;
 
