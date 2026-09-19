@@ -22,12 +22,18 @@ class NotificationManager:
     def __init__(self):
         self._settings: Optional[Settings] = None
         self._watched_last_seen: dict[str, datetime] = {}  # MAC -> last seen time
+        # MAC -> when it was seen just before the current sighting. The Device
+        # handed to on_device_seen() already carries the *updated* last_seen, so
+        # the gap since the previous sighting can't be read from it.
+        self._prev_seen: dict[str, datetime] = {}
         self._session: Optional[aiohttp.ClientSession] = None
 
     async def start(self) -> None:
         """Initialize the notification manager."""
         self._settings = await db.get_settings()
         self._session = aiohttp.ClientSession()
+
+        self._prev_seen = await db.get_last_seen_map()
 
         # Load current state of watched devices
         watched = await db.get_watched_devices()
@@ -116,15 +122,15 @@ class NotificationManager:
             return
 
         now = datetime.now()
+        prev_seen = self._prev_seen.get(device.mac)
+        self._prev_seen[device.mac] = now
 
         # Type-based alert (e.g. "a Flipper Zero is nearby") -- independent
         # of categorization/watch state below, since the security relevance
         # of a device *type* showing up doesn't go away once it's been
         # triaged into a category. Fires on first sighting, and again after
-        # a return-worthy absence gap (device.last_seen here is still the
-        # *previous* sighting's timestamp -- this update hasn't landed yet
-        # -- same technique the watched-arrival check below uses), so it
-        # doesn't spam on every single advertisement of a device that's
+        # a return-worthy absence gap (measured from prev_seen, see above),
+        # so it doesn't spam on every single advertisement of a device that's
         # continuously present.
         # The stored device_type column is only set by a manual override --
         # automatic classification is computed on the fly -- so use the same
@@ -144,8 +150,8 @@ class NotificationManager:
         type_alert_sent = False
         if device_type and device_type in self._settings.type_alert_types:
             should_alert = is_new
-            if not should_alert and device.last_seen:
-                gap_minutes = (now - device.last_seen).total_seconds() / 60
+            if not should_alert and prev_seen is not None:
+                gap_minutes = (now - prev_seen).total_seconds() / 60
                 should_alert = gap_minutes >= self._settings.watched_return_minutes
             if should_alert:
                 type_alert_sent = True
@@ -163,8 +169,8 @@ class NotificationManager:
             if arrive_override:
                 gap_minutes = self._settings.watched_return_minutes
                 is_arrival = is_new or (
-                    device.last_seen is not None
-                    and (now - device.last_seen).total_seconds() / 60 >= gap_minutes
+                    prev_seen is not None
+                    and (now - prev_seen).total_seconds() / 60 >= gap_minutes
                 )
                 if is_arrival:
                     name = device.friendly_name or device.vendor or device.mac

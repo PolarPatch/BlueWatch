@@ -2407,6 +2407,24 @@ async def get_priority_devices(type_alert_types: tuple[str, ...], minutes: int =
         return result[:limit]
 
 
+async def get_last_seen_map() -> dict[str, datetime]:
+    """MAC -> last_seen for every device; seeds the notification manager's
+    memory of previous sightings so returns after an absence are recognised
+    right after a restart too."""
+    async with _connect() as db:
+        async with db.execute(
+            "SELECT mac, last_seen FROM devices WHERE last_seen IS NOT NULL"
+        ) as cursor:
+            rows = await cursor.fetchall()
+    out: dict[str, datetime] = {}
+    for mac, last_seen in rows:
+        try:
+            out[mac] = datetime.fromisoformat(last_seen)
+        except (TypeError, ValueError):
+            continue
+    return out
+
+
 async def get_recent_sightings(mac: str, minutes: int = 15) -> list[dict]:
     """Sightings in the last `minutes` minutes, for the Device Details
     modal's live signal-strength panel (see api_device_live_signal()) --
