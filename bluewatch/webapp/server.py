@@ -15,7 +15,7 @@ from pathlib import Path
 from aiohttp import web
 
 from .. import db, rpa
-from ..classifier import classify_device, get_type_icon, get_type_label, get_all_types, is_randomized_mac, is_macos_uuid, get_uuid_names
+from ..classifier import classify_device, get_type_icon, get_type_label, get_all_types, is_randomized_mac, is_macos_uuid, is_mdns_key, get_uuid_names
 from ..patterns import generate_hourly_heatmap, generate_daily_heatmap
 from .templates import ABOUT_TEMPLATE, HTML_TEMPLATE, LIVE_TEMPLATE, LOGIN_TEMPLATE, SETTINGS_TEMPLATE
 
@@ -858,6 +858,8 @@ class WebServer:
         device = await db.get_device(mac)
         if not device:
             return web.json_response({"error": "Device not found"}, status=404)
+        if is_mdns_key(mac):
+            return web.json_response({"error": "Scan Unit only works on Bluetooth devices"}, status=400)
 
         try:
             result = await self._scan_one_device(mac, device)
@@ -963,7 +965,7 @@ class WebServer:
 
         try:
             data = await request.json()
-            macs = [m for m in (data.get("macs") or []) if isinstance(m, str)]
+            macs = [m for m in (data.get("macs") or []) if isinstance(m, str) and not is_mdns_key(m)]
         except Exception as e:
             return web.json_response({"error": str(e)}, status=400)
 

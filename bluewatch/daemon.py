@@ -19,6 +19,7 @@ from .classifier import is_randomized_mac
 from .config import SCAN_INTERVAL, SOCKET_PATH, METRICS_PORT
 from .scanner import BluetoothScanner, ScannedDevice, list_adapters
 from .esp32_scanner import ESP32Scanner
+from .mdns import MdnsScanner
 from .web import WebServer
 from .webapp.server import _device_to_json
 from .notifications import NotificationManager
@@ -137,6 +138,7 @@ class BlueWatchDaemon:
         asyncio.create_task(self._ble_continuous_manager())
         asyncio.create_task(self._esp32_scanner_manager())
         asyncio.create_task(self._esp32_ingest_loop())
+        asyncio.create_task(self._mdns_ingest_loop())
         await self._scan_loop()
 
     async def _ble_continuous_manager(self) -> None:
@@ -235,6 +237,44 @@ class BlueWatchDaemon:
             except Exception as e:
                 logger.error(f"ESP32 ingest error: {e}")
             await asyncio.sleep(SCAN_INTERVAL)
+
+    # How often devices announcing themselves on the LAN (mDNS) are re-checked.
+    _MDNS_INTERVAL = 60
+
+    async def _mdns_ingest_loop(self) -> None:
+        """Adds devices found on the local network via mDNS (printers, TVs,
+        speakers, computers ...) alongside the Bluetooth ones. They have no
+        Bluetooth address, so they are keyed by their mDNS hostname. Not
+        gated by active_scan.SCAN_IN_PROGRESS: it only uses the network,
+        never the Bluetooth adapter. Set BLUEWATCH_MDNS=0 to turn it off."""
+        if os.environ.get("BLUEWATCH_MDNS", "1") == "0":
+            logger.info("LAN (mDNS) discovery disabled by BLUEWATCH_MDNS=0")
+            return
+        scanner = MdnsScanner()
+        if not await scanner.start():
+            return
+        logger.info("LAN (mDNS) discovery started")
+        try:
+            while self.running:
+                try:
+                    for device in await scanner.scan():
+                        db_device, is_new = await db.upsert_device(
+                            mac=device.key,
+                            friendly_name=device.label,
+                            service_uuids=device.services,
+                            bt_type="lan",
+                        )
+                        if self._web_server is not None:
+                            try:
+                                await self._web_server.broadcast_sighting(_device_to_json(db_device))
+                            except Exception as e:
+                                logger.debug(f"Live-event broadcast failed: {e}")
+                        await self._notifications.on_device_seen(db_device, is_new)
+                except Exception as e:
+                    logger.error(f"mDNS ingest error: {e}")
+                await asyncio.sleep(self._MDNS_INTERVAL)
+        finally:
+            await scanner.stop()
 
     async def stop(self) -> None:
         """Stop the daemon."""

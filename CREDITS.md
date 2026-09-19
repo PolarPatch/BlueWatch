@@ -180,3 +180,15 @@ before that keeps the older prefix) and independently cross-checked
 against [InnerFireZ/flipper-detector](https://github.com/InnerFireZ/flipper-detector),
 an unrelated, dedicated bluetoothctl-based Flipper detector script
 built around the same prefix.
+
+## Local-network (mDNS) discovery
+
+`bluewatch/mdns.py` (and the matching mDNS rules in `bluewatch/classifier.py`)
+is adapted from [Neighborhood Rhythm](https://github.com/siropkin/neighborhood-rhythm)
+by Ivan Seredkin (MIT License, Copyright (c) 2026 Ivan Seredkin): the list of
+mDNS service types worth browsing, the TXT-record fields that carry a device's
+model, and the HomeKit accessory-category table. The code itself was rewritten
+for BlueWatch's asyncio daemon. Discovery uses the
+[python-zeroconf](https://github.com/python-zeroconf/python-zeroconf)
+library (LGPL-2.1).
+

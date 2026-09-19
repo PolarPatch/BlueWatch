@@ -1476,6 +1476,71 @@ def classify_by_device_class(device_class: Optional[int]) -> Optional[str]:
     return DEVICE_CLASS_MAJOR_MAP.get(major)
 
 
+# --- Devices discovered on the LAN via mDNS (see mdns.py) -------------------
+# They carry no Bluetooth data, so their own announced services / model name
+# decide the type. mdns.py stores service types like "_ipp._tcp" plus a
+# "hap-category:<name>" entry for HomeKit accessories.
+
+_MDNS_HAP_TYPES = {
+    "bridge": TYPE_SMART_HOME, "fan": TYPE_SMART_HOME, "light": TYPE_SMART_HOME,
+    "lock": TYPE_LOCK, "outlet": TYPE_SMART_HOME, "switch": TYPE_SMART_HOME,
+    "thermostat": TYPE_SMART_HOME, "sensor": TYPE_SMART_HOME,
+    "camera": TYPE_CAMERA, "speaker": TYPE_SPEAKER, "tv": TYPE_TV, "router": TYPE_NETWORK,
+}
+
+_MDNS_MAC_MODEL_RE = re.compile(r"\bmac\d+,\d+\b")
+
+
+def is_mdns_key(address: Optional[str]) -> bool:
+    """True for the hostname-style address (e.g. "Living-room-TV.local") that
+    mDNS-discovered devices are stored under instead of a Bluetooth MAC."""
+    return bool(address) and ":" not in address and address.lower().endswith(".local")
+
+
+def _mdns_service_set(service_uuids: Optional[list[str]]) -> set[str]:
+    return {
+        s.lower() for s in (service_uuids or [])
+        if isinstance(s, str) and (s.endswith("._tcp") or s.startswith("hap-category:"))
+    }
+
+
+def classify_mdns(name: Optional[str], service_uuids: Optional[list[str]], weak: bool = False) -> Optional[str]:
+    """Type for an mDNS-discovered device, or None if it isn't one / unsure.
+
+    weak=False: only strong signals (HomeKit category, printer, model name).
+    weak=True: broad service-based guesses, meant as a last resort after the
+    regular name/vendor rules had their say (a Samsung TV also announces
+    AirPlay, so "speaker" must not beat a name that says TV)."""
+    services = _mdns_service_set(service_uuids)
+    if not services:
+        return None
+    lname = (name or "").lower()
+    if not weak:
+        for s in services:
+            if s.startswith("hap-category:"):
+                mapped = _MDNS_HAP_TYPES.get(s.split(":", 1)[1])
+                if mapped:
+                    return mapped
+        if "_ipp._tcp" in services:
+            return TYPE_PRINTER
+        if "_esphome._tcp" in services:
+            return TYPE_SMART_HOME
+        if "appletv" in lname or "apple tv" in lname:
+            return TYPE_TV
+        if "audioaccessory" in lname or "homepod" in lname:
+            return TYPE_SPEAKER
+        if "macbook" in lname:
+            return TYPE_LAPTOP
+        if "imac" in lname or "macmini" in lname or "mac mini" in lname or _MDNS_MAC_MODEL_RE.search(lname):
+            return TYPE_COMPUTER
+        return None
+    if services & {"_airplay._tcp", "_raop._tcp", "_spotify-connect._tcp", "_googlecast._tcp", "_yandexio._tcp"}:
+        return TYPE_SPEAKER
+    if services & {"_smb._tcp", "_ssh._tcp"}:
+        return TYPE_COMPUTER
+    return None
+
+
 def classify_device(
     vendor: Optional[str],
     name: Optional[str] = None,
@@ -1503,6 +1568,12 @@ def classify_device(
     product broadcast this". Omitting it preserves the old, less
     cautious behavior for call sites that don't have a MAC handy.
     """
+    # LAN devices found via mDNS have no Bluetooth data; their own announced
+    # services/model decide (strong signals only here, see classify_mdns).
+    mdns_type = classify_mdns(name, service_uuids)
+    if mdns_type:
+        return mdns_type
+
     # A resolved Fast Pair Model ID names the exact product (e.g. "Sonos
     # Ace"), so it's a stronger signal than any generic UUID/company-ID
     # check below -- checked first.
@@ -1784,6 +1855,11 @@ def classify_device(
                 if pattern == "apple" and device_type == TYPE_PHONE and mac and is_randomized_mac(mac):
                     continue
                 return device_type
+
+    # Last resort for mDNS-discovered devices: broad service-based guess.
+    weak_mdns_type = classify_mdns(name, service_uuids, weak=True)
+    if weak_mdns_type:
+        return weak_mdns_type
 
     return TYPE_UNKNOWN
 

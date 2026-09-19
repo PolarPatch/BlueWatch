@@ -81,6 +81,7 @@ BlueWatch is a Bluetooth scanner that:
 - BLE service UUID fingerprinting for accurate device classification
 - Classic Bluetooth device class parsing
 - Randomized MAC filtering (hidden from main view)
+- Also lists devices announcing themselves on your local network (printers, TVs, speakers, computers, smart-home hubs) with their own name and model. Turn off with `BLUEWATCH_MDNS=0`
 
 ### Device Management
 - Mark devices as "Watched" for tracking personal devices
