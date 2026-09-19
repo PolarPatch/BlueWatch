@@ -438,6 +438,13 @@ HTML_TEMPLATE = """
         .range-row .btn { padding: 0.35rem 0.5rem; font-size: 0.68rem; }
 
         .table-count { font-size: 0.72rem; color: var(--text-muted); white-space: nowrap; }
+        .stat-cap { font-size: 0.55rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 0.3rem; line-height: 1.3; }
+        .filter-checks { display: flex; flex-wrap: wrap; gap: 0.4rem 1.25rem; margin-bottom: 0.55rem; }
+        .filter-check { display: flex; align-items: center; gap: 0.4rem; font-size: 0.75rem; color: var(--text-secondary); cursor: pointer; }
+        .filter-sliders { display: grid; grid-template-columns: max-content 1fr 4.5rem; gap: 0.45rem 0.75rem; align-items: center; }
+        .filter-sliders .stat-cap { margin: 0; }
+        .filter-sliders input[type="range"] { width: 100%; min-width: 0; }
+        .slider-value { font-size: 0.75rem; color: var(--text-primary); text-align: right; white-space: nowrap; }
         /* Statistics graphs at the top of All devices */
         .stats-panels { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; margin-bottom: 0.75rem; }
         .stats-card { background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 10px; padding: 0.8rem 1rem; min-width: 0; }
@@ -1027,25 +1034,42 @@ HTML_TEMPLATE = """
             <div class="panel" id="categories-panel">
                 <div class="panel-header">Categories</div>
                 <button class="filter-btn" id="all-devices-btn" onclick="showAllDevices()" style="width: 100%; justify-content: flex-start; gap: 0.4rem; margin-bottom: 0.5rem;">All devices <span id="count-all" class="filter-count" style="color: inherit; font-size: inherit;">--</span></button>
-                <label style="display: flex; align-items: center; gap: 0.4rem; padding: 0 0.75rem 0.25rem; font-size: 0.75rem; color: var(--text-secondary); cursor: pointer;" title="Hides devices BlueWatch has already identified with a known Class (e.g. Tracker, Phone) -- independent of whether they've been filed into a Group.">
-                    <input type="checkbox" id="hide-classified-toggle" onchange="toggleHideClassified()">
-                    Hide classified devices
-                </label>
-                <label style="display: flex; align-items: center; gap: 0.4rem; padding: 0 0.75rem 0.5rem; font-size: 0.75rem; color: var(--text-secondary); cursor: pointer;" title="Hides devices already sorted into a category folder -- independent of whether their Class is known.">
-                    <input type="checkbox" id="hide-grouped-toggle" onchange="toggleHideGrouped()">
-                    Hide grouped devices
-                </label>
-                <div style="padding: 0 0.75rem 0.5rem;">
-                    <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.25rem;">
-                        <span>First seen within</span>
-                        <span id="first-seen-slider-value">off</span>
-                    </div>
-                    <input type="range" id="first-seen-slider" min="1" max="7" step="1" value="1" oninput="onFirstSeenSliderChange()" style="width: 100%;">
-                </div>
                 <div id="categories-tree" style="padding: 0.25rem;"></div>
                 <div class="new-cat">
                     <button type="button" class="new-cat-link" id="new-cat-link" onclick="showNewCategory()">+ New category</button>
                     <input type="text" class="search-input" id="new-category-name" placeholder="Category name, Enter to save" hidden onkeydown="newCategoryKey(event)" onblur="hideNewCategory()">
+                </div>
+            </div>
+
+            <div class="panel" id="filters-panel">
+                <div class="panel-header">Filters</div>
+                <div class="filter-checks">
+                    <label class="filter-check" title="Hides devices BlueWatch has already identified with a known Class (e.g. Tracker, Phone) -- independent of whether they've been filed into a Group.">
+                        <input type="checkbox" id="hide-classified-toggle" onchange="toggleHideClassified()">
+                        Hide classified
+                    </label>
+                    <label class="filter-check" title="Hides devices already sorted into a category folder -- independent of whether their Class is known.">
+                        <input type="checkbox" id="hide-grouped-toggle" onchange="toggleHideGrouped()">
+                        Hide grouped
+                    </label>
+                    <label class="filter-check" title="Hides unknown devices that have neither an identifier nor a vendor -- nothing to go on. Devices you have categorized or watched are never hidden this way.">
+                        <input type="checkbox" id="hide-nameless-toggle" onchange="toggleHideNameless()">
+                        Hide unknowns
+                    </label>
+                </div>
+                <div class="filter-sliders">
+                    <span class="stat-cap">Seen within</span>
+                    <input type="range" id="seen-within-slider" min="1" max="7" step="1" value="1" oninput="onSeenWithinChange()">
+                    <span id="seen-within-value" class="slider-value">off</span>
+                    <span class="stat-cap">First seen within</span>
+                    <input type="range" id="first-seen-slider" min="1" max="7" step="1" value="1" oninput="onFirstSeenSliderChange()">
+                    <span id="first-seen-slider-value" class="slider-value">off</span>
+                    <span class="stat-cap">Sightings &ge;</span>
+                    <input type="range" id="sightings-threshold" min="1" max="50" value="1" step="1" oninput="onSightingsThresholdChange()">
+                    <span id="sightings-threshold-value" class="slider-value">1</span>
+                    <span class="stat-cap">RSSI &ge;</span>
+                    <input type="range" id="rssi-threshold" min="-100" max="-20" value="-100" step="1" oninput="onRssiThresholdChange()">
+                    <span id="rssi-threshold-value" class="slider-value">-100 dBm</span>
                 </div>
             </div>
 
@@ -1220,6 +1244,9 @@ HTML_TEMPLATE = """
         let currentGroupId = null;
         let hideClassified = localStorage.getItem('bluewatch_hide_classified') === 'true';
         let hideGrouped = localStorage.getItem('bluewatch_hide_grouped') === 'true';
+        let hideNameless = localStorage.getItem('bluewatch_hide_nameless') === 'true';
+        let rssiThreshold = -100;
+        let sightingsThreshold = 1;
         let dateFilteredDevices = null;
         let compactView = localStorage.getItem('bluewatch_compact_view') === 'true';
         let screenshotMode = localStorage.getItem('bluewatch_screenshot_mode') === 'true';
@@ -1244,17 +1271,74 @@ HTML_TEMPLATE = """
             return sortState.direction;
         }
 
+        // "Seen within": how far back the list reaches ("off" = no time limit).
+        const SEEN_WITHIN_LEVELS = [
+            { seconds: 0, label: 'off' }, { seconds: 60, label: '1 min' }, { seconds: 300, label: '5 min' },
+            { seconds: 900, label: '15 min' }, { seconds: 3600, label: '1 h' },
+            { seconds: 21600, label: '6 h' }, { seconds: 86400, label: '24 h' },
+        ];
+        let seenWithinLevel = 1;  // All devices defaults to off
+        try {
+            const savedSeconds = parseInt(localStorage.getItem('bluewatch_all_seen_within_s'), 10);
+            const idx = SEEN_WITHIN_LEVELS.findIndex(l => l.seconds === savedSeconds);
+            if (idx >= 0) seenWithinLevel = idx + 1;
+        } catch (e) {}
+
+        function onSeenWithinChange() {
+            const slider = document.getElementById('seen-within-slider');
+            seenWithinLevel = parseInt(slider.value, 10);
+            const level = SEEN_WITHIN_LEVELS[seenWithinLevel - 1];
+            document.getElementById('seen-within-value').textContent = level.label;
+            try { localStorage.setItem('bluewatch_all_seen_within_s', String(level.seconds)); } catch (e) {}
+            selectedMacs.clear();
+            lastSelectedIndex = null;
+            pagination.page = 1;
+            refreshDevices();
+        }
+
+        function toggleHideNameless() {
+            const checkbox = document.getElementById('hide-nameless-toggle');
+            hideNameless = checkbox ? checkbox.checked : false;
+            localStorage.setItem('bluewatch_hide_nameless', hideNameless);
+            selectedMacs.clear();
+            lastSelectedIndex = null;
+            pagination.page = 1;
+            refreshDevices();
+        }
+
+        function onRssiThresholdChange() {
+            const slider = document.getElementById('rssi-threshold');
+            rssiThreshold = parseInt(slider.value, 10);
+            document.getElementById('rssi-threshold-value').textContent = rssiThreshold + ' dBm';
+            renderDevices();
+        }
+
+        function onSightingsThresholdChange() {
+            const slider = document.getElementById('sightings-threshold');
+            sightingsThreshold = parseInt(slider.value, 10);
+            document.getElementById('sightings-threshold-value').textContent = sightingsThreshold;
+            renderDevices();
+        }
+
         function buildDevicesUrl() {
             const params = new URLSearchParams();
             params.set('page', pagination.page);
             params.set('page_size', pagination.pageSize);
             params.set('filter', currentFilter);
+            // A specific category is a deliberate browse: no time window and no
+            // "unknowns" filter there.
+            const viewingSpecificCategory = !(hideClassified || hideGrouped) && currentGroupId !== null && currentGroupId !== '__all__';
+            if (!viewingSpecificCategory) {
+                const seenSeconds = SEEN_WITHIN_LEVELS[seenWithinLevel - 1].seconds;
+                if (seenSeconds > 0) params.set('active_within', String(seenSeconds));
+            }
             if (hideClassified || hideGrouped) {
                 if (hideClassified) params.set('hide_classified', '1');
                 if (hideGrouped) params.set('hide_grouped', '1');
             } else if (currentGroupId !== null) {
                 params.set('group_id', currentGroupId);
             }
+            if (hideNameless && !viewingSpecificCategory) params.set('hide_nameless', '1');
             params.set('sort', sortState.column);
             params.set('direction', getServerSortDirection());
 
@@ -2331,7 +2415,11 @@ HTML_TEMPLATE = """
         function renderDevices() {
             const tbody = document.getElementById('device-list');
             const sourceDevices = dateFilteredDevices !== null ? dateFilteredDevices : allDevices;
-            let visibleDevices = sourceDevices;
+            // Devices with no recent RSSI reading are never hidden by the threshold.
+            let visibleDevices = sourceDevices.filter(d =>
+                (d.last_rssi == null || d.last_rssi >= rssiThreshold) &&
+                (d.total_sightings == null || d.total_sightings >= sightingsThreshold)
+            );
 
             if (dateFilteredDevices !== null) {
                 const searchTerm = document.getElementById('search').value.toLowerCase();
@@ -3520,6 +3608,13 @@ HTML_TEMPLATE = """
             if (classCb) classCb.checked = hideClassified;
             const groupCb = document.getElementById('hide-grouped-toggle');
             if (groupCb) groupCb.checked = hideGrouped;
+            const namelessCb = document.getElementById('hide-nameless-toggle');
+            if (namelessCb) namelessCb.checked = hideNameless;
+            const seenSlider = document.getElementById('seen-within-slider');
+            if (seenSlider) {
+                seenSlider.value = String(seenWithinLevel);
+                document.getElementById('seen-within-value').textContent = SEEN_WITHIN_LEVELS[seenWithinLevel - 1].label;
+            }
         })();
 
         updateViewToggle();
