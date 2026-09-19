@@ -5148,8 +5148,6 @@ LIVE_TEMPLATE = """
         .new-cat-link { background: none; border: none; padding: 0.15rem 0; color: var(--text-muted); font-family: var(--font-mono); font-size: 0.72rem; cursor: pointer; }
         .new-cat-link:hover { color: var(--text-primary); }
         .new-cat .search-input { width: 100%; font-size: 0.72rem; padding: 0.3rem 0.5rem; }
-        .range-toggle { display: block; background: none; border: none; padding: 0.4rem 0 0.15rem; color: var(--text-muted); font-family: var(--font-mono); font-size: 0.7rem; cursor: pointer; }
-        .range-toggle:hover, .range-toggle.open { color: var(--text-primary); }
         .range-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; }
         .range-row .search-input { min-width: 0; font-size: 0.62rem; padding: 0.35rem 0.3rem; }
         .range-row .btn { padding: 0.35rem 0.5rem; font-size: 0.68rem; }
@@ -5902,8 +5900,7 @@ LIVE_TEMPLATE = """
             <div class="panel">
                 <div class="panel-header">Search</div>
                 <input type="text" class="search-input" id="search" placeholder="Search MAC, vendor or identifier..." style="width: 100%; font-size: 0.75rem;">
-                <button type="button" class="range-toggle" id="range-toggle" onclick="toggleTimeRange()">▸ Time range</button>
-                <div id="time-range" hidden>
+                <div id="time-range" style="margin-top: 0.5rem;">
                     <div class="range-row">
                         <input type="datetime-local" class="search-input" id="search-start" title="From">
                         <input type="datetime-local" class="search-input" id="search-end" title="To">
@@ -6929,14 +6926,6 @@ LIVE_TEMPLATE = """
         function newCategoryKey(ev) {
             if (ev.key === 'Enter') { ev.preventDefault(); createCategory(); }
             else if (ev.key === 'Escape') { hideNewCategory(); }
-        }
-
-        function toggleTimeRange() {
-            const box = document.getElementById('time-range');
-            const btn = document.getElementById('range-toggle');
-            box.hidden = !box.hidden;
-            btn.textContent = (box.hidden ? '▸' : '▾') + ' Time range';
-            btn.classList.toggle('open', !box.hidden);
         }
 
         async function createCategory() {
