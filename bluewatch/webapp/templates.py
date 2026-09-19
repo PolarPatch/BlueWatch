@@ -5149,14 +5149,7 @@ LIVE_TEMPLATE = """
         .new-cat-link:hover { color: var(--text-primary); }
         .new-cat .search-input { width: 100%; font-size: 0.72rem; padding: 0.3rem 0.5rem; }
         .range-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; }
-        .range-row .search-input { min-width: 0; font-size: 0.62rem; padding: 0.35rem 0.3rem; }
-        /* Type the date and time directly (day, month, year, hour, minute): no calendar icon */
-        .range-row input[type="datetime-local"]::-webkit-calendar-picker-indicator {
-            display: none; -webkit-appearance: none; appearance: none;
-            opacity: 0; width: 0; height: 0; margin: 0; padding: 0; pointer-events: none;
-        }
-        .range-row input[type="datetime-local"]::-webkit-inner-spin-button,
-        .range-row input[type="datetime-local"]::-webkit-clear-button { display: none; -webkit-appearance: none; }
+        .range-row .search-input { min-width: 0; font-size: 0.68rem; padding: 0.35rem 0.4rem; font-variant-numeric: tabular-nums; }
         .range-row .btn { padding: 0.35rem 0.5rem; font-size: 0.68rem; }
         .category-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .category-delete {
@@ -5909,8 +5902,8 @@ LIVE_TEMPLATE = """
                 <input type="text" class="search-input" id="search" placeholder="Search MAC, vendor or identifier..." style="width: 100%; font-size: 0.75rem;">
                 <div id="time-range" style="margin-top: 0.5rem;">
                     <div class="range-row">
-                        <input type="datetime-local" class="search-input" id="search-start" title="From">
-                        <input type="datetime-local" class="search-input" id="search-end" title="To">
+                        <input type="text" inputmode="numeric" maxlength="16" autocomplete="off" class="search-input" id="search-start" placeholder="dd.mm.yyyy hh:mm" title="From (dd.mm.yyyy hh:mm)" oninput="maskDateTime(this)">
+                        <input type="text" inputmode="numeric" maxlength="16" autocomplete="off" class="search-input" id="search-end" placeholder="dd.mm.yyyy hh:mm" title="To (dd.mm.yyyy hh:mm)" oninput="maskDateTime(this)">
                     </div>
                     <div class="range-row" style="margin-top: 0.4rem;">
                         <button class="btn" onclick="clearDateFilters()">Clear</button>
@@ -7045,9 +7038,42 @@ LIVE_TEMPLATE = """
             });
         }
 
+        // Date/time fields are plain text "dd.mm.yyyy hh:mm" (no calendar widget):
+        // digits are typed, dots / space / colon are inserted automatically.
+        function maskDateTime(el) {
+            const d = el.value.replace(/\\D/g, '').slice(0, 12);
+            let out = d.slice(0, 2);
+            if (d.length > 2) out += '.' + d.slice(2, 4);
+            if (d.length > 4) out += '.' + d.slice(4, 8);
+            if (d.length > 8) out += ' ' + d.slice(8, 10);
+            if (d.length > 10) out += ':' + d.slice(10, 12);
+            el.value = out;
+        }
+
+        // "dd.mm.yyyy[ hh:mm]" -> "yyyy-mm-ddThh:mm"; '' when empty; null when invalid.
+        function parseDateTimeText(text) {
+            const t = (text || '').trim();
+            if (!t) return '';
+            const m = t.match(/^(\\d{2})\\.(\\d{2})\\.(\\d{4})(?: (\\d{2}):(\\d{2}))?$/);
+            if (!m) return null;
+            const [, dd, mm, yyyy, hh = '00', mi = '00'] = m;
+            if (+mm < 1 || +mm > 12 || +dd < 1 || +dd > 31 || +hh > 23 || +mi > 59) return null;
+            return yyyy + '-' + mm + '-' + dd + 'T' + hh + ':' + mi;
+        }
+
+        function formatDateTimeText(date) {
+            const pad = n => String(n).padStart(2, '0');
+            return pad(date.getDate()) + '.' + pad(date.getMonth() + 1) + '.' + date.getFullYear() +
+                ' ' + pad(date.getHours()) + ':' + pad(date.getMinutes());
+        }
+
         async function searchByDateRange() {
-            const startInput = document.getElementById('search-start').value;
-            const endInput = document.getElementById('search-end').value;
+            const startInput = parseDateTimeText(document.getElementById('search-start').value);
+            const endInput = parseDateTimeText(document.getElementById('search-end').value);
+            if (startInput === null || endInput === null) {
+                alert('Use the format dd.mm.yyyy hh:mm, for example 19.09.2026 14:30');
+                return;
+            }
             if (!startInput && !endInput) { clearDateFilters(); return; }
             try {
                 let url = '/api/search?';
@@ -8474,8 +8500,8 @@ LIVE_TEMPLATE = """
             if (!startEl || !endEl) return;
             const now = new Date();
             const anHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
-            startEl.value = toDatetimeLocalValue(anHourAgo);
-            endEl.value = toDatetimeLocalValue(now);
+            startEl.value = formatDateTimeText(anHourAgo);
+            endEl.value = formatDateTimeText(now);
         })();
 
         (function initHideCategorized() {
