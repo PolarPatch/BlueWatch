@@ -19,6 +19,7 @@ from aiohttp import web
 from .. import archive, db, rpa
 from ..classifier import classify_device, get_type_icon, get_type_label, get_all_types, is_randomized_mac, is_macos_uuid, is_mdns_key, get_uuid_names
 from ..patterns import generate_hourly_heatmap, generate_daily_heatmap
+from .radar_template import RADAR_TEMPLATE
 from .templates import ABOUT_TEMPLATE, HTML_TEMPLATE, LIVE_TEMPLATE, LOGIN_TEMPLATE, SETTINGS_TEMPLATE
 
 logger = logging.getLogger(__name__)
@@ -145,6 +146,8 @@ class WebServer:
         self.app.router.add_get("/settings", self.settings_page)
         self.app.router.add_get("/about", self.about_page)
         self.app.router.add_get("/all", self.index)
+        self.app.router.add_get("/radar", self.radar_page)
+        self.app.router.add_get("/api/radar", self.api_radar)
         # A missing assets dir must never stop the web UI from starting.
         if ASSETS_DIR.is_dir():
             self.app.router.add_static("/assets/", path=str(ASSETS_DIR), name="assets")
@@ -1509,6 +1512,44 @@ class WebServer:
     async def api_category_stats(self, request: web.Request) -> web.Response:
         """Counts, presence and 24 h activity for the dashboard sidebar."""
         return web.json_response(await db.get_category_stats())
+
+    async def radar_page(self, request: web.Request) -> web.Response:
+        """Serve the radar view."""
+        return web.Response(text=RADAR_TEMPLATE, content_type="text/html")
+
+    async def api_radar(self, request: web.Request) -> web.Response:
+        """Compact device list for the radar: what was seen within the window,
+        with latest RSSI, type and how long ago."""
+        try:
+            window = int(request.query.get("window", "300"))
+        except ValueError:
+            window = 300
+        settings = await db.get_settings()
+        alert_types = set(settings.type_alert_types or [])
+        now = datetime.now()
+        out = []
+        for r in await db.get_radar_devices(window):
+            try:
+                age = (now - datetime.fromisoformat(r["last_seen"])).total_seconds()
+            except (TypeError, ValueError):
+                age = window
+            device_type = r["type"] or "unknown"
+            out.append({
+                "mac": r["mac"],
+                "name": r["friendly_name"],
+                "vendor": r["vendor"],
+                "type": device_type,
+                "type_label": get_type_label(device_type),
+                "watched": bool(r["watched"]),
+                "grouped": r["group_id"] is not None,
+                "alert": device_type in alert_types,
+                "rssi": r["rssi"],
+                "age": round(max(age, 0)),
+                "sightings": r["total_sightings"],
+                "lan": r["bt_type"] == "lan",
+                "random": is_randomized_mac(r["mac"]),
+            })
+        return web.json_response({"window": window, "devices": out})
 
     async def api_stats_overview(self, request: web.Request) -> web.Response:
         """Graph data for the statistics section (cached for a few minutes)."""

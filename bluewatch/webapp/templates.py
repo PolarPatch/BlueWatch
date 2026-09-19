@@ -1021,6 +1021,7 @@ HTML_TEMPLATE = """
             <nav class="nav">
                 <a href="/" class="nav-link">Dashboard</a>
                 <a href="/all" class="nav-link active">All devices</a>
+                <a href="/radar" class="nav-link">Radar</a>
                 <a href="/settings" class="nav-link">Config</a>
             </nav>
         </div>
@@ -3620,6 +3621,12 @@ HTML_TEMPLATE = """
         updateViewToggle();
         updateSortIndicators();
         loadGroupsForBulkSelect();
+
+        // Deep link from the radar: /all#device=<address> opens that device's details.
+        (function openDeviceFromHash() {
+            const m = location.hash.match(/^#device=(.+)$/);
+            if (m) setTimeout(function() { showDevice(decodeURIComponent(m[1])); }, 400);
+        })();
         loadCategories();
         setInterval(loadCategoryStats, 15000);
         updateSelectionUI();
@@ -3729,6 +3736,7 @@ SETTINGS_TEMPLATE = """
             <nav class="nav">
                 <a href="/" class="nav-link">Dashboard</a>
                 <a href="/all" class="nav-link">All devices</a>
+                <a href="/radar" class="nav-link">Radar</a>
                 <a href="/settings" class="nav-link active">Config</a>
             </nav>
         </div>
@@ -4966,6 +4974,7 @@ ABOUT_TEMPLATE = """
             <nav class="nav">
                 <a href="/" class="nav-link">Dashboard</a>
                 <a href="/all" class="nav-link">All devices</a>
+                <a href="/radar" class="nav-link">Radar</a>
                 <a href="/settings" class="nav-link">Config</a>
             </nav>
         </div>
@@ -6086,6 +6095,7 @@ LIVE_TEMPLATE = """
             <nav class="nav">
                 <a href="/" class="nav-link active">Dashboard</a>
                 <a href="/all" class="nav-link">All devices</a>
+                <a href="/radar" class="nav-link">Radar</a>
                 <a href="/settings" class="nav-link">Config</a>
             </nav>
         </div>

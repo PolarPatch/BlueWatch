@@ -2820,6 +2820,32 @@ async def get_category_stats() -> dict:
     return result
 
 
+_radar_cache: dict = {}  # window -> (monotonic time, rows)
+
+
+async def get_radar_devices(window_seconds: int = 300, limit: int = 500) -> list[dict]:
+    """Devices seen within the window with their latest RSSI, for the radar page.
+    Cached for 2 s (several open radars must not each hit the database)."""
+    window_seconds = max(30, min(int(window_seconds), 3600))
+    cached = _radar_cache.get(window_seconds)
+    if cached and time.monotonic() - cached[0] < 2.0:
+        return cached[1]
+    cutoff = (datetime.now() - timedelta(seconds=window_seconds)).isoformat()
+    async with _connect() as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT d.mac, d.friendly_name, d.vendor, COALESCE(d.device_type, d.auto_type) AS type, "
+            "d.watched, d.group_id, d.last_seen, d.total_sightings, d.bt_type, "
+            "(SELECT s.rssi FROM sightings s WHERE s.mac = d.mac ORDER BY s.timestamp DESC LIMIT 1) AS rssi "
+            "FROM devices d WHERE d.ignored = 0 AND d.last_seen >= ? "
+            "ORDER BY d.last_seen DESC LIMIT ?",
+            (cutoff, limit),
+        ) as cursor:
+            rows = [dict(r) for r in await cursor.fetchall()]
+    _radar_cache[window_seconds] = (time.monotonic(), rows)
+    return rows
+
+
 async def hourly_seen_ready() -> bool:
     return (await get_raw_setting("hourly_seen_backfill")) == "done"
 
