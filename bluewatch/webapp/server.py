@@ -1808,9 +1808,14 @@ class WebServer:
                 )
                 return response
             else:
+                # Say which part failed in the log (never the values), to make
+                # "Invalid credentials" reports diagnosable.
+                reason = "username" if not usernames_match(username, settings.auth_username) else "password"
+                logger.warning(f"Login failed from {request.remote}: {reason} did not match")
                 return web.json_response({"error": "Invalid credentials"}, status=401)
 
         except Exception as e:
+            logger.warning(f"Login request from {request.remote} failed: {e}")
             return web.json_response({"error": str(e)}, status=400)
 
     async def api_logout(self, request: web.Request) -> web.Response:
