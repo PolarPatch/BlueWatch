@@ -5121,7 +5121,8 @@ LIVE_TEMPLATE = """
         /* Sidebar: compact one-line category rows (neutral colors) */
         .cat-tile { display: flex; align-items: center; gap: 0.4rem; padding: 0.15rem 0.3rem; margin: 0; border-radius: 4px; }
         .cat-tile:hover { background: var(--bg-tertiary); }
-        .cat-tile.active { background: var(--bg-hover); }
+        .cat-tile.active { background: var(--bg-hover); box-shadow: none; }
+        .cat-tile.active .cat-name { color: var(--text-primary); font-weight: 700; }
         .cat-body { flex: 1; min-width: 0; display: flex; align-items: center; gap: 0.4rem; cursor: pointer; }
         .cat-name { flex: 1; min-width: 0; font-size: 0.74rem; font-weight: 500; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .cat-tile:hover .cat-name, .cat-tile.active .cat-name { color: var(--text-primary); }
@@ -6709,7 +6710,7 @@ LIVE_TEMPLATE = """
                 'ondragover="onCategoryDragOver(event)" ' +
                 'ondragleave="onCategoryDragLeave(event)" ' +
                 'ondrop="onCategoryDrop(event, ' + group.id + ')">' +
-                '<span class="cat-body" onclick="selectCategory(' + group.id + ')" title="Click to show only this category\\'s devices, drag onto another category to nest it">' +
+                '<span class="cat-body" onclick="selectCategory(' + group.id + ')" title="' + escapeHtml(obfuscateName(group.name)) + '">' +
                 '<span class="cat-name">' + escapeHtml(obfuscateName(group.name)) + '</span>' +
                 activityStrip(st.activity) +
                 '</span>' +
