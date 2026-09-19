@@ -2695,7 +2695,7 @@ HTML_TEMPLATE = """
                 '<div class="detail-item"><div class="detail-label">Activity Pattern</div><div class="detail-value">' + (data.pattern || 'Insufficient data') + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">BLE Services</div><div class="detail-value mono" style="font-size:0.75rem;">' + (data.uuid_names && data.uuid_names.length > 0 ? data.uuid_names.join(', ') : '—') + '</div></div>' +
                 '<div class="detail-item full"><div class="detail-label">Assign to Group</div><select class="form-input" id="device-group" onchange="setDeviceGroup(\\'' + d.mac + '\\', this.value)" style="font-size: 0.8rem;"><option value="">No group</option></select></div>' +
-                '<div class="detail-item full"><div class="detail-label">Notes</div><textarea class="form-input" id="device-notes" rows="2" style="font-size: 0.8rem; resize: vertical;" placeholder="Add notes...">' + (d.notes || '') + '</textarea><button class="btn" style="margin-top: 0.35rem; padding: 0.3rem 0.6rem; display: block;" onclick="saveNotes(\\'' + d.mac + '\\')">Save Notes</button></div>' +
+                '<div class="detail-item full"><div class="detail-label">Notes</div><textarea class="form-input" id="device-notes" rows="3" style="font-size: 0.8rem; resize: vertical; display: block; width: 100%; box-sizing: border-box;" placeholder="Add notes...">' + (d.notes || '') + '</textarea><button class="btn" style="margin-top: 0.35rem; padding: 0.3rem 0.6rem; display: block;" onclick="saveNotes(\\'' + d.mac + '\\')">Save Notes</button></div>' +
                 '</div>' +
                 '<div class="heatmap-section" id="scan-unit-section" hidden>' +
                 '<div class="heatmap-title">Scan Unit Result</div>' +
@@ -7813,7 +7813,7 @@ LIVE_TEMPLATE = """
                 '<div class="detail-item"><div class="detail-label">Activity Pattern</div><div class="detail-value">' + (data.pattern || 'Insufficient data') + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">BLE Services</div><div class="detail-value mono" style="font-size:0.75rem;">' + (data.uuid_names && data.uuid_names.length > 0 ? data.uuid_names.join(', ') : '—') + '</div></div>' +
                 '<div class="detail-item full"><div class="detail-label">Assign to Group</div><select class="form-input" id="device-group" onchange="setDeviceGroup(\\'' + d.mac + '\\', this.value)" style="font-size: 0.8rem;"><option value="">No group</option></select></div>' +
-                '<div class="detail-item full"><div class="detail-label">Notes</div><textarea class="form-input" id="device-notes" rows="2" style="font-size: 0.8rem; resize: vertical;" placeholder="Add notes...">' + (d.notes || '') + '</textarea><button class="btn" style="margin-top: 0.35rem; padding: 0.3rem 0.6rem; display: block;" onclick="saveNotes(\\'' + d.mac + '\\')">Save Notes</button></div>' +
+                '<div class="detail-item full"><div class="detail-label">Notes</div><textarea class="form-input" id="device-notes" rows="3" style="font-size: 0.8rem; resize: vertical; display: block; width: 100%; box-sizing: border-box;" placeholder="Add notes...">' + (d.notes || '') + '</textarea><button class="btn" style="margin-top: 0.35rem; padding: 0.3rem 0.6rem; display: block;" onclick="saveNotes(\\'' + d.mac + '\\')">Save Notes</button></div>' +
                 '</div>' +
                 '<div class="heatmap-section" id="scan-unit-section" hidden>' +
                 '<div class="heatmap-title">Scan Unit Result</div>' +
