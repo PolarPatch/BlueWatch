@@ -5140,6 +5140,19 @@ LIVE_TEMPLATE = """
         .cat-dot.alert { background: #f59e0b; }
         @keyframes catPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
         #categories-tree .category-children { margin-left: 0; border-left: none; }
+        /* Sidebar panels: no divider lines, neutral buttons */
+        .sidebar .panel { margin-bottom: 1rem; }
+        .sidebar .panel-header { border-bottom: none; padding-bottom: 0; margin-bottom: 0.45rem; }
+        .sidebar .btn-primary { background: var(--bg-tertiary); border-color: var(--border-color); color: var(--text-primary); }
+        .new-cat { padding: 0.25rem 0.3rem 0; }
+        .new-cat-link { background: none; border: none; padding: 0.15rem 0; color: var(--text-muted); font-family: var(--font-mono); font-size: 0.72rem; cursor: pointer; }
+        .new-cat-link:hover { color: var(--text-primary); }
+        .new-cat .search-input { width: 100%; font-size: 0.72rem; padding: 0.3rem 0.5rem; }
+        .range-toggle { display: block; background: none; border: none; padding: 0.4rem 0 0.15rem; color: var(--text-muted); font-family: var(--font-mono); font-size: 0.7rem; cursor: pointer; }
+        .range-toggle:hover, .range-toggle.open { color: var(--text-primary); }
+        .range-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; }
+        .range-row .search-input { min-width: 0; font-size: 0.62rem; padding: 0.35rem 0.3rem; }
+        .range-row .btn { padding: 0.35rem 0.5rem; font-size: 0.68rem; }
         .category-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .category-delete {
             background: transparent;
@@ -5880,21 +5893,24 @@ LIVE_TEMPLATE = """
             <div class="panel" id="categories-panel">
                 <div class="panel-header">Categories</div>
                 <div id="categories-tree" style="padding: 0.25rem;"></div>
-                <div style="padding: 0.5rem; display: flex; gap: 0.4rem;">
-                    <input type="text" class="search-input" id="new-category-name" placeholder="New category name" style="font-size: 0.75rem; flex: 1;">
-                    <button class="btn btn-primary" onclick="createCategory()">+</button>
+                <div class="new-cat">
+                    <button type="button" class="new-cat-link" id="new-cat-link" onclick="showNewCategory()">+ New category</button>
+                    <input type="text" class="search-input" id="new-category-name" placeholder="Category name, Enter to save" hidden onkeydown="newCategoryKey(event)" onblur="hideNewCategory()">
                 </div>
             </div>
 
             <div class="panel">
-                <div class="panel-header">Date Range Query</div>
-                <div style="display: flex; flex-direction: column; gap: 0.5rem;">
-                    <input type="datetime-local" class="search-input" id="search-start" style="font-size: 0.7rem;">
-                    <input type="datetime-local" class="search-input" id="search-end" style="font-size: 0.7rem;">
-                    <input type="text" class="search-input" id="search" placeholder="Search MAC, vendor, or identifier..." style="font-size: 0.75rem;">
-                    <div style="display: flex; gap: 0.5rem;">
-                        <button class="btn" style="flex:1;" onclick="clearDateFilters()">Clear</button>
-                        <button class="btn btn-primary" style="flex:1;" onclick="searchByDateRange()">Search</button>
+                <div class="panel-header">Search</div>
+                <input type="text" class="search-input" id="search" placeholder="Search MAC, vendor or identifier..." style="width: 100%; font-size: 0.75rem;">
+                <button type="button" class="range-toggle" id="range-toggle" onclick="toggleTimeRange()">▸ Time range</button>
+                <div id="time-range" hidden>
+                    <div class="range-row">
+                        <input type="datetime-local" class="search-input" id="search-start" title="From">
+                        <input type="datetime-local" class="search-input" id="search-end" title="To">
+                    </div>
+                    <div class="range-row" style="margin-top: 0.4rem;">
+                        <button class="btn" onclick="clearDateFilters()">Clear</button>
+                        <button class="btn" onclick="searchByDateRange()">Search</button>
                     </div>
                 </div>
             </div>
@@ -5902,7 +5918,7 @@ LIVE_TEMPLATE = """
             <div class="panel">
                 <div class="panel-header">Scan Unit (Batch)</div>
                 <div style="display: flex; flex-direction: column; gap: 0.5rem;">
-                    <button class="btn btn-primary" id="batch-scan-btn" onclick="startBatchScan()" style="width: 100%; font-size: 0.75rem;" title="Runs Scan Unit (active GATT read) against every currently-visible Unknown device, one at a time, with a short timeout per device -- most will not answer (out of range, or an iPhone ignoring the connection), so this moves on fast rather than waiting out the full single-scan timeout on each.">⚡ Scan Unknown Devices</button>
+                    <button class="btn" id="batch-scan-btn" onclick="startBatchScan()" style="width: 100%; font-size: 0.75rem;" title="Runs Scan Unit (active GATT read) against every currently-visible Unknown device, one at a time, with a short timeout per device -- most will not answer (out of range, or an iPhone ignoring the connection), so this moves on fast rather than waiting out the full single-scan timeout on each.">⚡ Scan Unknown Devices</button>
                     <div id="batch-scan-progress" hidden>
                         <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.35rem;">
                             <span id="batch-scan-status" style="font-size: 0.7rem; color: var(--text-secondary);">Scanning...</span>
@@ -6895,6 +6911,34 @@ LIVE_TEMPLATE = """
             return '<div class="detail-item full"><div class="detail-label">Drone Remote ID (live)</div><div class="detail-value" style="font-size:0.8rem;">' + parts.join(' · ') + '</div></div>';
         }
 
+        function showNewCategory() {
+            document.getElementById('new-cat-link').hidden = true;
+            const input = document.getElementById('new-category-name');
+            input.hidden = false;
+            input.focus();
+        }
+
+        function hideNewCategory() {
+            const input = document.getElementById('new-category-name');
+            if (!input || input.hidden) return;
+            input.hidden = true;
+            input.value = '';
+            document.getElementById('new-cat-link').hidden = false;
+        }
+
+        function newCategoryKey(ev) {
+            if (ev.key === 'Enter') { ev.preventDefault(); createCategory(); }
+            else if (ev.key === 'Escape') { hideNewCategory(); }
+        }
+
+        function toggleTimeRange() {
+            const box = document.getElementById('time-range');
+            const btn = document.getElementById('range-toggle');
+            box.hidden = !box.hidden;
+            btn.textContent = (box.hidden ? '▸' : '▾') + ' Time range';
+            btn.classList.toggle('open', !box.hidden);
+        }
+
         async function createCategory() {
             const input = document.getElementById('new-category-name');
             const name = (input.value || '').trim();
@@ -6906,6 +6950,7 @@ LIVE_TEMPLATE = """
                     body: JSON.stringify({ name, color: '#3b82f6', icon: '📁' }),
                 });
                 input.value = '';
+                hideNewCategory();
                 await loadCategories();
             } catch (e) {
                 console.error('Failed to create category:', e);
