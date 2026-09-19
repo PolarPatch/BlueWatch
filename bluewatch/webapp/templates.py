@@ -5960,9 +5960,9 @@ LIVE_TEMPLATE = """
                         <tr>
                             <th class="select-col"><input type="checkbox" id="select-all-checkbox" class="row-select-checkbox" aria-label="Select all rows"></th>
                             <th class="sortable" data-sort="class">Class<span class="sort-indicator"></span></th>
-                            <th class="sortable" data-sort="vendor">Vendor<span class="sort-indicator"></span></th>
                             <th class="sortable" data-sort="mac">Address<span class="sort-indicator"></span></th>
                             <th class="sortable" data-sort="identifier">Identifier<span class="sort-indicator"></span></th>
+                            <th class="sortable" data-sort="vendor">Vendor<span class="sort-indicator"></span></th>
                             <th>RSSI</th>
                             <th class="sortable" data-sort="sightings">Sightings<span class="sort-indicator"></span></th>
                             <th class="sortable" data-sort="last_seen">Last seen<span class="sort-indicator"></span></th>
@@ -7370,13 +7370,13 @@ LIVE_TEMPLATE = """
                 return '<tr class="' + rowClass + '" draggable="true" ondragstart="onDeviceDragStart(event, \\'' + d.mac + '\\')" onclick="handleRowClick(event, \\'' + d.mac + '\\', ' + index + ')" ondblclick="showDevice(\\'' + d.mac + '\\')">' +
                     '<td class="select-col"><input type="checkbox" class="row-select-checkbox" ' + checkedAttr + ' onclick="toggleRowCheckbox(event, \\'' + d.mac + '\\', ' + index + ')"></td>' +
                     '<td><span class="type-badge ' + typeClass + '">' + watchedStar + d.type_icon + ' ' + d.type_label + '</span></td>' +
-                    '<td class="vendor-name">' + (d.vendor ? obfuscateName(d.vendor) : '—') + '</td>' +
                     '<td class="mac-addr" title="' + d.mac + '">' + (isMacOSUUID(d.mac) ? obfuscateMAC(d.mac).substring(0, 13) + '...' : obfuscateMAC(d.mac)) +
                     (d.name_conflict_at ? ' <span class="name-conflict-badge" style="color: var(--accent-red, #dc2626);" title="Possible spoofing: this MAC previously advertised a different name (now: ' + escapeHtml(d.name_conflict_name || '') + ')">⚠</span>' : '') +
                     '</td>' +
                     '<td class="device-name">' + (d.friendly_name ? obfuscateName(d.friendly_name) : '—') +
                     (d.identity_mac_count > 1 ? ' <span class="identity-badge" title="' + d.identity_mac_count + ' MAC addresses clustered as one device (rotation)">×' + d.identity_mac_count + '</span>' : '') +
                     '</td>' +
+                    '<td class="vendor-name">' + (d.vendor ? obfuscateName(d.vendor) : '—') + '</td>' +
                     '<td class="rssi-value">' + (d.last_rssi != null ? d.last_rssi + ' dBm' : '—') + '</td>' +
                     '<td class="sighting-count">' + d.total_sightings + '</td>' +
                     '<td class="last-seen ' + (isRecent ? 'recent' : '') + '" title="Last seen: ' + lastSeenTooltip + (d.first_seen ? ' \\u2022 First seen: ' + new Date(d.first_seen).toLocaleString() : '') + '">' + lastSeen + '</td>' +
