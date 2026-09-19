@@ -5151,7 +5151,12 @@ LIVE_TEMPLATE = """
         .range-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; }
         .range-row .search-input { min-width: 0; font-size: 0.62rem; padding: 0.35rem 0.3rem; }
         /* Type the date and time directly (day, month, year, hour, minute): no calendar icon */
-        .range-row input[type="datetime-local"]::-webkit-calendar-picker-indicator { display: none; }
+        .range-row input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+            display: none; -webkit-appearance: none; appearance: none;
+            opacity: 0; width: 0; height: 0; margin: 0; padding: 0; pointer-events: none;
+        }
+        .range-row input[type="datetime-local"]::-webkit-inner-spin-button,
+        .range-row input[type="datetime-local"]::-webkit-clear-button { display: none; -webkit-appearance: none; }
         .range-row .btn { padding: 0.35rem 0.5rem; font-size: 0.68rem; }
         .category-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .category-delete {
