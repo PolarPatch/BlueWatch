@@ -607,7 +607,8 @@ class BlueWatchDaemon:
                 await self._try_wigle_lookups(wigle_candidates)
 
                 ble_count = sum(1 for d in devices if d.bt_type == "ble")
-                self.scanner.check_zero_ble_streak(ble_count)
+                if self.scanner.check_zero_ble_streak(ble_count):
+                    await self.scanner.reset_controller_and_restart_scan()
 
                 if self._metrics:
                     classic_count = sum(1 for d in devices if d.bt_type == "classic")

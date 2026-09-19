@@ -3,6 +3,7 @@
 import asyncio
 import logging
 import os
+import platform
 import re
 import subprocess
 import time
@@ -183,6 +184,20 @@ _MIN_UPTIME_FOR_EXIT = 180  # 3 min — prevents crash loops after failed recove
 _BACKOFF_SLEEP = 300  # 5 min sleep if restart didn't help
 # 30 scan cycles at SCAN_INTERVAL=10s ≈ 5 min -- see check_zero_ble_streak().
 _ZERO_BLE_STREAK_LIMIT = 30
+# After this many zero-device cycles in a row (~30 s) the Bluetooth controller
+# itself is power-cycled once (see reset_controller_and_restart_scan()) --
+# far earlier than the 5 min full recovery above. At most once per cooldown.
+_ZERO_BLE_RESET_AT = 3
+_CONTROLLER_RESET_COOLDOWN = 600
+# The classic (BR/EDR) inquiry needs the shared adapter exclusively, so each
+# one stops and restarts the continuous LE scan. On small UART controllers
+# (e.g. Raspberry Pi 3) doing that every cycle (60-80 times an hour) wedged
+# the controller ("command tx timeout", "Frame reassembly failed"), so it is
+# now done at most every this many seconds (0 = every cycle, the old way).
+try:
+    _CLASSIC_MIN_INTERVAL = int(os.environ.get("BLUEWATCH_CLASSIC_INTERVAL", "600"))
+except ValueError:
+    _CLASSIC_MIN_INTERVAL = 600
 
 # /soft, not /state -- both are writable but only /soft reliably toggles
 # the radio in practice (confirmed repeatedly live: this exact adapter
@@ -214,6 +229,8 @@ class BluetoothScanner:
         self._ble_stuck = False
         self._recovery_cooldown_until = 0.0  # monotonic time; see _recover_and_exit()
         self._consecutive_zero_ble = 0
+        self._last_controller_reset = 0.0  # monotonic time
+        self._last_classic_scan = 0.0  # monotonic time
         # maclookup.app CSV: prefix (no colons, uppercase hex, variable
         # length -- 6/7/9 hex chars for MA-L/MA-M/MA-S) -> vendor name.
         self._maclookup_table: dict[str, str] = {}
@@ -514,10 +531,11 @@ class BluetoothScanner:
             "BLE adapter stuck (InProgress). "
             "Toggling rfkill and exiting for fresh D-Bus connections."
         )
+        self._reset_hci_controller()
         self._rfkill_toggle()
         os._exit(0)
 
-    def check_zero_ble_streak(self, ble_count: int) -> None:
+    def check_zero_ble_streak(self, ble_count: int) -> bool:
         """Catches the OTHER way the adapter goes bad -- unlike
         _recover_and_exit() above (triggered by a loud bleak exception,
         e.g. org.bluez.Error.InProgress), this is for the silent failure
@@ -534,7 +552,7 @@ class BluetoothScanner:
         same way a loud stuck-adapter exception is."""
         if ble_count > 0:
             self._consecutive_zero_ble = 0
-            return
+            return False
         self._consecutive_zero_ble += 1
         if self._consecutive_zero_ble >= _ZERO_BLE_STREAK_LIMIT:
             logger.critical(
@@ -544,6 +562,49 @@ class BluetoothScanner:
             )
             self._consecutive_zero_ble = 0
             self._recover_and_exit()
+        # Returns True when the caller should power-cycle the controller
+        # (await reset_controller_and_restart_scan()): a short streak of
+        # empty cycles, at most once per cooldown.
+        return (
+            self._consecutive_zero_ble == _ZERO_BLE_RESET_AT
+            and time.monotonic() - self._last_controller_reset >= _CONTROLLER_RESET_COOLDOWN
+        )
+
+    def _reset_hci_controller(self) -> None:
+        """Power-cycle the Bluetooth controller (hciconfig down/up), Linux
+        only. Clears a wedged controller that a BlueZ restart or rfkill
+        toggle does not (kernel log: "command 0x200c tx timeout")."""
+        if platform.system() != "Linux":
+            return
+        name = self.adapter or "hci0"
+        for action in ("down", "up"):
+            try:
+                result = subprocess.run(
+                    ["hciconfig", name, action], capture_output=True, text=True, timeout=10
+                )
+            except (FileNotFoundError, subprocess.TimeoutExpired, OSError) as e:
+                logger.warning(f"Could not power-cycle Bluetooth controller {name}: {e}")
+                return
+            if result.returncode != 0:
+                logger.warning(f"hciconfig {name} {action} failed: {result.stderr.strip()}")
+                return
+            time.sleep(1)
+
+    async def reset_controller_and_restart_scan(self) -> None:
+        """Power-cycle the controller and start the continuous LE scan again
+        (a power cycle drops BlueZ's discovery session)."""
+        self._last_controller_reset = time.monotonic()
+        logger.warning(
+            "BLE scan returned 0 devices repeatedly -- power-cycling the Bluetooth controller"
+        )
+        try:
+            await asyncio.wait_for(self.stop_continuous_ble(), timeout=15)
+        except Exception as e:
+            logger.debug(f"Stopping continuous scan before reset failed: {e}")
+        self._continuous_ble_scanner = None
+        await asyncio.to_thread(self._reset_hci_controller)
+        await asyncio.sleep(2)
+        await self.start_continuous_ble()
 
     def _on_ble_detection(self, device: BLEDevice, adv_data: AdvertisementData) -> None:
         """Detection callback for the continuous scanner -- just records
@@ -827,16 +888,24 @@ class BluetoothScanner:
             except Exception as e:
                 logger.error(f"BLE scan failed: {e}")
 
-            was_continuous = self._continuous_ble_scanner is not None
-            if was_continuous:
-                await self.stop_continuous_ble()
-            try:
-                classic_devices = await self.scan_classic()
-            except Exception as e:
-                logger.debug(f"Classic scan failed: {e}")
-            finally:
+            # Classic inquiry pauses the LE scan, so it only runs every
+            # _CLASSIC_MIN_INTERVAL seconds (see the constant's comment).
+            classic_due = (
+                _CLASSIC_MIN_INTERVAL <= 0
+                or time.monotonic() - self._last_classic_scan >= _CLASSIC_MIN_INTERVAL
+            )
+            if classic_due:
+                self._last_classic_scan = time.monotonic()
+                was_continuous = self._continuous_ble_scanner is not None
                 if was_continuous:
-                    await self.start_continuous_ble()
+                    await self.stop_continuous_ble()
+                try:
+                    classic_devices = await self.scan_classic()
+                except Exception as e:
+                    logger.debug(f"Classic scan failed: {e}")
+                finally:
+                    if was_continuous:
+                        await self.start_continuous_ble()
 
         # Merge results, preferring BLE data if device seen in both
         seen_macs = set()
