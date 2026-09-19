@@ -17,14 +17,16 @@ RADAR_TEMPLATE = r"""<!DOCTYPE html>
         --bg-primary: #0d1117; --bg-panel: #161b22; --bg-tertiary: #1c232c; --bg-hover: #242c37;
         --text-primary: #e6edf3; --text-secondary: #a6afb9; --text-muted: #7d8590;
         --border-color: #30363d; --accent-blue: #2563eb; --accent-green: #3fb950;
+        --radar-bg: #080b0f;
         --font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', 'Cascadia Code', Consolas, monospace;
     }
     [data-theme="light"] {
         --bg-primary: #f5f5f5; --bg-panel: #ffffff; --bg-tertiary: #ececec; --bg-hover: #dedede;
         --text-primary: #1a1a1a; --text-secondary: #555555; --text-muted: #888888; --border-color: #d0d0d0;
+        --radar-bg: #ebebeb;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: var(--font-mono); background: var(--bg-primary); color: var(--text-primary); font-size: 13px; line-height: 1.5; min-height: 100vh; }
+    body { font-family: var(--font-mono); background: var(--radar-bg); color: var(--text-primary); font-size: 13px; line-height: 1.5; min-height: 100vh; }
     .topbar { display: flex; align-items: center; justify-content: space-between; padding: 0.6rem 1rem; background: var(--bg-panel); border-bottom: 1px solid var(--border-color); }
     .topbar-left { display: flex; align-items: center; gap: 1.5rem; }
     .brand { display: flex; align-items: center; gap: 0.5rem; text-decoration: none; color: inherit; }
@@ -48,7 +50,7 @@ RADAR_TEMPLATE = r"""<!DOCTYPE html>
     .btn:hover { background: var(--bg-hover); }
     .btn.on { color: #f59e0b; }
 
-    .radar-wrap { position: relative; background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 10px; overflow: hidden; }
+    .radar-wrap { position: relative; }
     #radar { display: block; width: 100%; touch-action: none; cursor: crosshair; }
     .info { position: absolute; top: 0.75rem; right: 0.75rem; width: 15rem; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 8px; padding: 0.7rem 0.8rem; font-size: 0.72rem; }
     .info .title { font-size: 0.85rem; font-weight: 700; margin-bottom: 0.35rem; padding-right: 1.2rem; word-break: break-word; }
@@ -203,8 +205,6 @@ RADAR_TEMPLATE = r"""<!DOCTYPE html>
         if (!paused) sweep = (sweep + dt * 0.7) % (Math.PI * 2);
 
         ctx.clearRect(0, 0, W, H);
-        ctx.fillStyle = theme.panel;
-        ctx.fillRect(0, 0, W, H);
 
         // rings + labels
         ctx.lineWidth = 1;
