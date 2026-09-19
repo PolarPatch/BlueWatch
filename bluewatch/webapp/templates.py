@@ -5118,27 +5118,27 @@ LIVE_TEMPLATE = """
         .category-node.active { background: var(--bg-tertiary); box-shadow: inset 2px 0 0 var(--accent-blue); }
         .category-node.category-drop-target { outline: 2px dashed var(--accent-blue); outline-offset: -2px; }
         .category-children { margin-left: 1.1rem; border-left: 1px solid var(--border-color); }
-        /* Sidebar: compact one-line category rows */
-        .cat-tile { --c: #3b82f6; display: flex; align-items: center; gap: 0.5rem; padding: 0.2rem 0.4rem 0.2rem 0.5rem; margin-bottom: 0; border-radius: 5px; border-left: 2px solid color-mix(in srgb, var(--c) 55%, transparent); }
+        /* Sidebar: compact one-line category rows (neutral colors) */
+        .cat-tile { display: flex; align-items: center; gap: 0.4rem; padding: 0.15rem 0.3rem; margin: 0; border-radius: 4px; }
         .cat-tile:hover { background: var(--bg-tertiary); }
-        .cat-tile.active { background: color-mix(in srgb, var(--c) 14%, var(--bg-tertiary)); border-left-color: var(--c); }
-        .cat-body { flex: 1; min-width: 0; display: flex; align-items: center; gap: 0.5rem; cursor: pointer; }
-        .cat-name { flex: 1; min-width: 0; font-size: 0.74rem; font-weight: 600; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .cat-strip { flex: none; display: grid; grid-template-columns: repeat(24, 2px); gap: 1px; height: 0.55rem; }
+        .cat-tile.active { background: var(--bg-hover); }
+        .cat-body { flex: 1; min-width: 0; display: flex; align-items: center; gap: 0.4rem; cursor: pointer; }
+        .cat-name { flex: 1; min-width: 0; font-size: 0.74rem; font-weight: 500; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .cat-tile:hover .cat-name, .cat-tile.active .cat-name { color: var(--text-primary); }
+        .cat-strip { flex: none; display: grid; grid-template-columns: repeat(24, 2px); gap: 1px; height: 0.5rem; }
         .cat-strip i { border-radius: 1px; background: var(--bg-hover); }
-        .cat-strip i.a1 { background: color-mix(in srgb, var(--c) 32%, var(--bg-hover)); }
-        .cat-strip i.a2 { background: color-mix(in srgb, var(--c) 58%, var(--bg-hover)); }
-        .cat-strip i.a3 { background: color-mix(in srgb, var(--c) 82%, var(--bg-hover)); }
-        .cat-strip i.a4 { background: var(--c); }
-        .cat-count { flex: none; min-width: 1.4rem; text-align: right; font-size: 0.72rem; font-variant-numeric: tabular-nums; color: var(--text-secondary); }
+        .cat-tile.active .cat-strip i { background: var(--bg-tertiary); }
+        .cat-strip i.a1 { background: color-mix(in srgb, var(--text-secondary) 30%, var(--bg-hover)); }
+        .cat-strip i.a2 { background: color-mix(in srgb, var(--text-secondary) 55%, var(--bg-hover)); }
+        .cat-strip i.a3 { background: color-mix(in srgb, var(--text-secondary) 80%, var(--bg-hover)); }
+        .cat-strip i.a4 { background: var(--text-secondary); }
+        .cat-count { flex: none; min-width: 1.2rem; text-align: right; font-size: 0.72rem; font-variant-numeric: tabular-nums; color: var(--text-muted); }
         .cat-dots { flex: none; display: inline-flex; align-items: center; gap: 0.25rem; min-width: 0.5rem; }
         .cat-dot { width: 0.5rem; height: 0.5rem; border-radius: 50%; }
         .cat-dot.now { background: #3fb950; animation: catPulse 2.2s ease-in-out infinite; }
         .cat-dot.alert { background: #f59e0b; }
         @keyframes catPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
-        .cat-tile .category-delete { opacity: 0; padding: 0 0.15rem; }
-        .cat-tile:hover .category-delete { opacity: 1; }
-        .cat-child { margin-left: 0; }
+        #categories-tree .category-children { margin-left: 0.5rem; border-left: 1px solid var(--border-color); }
         .category-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .category-delete {
             background: transparent;
@@ -5878,7 +5878,7 @@ LIVE_TEMPLATE = """
         <aside class="sidebar">
             <div class="panel" id="categories-panel">
                 <div class="panel-header">Categories</div>
-                <div id="categories-tree" style="padding: 0.5rem;"></div>
+                <div id="categories-tree" style="padding: 0.25rem;"></div>
                 <div style="padding: 0.5rem; display: flex; gap: 0.4rem;">
                     <input type="text" class="search-input" id="new-category-name" placeholder="New category name" style="font-size: 0.75rem; flex: 1;">
                     <button class="btn btn-primary" onclick="createCategory()">+</button>
@@ -6701,11 +6701,10 @@ LIVE_TEMPLATE = """
                 : '';
             const isActive = currentGroupId === group.id;
             const st = categoryAggregate(group);
-            const color = group.color || '#3b82f6';
             const dots = (st.present > 0 ? '<i class="cat-dot now" title="' + st.present + ' here now"></i>' : '') +
                 (st.alerts ? '<i class="cat-dot alert" title="' + st.alerts + ' open alert(s)"></i>' : '');
             return (
-                '<div class="category-node cat-tile' + (depth ? ' cat-child' : '') + (isActive ? ' active' : '') + '" style="--c:' + escapeHtml(color) + '" draggable="true" data-id="' + group.id + '" ' +
+                '<div class="category-node cat-tile' + (depth ? ' cat-child' : '') + (isActive ? ' active' : '') + '" draggable="true" data-id="' + group.id + '" ' +
                 'ondragstart="onCategoryDragStart(event, ' + group.id + ')" ' +
                 'ondragover="onCategoryDragOver(event)" ' +
                 'ondragleave="onCategoryDragLeave(event)" ' +
@@ -6716,7 +6715,6 @@ LIVE_TEMPLATE = """
                 '</span>' +
                 '<span class="cat-count">' + st.total + '</span>' +
                 '<span class="cat-dots">' + dots + '</span>' +
-                '<button class="category-delete" onclick="deleteCategory(' + group.id + ')" title="Delete category">×</button>' +
                 '</div>' + childrenHtml
             );
         }
