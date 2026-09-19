@@ -1525,7 +1525,8 @@ HTML_TEMPLATE = """
             // are contradictory -- the category selection wins, and the
             // checkbox unchecking itself makes that visible instead of the
             // click silently doing nothing.
-            setHideCategorized(false);
+            setHideClassified(false);
+            setHideGrouped(false);
             const allBtn = document.getElementById('all-devices-btn');
             if (allBtn) allBtn.classList.remove('active');
             renderCategoryTree();
@@ -1538,7 +1539,8 @@ HTML_TEMPLATE = """
         function showAllDevices() {
             currentGroupId = '__all__';
             currentFilter = 'all';
-            setHideCategorized(false);
+            setHideClassified(false);
+            setHideGrouped(false);
             renderCategoryTree();
             selectedMacs.clear();
             lastSelectedIndex = null;
@@ -6199,7 +6201,8 @@ LIVE_TEMPLATE = """
             // are contradictory -- the category selection wins, and the
             // checkbox unchecking itself makes that visible instead of the
             // click silently doing nothing.
-            setHideCategorized(false);
+            setHideClassified(false);
+            setHideGrouped(false);
             const allBtn = document.getElementById('all-devices-btn');
             if (allBtn) allBtn.classList.remove('active');
             renderCategoryTree();
@@ -6212,7 +6215,8 @@ LIVE_TEMPLATE = """
         function showAllDevices() {
             currentGroupId = '__all__';
             currentFilter = 'all';
-            setHideCategorized(false);
+            setHideClassified(false);
+            setHideGrouped(false);
             renderCategoryTree();
             selectedMacs.clear();
             lastSelectedIndex = null;

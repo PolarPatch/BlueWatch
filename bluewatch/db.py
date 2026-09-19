@@ -2,6 +2,7 @@
 
 import bisect
 import json
+import time
 import logging
 import re
 import statistics
@@ -415,6 +416,10 @@ async def init_db() -> None:
         # Added after the column itself via ALTER TABLE above, so this
         # runs last to guarantee the column exists first.
         await db.execute("CREATE INDEX IF NOT EXISTS idx_devices_identity_id ON devices(identity_id)")
+        # Category views filter on group_id; without this every category click
+        # scanned the whole devices table (~0.5 s for 25k devices on a Pi 3,
+        # ~15 ms with the index).
+        await db.execute("CREATE INDEX IF NOT EXISTS idx_devices_group_id ON devices(group_id)")
 
         await db.commit()
 
@@ -868,7 +873,23 @@ async def get_sightings_for_export(
     return rows_out
 
 
+_DASH_STATS_TTL = 5.0  # seconds
+_dash_stats_cache: dict = {}  # include_ignored -> (monotonic time, stats)
+
+
 async def get_dashboard_stats(include_ignored: bool = True) -> dict:
+    """Dashboard stats, cached for a few seconds. The query scans the whole
+    devices table (~0.5 s on a Raspberry Pi with 25k devices) and every
+    /api/devices call, including each live-refresh, used to run it."""
+    cached = _dash_stats_cache.get(include_ignored)
+    if cached and time.monotonic() - cached[0] < _DASH_STATS_TTL:
+        return cached[1]
+    stats = await _compute_dashboard_stats(include_ignored)
+    _dash_stats_cache[include_ignored] = (time.monotonic(), stats)
+    return stats
+
+
+async def _compute_dashboard_stats(include_ignored: bool = True) -> dict:
     """Get dashboard stats and server-side filter counts without loading all rows."""
     now = datetime.now()
     today_start = datetime.combine(now.date(), datetime.min.time())
