@@ -192,3 +192,11 @@ for BlueWatch's asyncio daemon. Discovery uses the
 [python-zeroconf](https://github.com/python-zeroconf/python-zeroconf)
 library (LGPL-2.1).
 
+## Radar view
+
+The `/radar` page (`bluewatch/webapp/radar_template.py`) is inspired by the
+radar view of [Fieldwatch](https://github.com/OffGridPete/Fieldwatch) by Off Grid
+Pete LLC (MIT License): signal strength as distance from the centre, dots colored
+by device type, a sweeping beam and dimming of devices that are gone. Written from
+scratch for BlueWatch; no Fieldwatch code is included.
+
