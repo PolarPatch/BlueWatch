@@ -2772,6 +2772,78 @@ async def cleanup_type_alerts(days: int = 30) -> int:
         return cursor.rowcount
 
 
+_CAT_STATS_TTL = 10.0
+_cat_stats_cache: tuple = (0.0, None)
+
+
+async def get_category_stats() -> dict:
+    """Numbers for the dashboard sidebar: per category the device count, how many
+    are here right now, open alerts and 24 h of activity, plus counts for the
+    smart views (present now / unsorted / watched / alerts). Cached briefly."""
+    global _cat_stats_cache
+    cached_at, cached = _cat_stats_cache
+    if cached is not None and time.monotonic() - cached_at < _CAT_STATS_TTL:
+        return cached
+    now = datetime.now()
+    present_cut = (now - timedelta(seconds=60)).isoformat()
+    day_cut = (now - timedelta(hours=24)).isoformat()
+    current_hour = now.replace(minute=0, second=0, microsecond=0)
+    hour_keys = [(current_hour - timedelta(hours=23 - i)).strftime("%Y-%m-%dT%H") for i in range(24)]
+    idx = {k: i for i, k in enumerate(hour_keys)}
+    groups: dict = {}
+
+    def entry(gid):
+        return groups.setdefault(str(gid), {"total": 0, "present": 0, "alerts": 0, "activity": [0] * 24})
+
+    async with _connect() as db:
+        async with db.execute(
+            "SELECT group_id, COUNT(*), SUM(CASE WHEN last_seen >= ? THEN 1 ELSE 0 END) "
+            "FROM devices WHERE group_id IS NOT NULL GROUP BY group_id", (present_cut,)
+        ) as cursor:
+            for gid, total, present in await cursor.fetchall():
+                e = entry(gid); e["total"] = total; e["present"] = present or 0
+        async with db.execute(
+            "SELECT h.hour, d.group_id, COUNT(*) FROM hourly_seen h JOIN devices d ON d.mac = h.mac "
+            "WHERE h.hour >= ? AND d.group_id IS NOT NULL GROUP BY h.hour, d.group_id", (hour_keys[0],)
+        ) as cursor:
+            for hour, gid, n in await cursor.fetchall():
+                if hour in idx:
+                    entry(gid)["activity"][idx[hour]] = n
+        async with db.execute(
+            "SELECT d.group_id, COUNT(*) FROM type_alerts a LEFT JOIN devices d ON d.mac = a.mac "
+            "WHERE a.dismissed_at IS NULL GROUP BY d.group_id"
+        ) as cursor:
+            alerts_total = 0
+            for gid, n in await cursor.fetchall():
+                alerts_total += n
+                if gid is not None:
+                    entry(gid)["alerts"] = n
+        async with db.execute("SELECT COUNT(*) FROM devices WHERE last_seen >= ?", (present_cut,)) as cursor:
+            present_now = (await cursor.fetchone())[0]
+        async with db.execute(
+            "SELECT COUNT(*), SUM(CASE WHEN last_seen >= ? THEN 1 ELSE 0 END) FROM devices WHERE watched = 1",
+            (present_cut,),
+        ) as cursor:
+            watched_total, watched_present = await cursor.fetchone()
+        async with db.execute(
+            f"SELECT COUNT(*) FROM devices d WHERE d.group_id IS NULL AND d.last_seen >= ? "
+            f"AND NOT ({_randomized_mac_sql('d.mac')})", (day_cut,)
+        ) as cursor:
+            unsorted = (await cursor.fetchone())[0]
+
+    result = {
+        "groups": groups,
+        "views": {
+            "present_now": present_now,
+            "unsorted": unsorted,
+            "watched": {"total": watched_total or 0, "present": watched_present or 0},
+            "alerts": alerts_total,
+        },
+    }
+    _cat_stats_cache = (time.monotonic(), result)
+    return result
+
+
 async def hourly_seen_ready() -> bool:
     return (await get_raw_setting("hourly_seen_backfill")) == "done"
 

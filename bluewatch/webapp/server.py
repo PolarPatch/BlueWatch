@@ -184,6 +184,7 @@ class WebServer:
         self.app.router.add_get("/api/stats", self.api_stats)
         self.app.router.add_get("/api/live-stats", self.api_live_stats)
         self.app.router.add_get("/api/stats/overview", self.api_stats_overview)
+        self.app.router.add_get("/api/categories/stats", self.api_category_stats)
         self.app.router.add_get("/api/export/auto", self.api_auto_export_get)
         self.app.router.add_post("/api/export/auto", self.api_auto_export_save)
         self.app.router.add_post("/api/export/auto/run", self.api_auto_export_run)
@@ -1504,6 +1505,10 @@ class WebServer:
             path,
             headers={"Content-Disposition": f'attachment; filename="{path.name}"'},
         )
+
+    async def api_category_stats(self, request: web.Request) -> web.Response:
+        """Counts, presence and 24 h activity for the dashboard sidebar."""
+        return web.json_response(await db.get_category_stats())
 
     async def api_stats_overview(self, request: web.Request) -> web.Response:
         """Graph data for the statistics section (cached for a few minutes)."""
