@@ -2695,7 +2695,7 @@ HTML_TEMPLATE = """
                 '<div class="detail-item"><div class="detail-label">Activity Pattern</div><div class="detail-value">' + (data.pattern || 'Insufficient data') + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">BLE Services</div><div class="detail-value mono" style="font-size:0.75rem;">' + (data.uuid_names && data.uuid_names.length > 0 ? data.uuid_names.join(', ') : '—') + '</div></div>' +
                 '<div class="detail-item full"><div class="detail-label">Assign to Group</div><select class="form-input" id="device-group" onchange="setDeviceGroup(\\'' + d.mac + '\\', this.value)" style="font-size: 0.8rem;"><option value="">No group</option></select></div>' +
-                '<div class="detail-item full"><div class="detail-label">Notes</div><textarea class="form-input" id="device-notes" rows="3" style="font-size: 0.8rem; resize: vertical; display: block; width: 100%; box-sizing: border-box;" placeholder="Add notes...">' + (d.notes || '') + '</textarea><button class="btn" style="margin-top: 0.35rem; padding: 0.3rem 0.6rem; display: block;" onclick="saveNotes(\\'' + d.mac + '\\')">Save Notes</button></div>' +
+                '<div class="detail-item full"><div class="detail-label">Notes</div><textarea class="form-input" id="device-notes" rows="3" style="font-size: 0.8rem; resize: vertical; display: block; width: 100%; box-sizing: border-box;" placeholder="Add notes...">' + (d.notes || '') + '</textarea><div style="display: flex; align-items: center; gap: 0.6rem; margin-top: 0.35rem;"><button class="btn" style="padding: 0.3rem 0.6rem;" onclick="saveNotes(\\'' + d.mac + '\\')">Save Notes</button><span id="notes-msg" style="display: none; padding: 0.25rem 0.6rem; border-radius: 6px; font-size: 0.75rem; background: rgba(63, 185, 80, 0.15); color: #3fb950;"></span></div></div>' +
                 '</div>' +
                 '<div class="heatmap-section" id="scan-unit-section" hidden>' +
                 '<div class="heatmap-title">Scan Unit Result</div>' +
@@ -3157,11 +3157,21 @@ HTML_TEMPLATE = """
         async function saveNotes(mac) {
             const notes = document.getElementById('device-notes').value;
             try {
-                await fetch('/api/device/' + encodeURIComponent(mac) + '/notes', {
+                const resp = await fetch('/api/device/' + encodeURIComponent(mac) + '/notes', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ notes: notes })
                 });
+                const msg = document.getElementById('notes-msg');
+                if (msg) {
+                    const ok = resp.ok;
+                    msg.textContent = ok ? 'Saved' : 'Could not save';
+                    msg.style.background = ok ? 'rgba(63, 185, 80, 0.15)' : 'rgba(248, 81, 73, 0.15)';
+                    msg.style.color = ok ? '#3fb950' : '#f85149';
+                    msg.style.display = 'inline-block';
+                    clearTimeout(window._notesMsgTimer);
+                    window._notesMsgTimer = setTimeout(() => { msg.style.display = 'none'; }, 2500);
+                }
             } catch (error) { console.error('Error:', error); }
         }
 
@@ -7813,7 +7823,7 @@ LIVE_TEMPLATE = """
                 '<div class="detail-item"><div class="detail-label">Activity Pattern</div><div class="detail-value">' + (data.pattern || 'Insufficient data') + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">BLE Services</div><div class="detail-value mono" style="font-size:0.75rem;">' + (data.uuid_names && data.uuid_names.length > 0 ? data.uuid_names.join(', ') : '—') + '</div></div>' +
                 '<div class="detail-item full"><div class="detail-label">Assign to Group</div><select class="form-input" id="device-group" onchange="setDeviceGroup(\\'' + d.mac + '\\', this.value)" style="font-size: 0.8rem;"><option value="">No group</option></select></div>' +
-                '<div class="detail-item full"><div class="detail-label">Notes</div><textarea class="form-input" id="device-notes" rows="3" style="font-size: 0.8rem; resize: vertical; display: block; width: 100%; box-sizing: border-box;" placeholder="Add notes...">' + (d.notes || '') + '</textarea><button class="btn" style="margin-top: 0.35rem; padding: 0.3rem 0.6rem; display: block;" onclick="saveNotes(\\'' + d.mac + '\\')">Save Notes</button></div>' +
+                '<div class="detail-item full"><div class="detail-label">Notes</div><textarea class="form-input" id="device-notes" rows="3" style="font-size: 0.8rem; resize: vertical; display: block; width: 100%; box-sizing: border-box;" placeholder="Add notes...">' + (d.notes || '') + '</textarea><div style="display: flex; align-items: center; gap: 0.6rem; margin-top: 0.35rem;"><button class="btn" style="padding: 0.3rem 0.6rem;" onclick="saveNotes(\\'' + d.mac + '\\')">Save Notes</button><span id="notes-msg" style="display: none; padding: 0.25rem 0.6rem; border-radius: 6px; font-size: 0.75rem; background: rgba(63, 185, 80, 0.15); color: #3fb950;"></span></div></div>' +
                 '</div>' +
                 '<div class="heatmap-section" id="scan-unit-section" hidden>' +
                 '<div class="heatmap-title">Scan Unit Result</div>' +
@@ -8275,11 +8285,21 @@ LIVE_TEMPLATE = """
         async function saveNotes(mac) {
             const notes = document.getElementById('device-notes').value;
             try {
-                await fetch('/api/device/' + encodeURIComponent(mac) + '/notes', {
+                const resp = await fetch('/api/device/' + encodeURIComponent(mac) + '/notes', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ notes: notes })
                 });
+                const msg = document.getElementById('notes-msg');
+                if (msg) {
+                    const ok = resp.ok;
+                    msg.textContent = ok ? 'Saved' : 'Could not save';
+                    msg.style.background = ok ? 'rgba(63, 185, 80, 0.15)' : 'rgba(248, 81, 73, 0.15)';
+                    msg.style.color = ok ? '#3fb950' : '#f85149';
+                    msg.style.display = 'inline-block';
+                    clearTimeout(window._notesMsgTimer);
+                    window._notesMsgTimer = setTimeout(() => { msg.style.display = 'none'; }, 2500);
+                }
             } catch (error) { console.error('Error:', error); }
         }
 
