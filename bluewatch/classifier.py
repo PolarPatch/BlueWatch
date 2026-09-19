@@ -1296,6 +1296,14 @@ SERVICE_UUID_PATTERNS = [
     ("0000181b", TYPE_WEARABLE),  # Body Composition
     ("0000181d", TYPE_WEARABLE),  # Weight Scale
 
+    # Cycling / fitness equipment (source: pycycling supported protocols,
+    # Bluetooth SIG assigned numbers)
+    ("00001826", TYPE_WEARABLE),  # Fitness Machine Service (smart trainers, treadmills)
+    ("6e40fec1", TYPE_WEARABLE),  # Tacx FE-C over BLE (trainers)
+    ("347b0001", TYPE_WEARABLE),  # Elite Sterzo steering plate
+    ("347b0010", TYPE_WEARABLE),  # Elite Rizer grade simulator
+    ("6a4e3200", TYPE_WEARABLE),  # Garmin Varia rear radar
+
     # Health devices
     ("00001810", TYPE_WEARABLE),  # Blood Pressure
     ("00001808", TYPE_WEARABLE),  # Glucose
