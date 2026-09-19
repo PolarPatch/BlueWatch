@@ -399,6 +399,10 @@ HTML_TEMPLATE = """
         }
 
         /* Device Table */
+        .priority-dismiss { position: absolute; top: 2px; right: 3px; width: 1.1rem; height: 1.1rem; padding: 0; line-height: 1; border: none; border-radius: 50%; background: transparent; color: var(--text-muted); font-size: 0.95rem; cursor: pointer; }
+        .priority-dismiss:hover { background: var(--bg-hover); color: var(--text-primary); }
+        .priority-clear { margin-left: auto; background: transparent; border: none; color: var(--text-muted); font-size: 0.65rem; cursor: pointer; text-decoration: underline; }
+        .priority-clear:hover { color: var(--text-primary); }
         /* Statistics graphs at the top of All devices */
         .stats-panels { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; margin-bottom: 0.75rem; }
         .stats-card { background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 10px; padding: 0.8rem 1rem; min-width: 0; }
@@ -1517,15 +1521,42 @@ HTML_TEMPLATE = """
             box.style.display = '';
             list.innerHTML = devices.map(d => {
                 const name = obfuscateName(d.friendly_name || d.vendor || d.mac);
-                const badge = d.reason === 'watched'
-                    ? '<span style="color:#f5c518;" title="Watched device">★</span>'
-                    : '<span style="color:#f59e0b; font-size:0.6rem; font-weight:600; letter-spacing:0.03em;" title="Type alert: ' + escapeHtml(d.type_label) + '">ALERT</span>';
-                return '<div onclick="showDevice(\\'' + d.mac + '\\')" style="cursor:pointer; display:flex; align-items:center; gap:0.4rem; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 4px; padding: 0.3rem 0.6rem; font-size: 0.75rem;">'
+                const isSticky = !!d.alert_id;
+                const isAlert = d.reason === 'type_alert';
+                const star = '<span style="color:#f5c518;" title="Watched device">★</span>';
+                const badge = isAlert
+                    ? (d.watched ? star : '') + '<span style="color:#f59e0b; font-size:0.6rem; font-weight:600; letter-spacing:0.03em;" title="Type alert: ' + escapeHtml(d.type_label) + '">ALERT</span>'
+                    : star;
+                let when = '';
+                if (isSticky) {
+                    when = d.present
+                        ? '<span style="font-size:0.6rem; color: var(--accent-green, #16a34a);">now</span>'
+                        : '<span style="font-size:0.6rem; color: var(--text-muted);" title="Last seen ' + escapeHtml(new Date(d.last_seen).toLocaleString()) + '">gone · ' + escapeHtml(formatLastSeen(d.last_seen).text) + '</span>';
+                }
+                const close = isSticky
+                    ? '<button type="button" class="priority-dismiss" title="Acknowledge and remove \u2014 I have seen this" aria-label="Acknowledge alert" onclick="dismissPriorityAlert(' + d.alert_id + ', event)">×</button>'
+                    : '';
+                return '<div onclick="showDevice(\\'' + d.mac + '\\')" style="cursor:pointer; position:relative; display:flex; align-items:center; gap:0.4rem; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 6px; padding: 0.3rem ' + (close ? '1.6rem' : '0.6rem') + ' 0.3rem 0.6rem; font-size: 0.75rem;">'
                     + badge
                     + '<span class="type-badge ' + getTypeClass(d.device_type) + '" style="font-size:0.65rem; padding:0.1rem 0.35rem;">' + d.type_icon + '</span>'
                     + '<span>' + escapeHtml(name) + '</span>'
+                    + when
+                    + close
                     + '</div>';
             }).join('');
+            const clearAll = document.getElementById('priority-clear-all');
+            if (clearAll) clearAll.hidden = devices.filter(d => d.alert_id).length < 2;
+        }
+
+        async function dismissPriorityAlert(id, ev) {
+            if (ev) ev.stopPropagation();
+            try { await fetch('/api/priority/alerts/' + id + '/dismiss', { method: 'POST' }); } catch (e) {}
+            loadPriorityDevices();
+        }
+
+        async function dismissAllPriorityAlerts() {
+            try { await fetch('/api/priority/alerts/dismiss-all', { method: 'POST' }); } catch (e) {}
+            loadPriorityDevices();
         }
 
         // ==================== Categories (sidebar tree) ====================
@@ -5242,6 +5273,10 @@ LIVE_TEMPLATE = """
         .priority-hint { font-size: 0.65rem; color: var(--text-muted); }
         .priority-list { display: flex; flex-wrap: wrap; gap: 0.5rem; align-content: flex-start; max-height: 9rem; overflow-y: auto; }
         .priority-empty { font-size: 0.75rem; color: var(--text-muted); }
+        .priority-dismiss { position: absolute; top: 2px; right: 3px; width: 1.1rem; height: 1.1rem; padding: 0; line-height: 1; border: none; border-radius: 50%; background: transparent; color: var(--text-muted); font-size: 0.95rem; cursor: pointer; }
+        .priority-dismiss:hover { background: var(--bg-hover); color: var(--text-primary); }
+        .priority-clear { margin-left: auto; background: transparent; border: none; color: var(--text-muted); font-size: 0.65rem; cursor: pointer; text-decoration: underline; }
+        .priority-clear:hover { color: var(--text-primary); }
         @media (max-width: 900px) {
             .stat-pair { grid-template-columns: 1fr; }
         }
@@ -5889,8 +5924,15 @@ LIVE_TEMPLATE = """
                         <input type="checkbox" id="hide-grouped-toggle" onchange="toggleHideGrouped()">
                         Hide grouped
                     </label>
+                    <label class="filter-check" title="Hides unknown devices that have neither an identifier nor a vendor -- nothing to go on. Devices you have categorized, watched or that trigger an alert are never hidden this way.">
+                        <input type="checkbox" id="hide-nameless-toggle" onchange="toggleHideNameless()">
+                        Hide unknowns
+                    </label>
                     </div>
                     <div class="filter-sliders">
+                        <span class="stat-cap">Seen within</span>
+                        <input type="range" id="seen-within-slider" min="1" max="5" step="1" value="5" oninput="onSeenWithinChange()">
+                        <span id="seen-within-value" class="slider-value">24 h</span>
                         <span class="stat-cap">First seen within</span>
                         <input type="range" id="first-seen-slider" min="1" max="7" step="1" value="1" oninput="onFirstSeenSliderChange()">
                         <span id="first-seen-slider-value" class="slider-value">off</span>
@@ -5906,7 +5948,8 @@ LIVE_TEMPLATE = """
                     <div class="priority-head">
                         <span style="color: #f5c518; font-size: 0.9rem;">&#9733;</span>
                         <span class="stat-cap priority-title">Priority</span>
-                        <span class="priority-hint">watched devices and type alerts &mdash; always shown, ignores filters</span>
+                        <span class="priority-hint">watched devices and type alerts &mdash; they stay until you acknowledge them with the cross</span>
+                        <button type="button" class="priority-clear" id="priority-clear-all" onclick="dismissAllPriorityAlerts()" hidden>Dismiss all</button>
                     </div>
                     <div id="priority-list" class="priority-list"></div>
                 </div>
@@ -6038,6 +6081,7 @@ LIVE_TEMPLATE = """
         let currentGroupId = null;
         let hideClassified = localStorage.getItem('bluewatch_hide_classified') === 'true';
         let hideGrouped = localStorage.getItem('bluewatch_hide_grouped') === 'true';
+        let hideNameless = localStorage.getItem('bluewatch_hide_nameless') === 'true';
         let rssiThreshold = -100;
         let sightingsThreshold = 1;
         let dateFilteredDevices = null;
@@ -6064,6 +6108,38 @@ LIVE_TEMPLATE = """
             return sortState.direction;
         }
 
+        // "Seen within": how far back the list reaches. Devices are sorted by last
+        // seen, so what is here now is on page 1 and older ones follow.
+        const SEEN_WITHIN_LEVELS = [
+            { seconds: 60, label: '1 min' }, { seconds: 900, label: '15 min' },
+            { seconds: 3600, label: '1 h' }, { seconds: 21600, label: '6 h' },
+            { seconds: 86400, label: '24 h' },
+        ];
+        let seenWithinLevel = 5;
+        try {
+            const saved = parseInt(localStorage.getItem('bluewatch_seen_within'), 10);
+            if (saved >= 1 && saved <= SEEN_WITHIN_LEVELS.length) seenWithinLevel = saved;
+        } catch (e) {}
+
+        function onSeenWithinChange() {
+            const slider = document.getElementById('seen-within-slider');
+            seenWithinLevel = parseInt(slider.value, 10);
+            document.getElementById('seen-within-value').textContent = SEEN_WITHIN_LEVELS[seenWithinLevel - 1].label;
+            try { localStorage.setItem('bluewatch_seen_within', String(seenWithinLevel)); } catch (e) {}
+            selectedMacs.clear();
+            lastSelectedIndex = null;
+            pagination.page = 1;
+            refreshDevices();
+        }
+
+        function initSeenWithin() {
+            const slider = document.getElementById('seen-within-slider');
+            if (!slider) return;
+            slider.value = String(seenWithinLevel);
+            document.getElementById('seen-within-value').textContent = SEEN_WITHIN_LEVELS[seenWithinLevel - 1].label;
+        }
+        initSeenWithin();
+
         function buildDevicesUrl() {
             const params = new URLSearchParams();
             params.set('page', pagination.page);
@@ -6075,7 +6151,7 @@ LIVE_TEMPLATE = """
             const hidingAnything = hideClassified || hideGrouped;
             const viewingSpecificCategory = !hidingAnything && currentGroupId !== null && currentGroupId !== '__all__';
             if (!viewingSpecificCategory) {
-                params.set('active_within', '60');
+                params.set('active_within', String(SEEN_WITHIN_LEVELS[seenWithinLevel - 1].seconds));
             }
             if (hidingAnything) {
                 if (hideClassified) params.set('hide_classified', '1');
@@ -6083,6 +6159,7 @@ LIVE_TEMPLATE = """
             } else if (currentGroupId !== null) {
                 params.set('group_id', currentGroupId);
             }
+            if (hideNameless && !viewingSpecificCategory) params.set('hide_nameless', '1');
             params.set('sort', sortState.column);
             params.set('direction', getServerSortDirection());
 
@@ -6484,15 +6561,42 @@ LIVE_TEMPLATE = """
             }
             list.innerHTML = devices.map(d => {
                 const name = obfuscateName(d.friendly_name || d.vendor || d.mac);
-                const badge = d.reason === 'watched'
-                    ? '<span style="color:#f5c518;" title="Watched device">★</span>'
-                    : '<span style="color:#f59e0b; font-size:0.6rem; font-weight:600; letter-spacing:0.03em;" title="Type alert: ' + escapeHtml(d.type_label) + '">ALERT</span>';
-                return '<div onclick="showDevice(\\'' + d.mac + '\\')" style="cursor:pointer; display:flex; align-items:center; gap:0.4rem; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 4px; padding: 0.3rem 0.6rem; font-size: 0.75rem;">'
+                const isSticky = !!d.alert_id;
+                const isAlert = d.reason === 'type_alert';
+                const star = '<span style="color:#f5c518;" title="Watched device">★</span>';
+                const badge = isAlert
+                    ? (d.watched ? star : '') + '<span style="color:#f59e0b; font-size:0.6rem; font-weight:600; letter-spacing:0.03em;" title="Type alert: ' + escapeHtml(d.type_label) + '">ALERT</span>'
+                    : star;
+                let when = '';
+                if (isSticky) {
+                    when = d.present
+                        ? '<span style="font-size:0.6rem; color: var(--accent-green, #16a34a);">now</span>'
+                        : '<span style="font-size:0.6rem; color: var(--text-muted);" title="Last seen ' + escapeHtml(new Date(d.last_seen).toLocaleString()) + '">gone · ' + escapeHtml(formatLastSeen(d.last_seen).text) + '</span>';
+                }
+                const close = isSticky
+                    ? '<button type="button" class="priority-dismiss" title="Acknowledge and remove \u2014 I have seen this" aria-label="Acknowledge alert" onclick="dismissPriorityAlert(' + d.alert_id + ', event)">×</button>'
+                    : '';
+                return '<div onclick="showDevice(\\'' + d.mac + '\\')" style="cursor:pointer; position:relative; display:flex; align-items:center; gap:0.4rem; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 6px; padding: 0.3rem ' + (close ? '1.6rem' : '0.6rem') + ' 0.3rem 0.6rem; font-size: 0.75rem;">'
                     + badge
                     + '<span class="type-badge ' + getTypeClass(d.device_type) + '" style="font-size:0.65rem; padding:0.1rem 0.35rem;">' + d.type_icon + '</span>'
                     + '<span>' + escapeHtml(name) + '</span>'
+                    + when
+                    + close
                     + '</div>';
             }).join('');
+            const clearAll = document.getElementById('priority-clear-all');
+            if (clearAll) clearAll.hidden = devices.filter(d => d.alert_id).length < 2;
+        }
+
+        async function dismissPriorityAlert(id, ev) {
+            if (ev) ev.stopPropagation();
+            try { await fetch('/api/priority/alerts/' + id + '/dismiss', { method: 'POST' }); } catch (e) {}
+            loadPriorityDevices();
+        }
+
+        async function dismissAllPriorityAlerts() {
+            try { await fetch('/api/priority/alerts/dismiss-all', { method: 'POST' }); } catch (e) {}
+            loadPriorityDevices();
         }
 
         // ==================== Categories (sidebar tree) ====================
@@ -6600,6 +6704,16 @@ LIVE_TEMPLATE = """
             localStorage.setItem('bluewatch_hide_grouped', hideGrouped);
             const checkbox = document.getElementById('hide-grouped-toggle');
             if (checkbox) checkbox.checked = value;
+        }
+
+        function toggleHideNameless() {
+            const checkbox = document.getElementById('hide-nameless-toggle');
+            hideNameless = checkbox ? checkbox.checked : false;
+            localStorage.setItem('bluewatch_hide_nameless', hideNameless);
+            selectedMacs.clear();
+            lastSelectedIndex = null;
+            pagination.page = 1;
+            refreshDevices();
         }
 
         function toggleHideGrouped() {
@@ -8261,6 +8375,8 @@ LIVE_TEMPLATE = """
             if (classCb) classCb.checked = hideClassified;
             const groupCb = document.getElementById('hide-grouped-toggle');
             if (groupCb) groupCb.checked = hideGrouped;
+            const namelessCb = document.getElementById('hide-nameless-toggle');
+            if (namelessCb) namelessCb.checked = hideNameless;
         })();
 
         updateViewToggle();

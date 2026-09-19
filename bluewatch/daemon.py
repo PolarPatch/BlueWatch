@@ -145,6 +145,7 @@ class BlueWatchDaemon:
         asyncio.create_task(self._auto_type_backfill_loop())
         asyncio.create_task(self._hourly_seen_backfill_loop())
         asyncio.create_task(self._auto_export_loop())
+        asyncio.create_task(self._type_alert_loop())
         await self._scan_loop()
 
     async def _ble_continuous_manager(self) -> None:
@@ -304,6 +305,22 @@ class BlueWatchDaemon:
             except Exception as e:
                 logger.warning(f"Automatic export loop error: {e}")
             await asyncio.sleep(1800)
+
+    async def _type_alert_loop(self) -> None:
+        """Turns sightings of alert-type devices (drone, Flipper, camera ...) into
+        sticky dashboard alerts that stay until dismissed."""
+        await asyncio.sleep(15)
+        ticks = 0
+        while self.running:
+            try:
+                settings = await db.get_settings()
+                await db.record_type_alerts(settings.type_alert_types, settings.watched_return_minutes)
+                ticks += 1
+                if ticks % 720 == 0:  # about hourly
+                    await db.cleanup_type_alerts()
+            except Exception as e:
+                logger.warning(f"Type alert update failed: {e}")
+            await asyncio.sleep(5)
 
     async def _stats_overview_loop(self) -> None:
         """Keeps the statistics graphs' data fresh in the background (the query

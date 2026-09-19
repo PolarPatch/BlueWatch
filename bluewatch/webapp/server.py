@@ -169,6 +169,8 @@ class WebServer:
         self.app.router.add_get("/api/device/{mac}/rssi", self.api_device_rssi)
         self.app.router.add_get("/api/device/{mac}/live-signal", self.api_device_live_signal)
         self.app.router.add_get("/api/devices/priority", self.api_priority_devices)
+        self.app.router.add_post("/api/priority/alerts/dismiss-all", self.api_dismiss_all_alerts)
+        self.app.router.add_post("/api/priority/alerts/{alert_id}/dismiss", self.api_dismiss_alert)
         self.app.router.add_get("/api/device/{mac}/dwell", self.api_device_dwell)
         self.app.router.add_get("/api/device/{mac}/correlation", self.api_device_correlation)
         self.app.router.add_get("/api/device/{mac}/rotation", self.api_device_rotation)
@@ -370,6 +372,7 @@ class WebServer:
 
         hide_classified = request.query.get("hide_classified") == "1"
         hide_grouped = request.query.get("hide_grouped") == "1"
+        hide_nameless = request.query.get("hide_nameless") == "1"
 
         first_seen_filter = request.query.get("first_seen") or None
         if first_seen_filter not in ("6h", "12h", "24h", "48h", "7d", "30d"):
@@ -387,7 +390,9 @@ class WebServer:
         # presence radar -- most of what's actually broadcasting around you
         # at any moment uses a randomized address, so unlike the main
         # dashboard's curated persistent-identity list, it's included here.
-        exclude_randomized = not active_within_seconds
+        # Over a long window (hours) the rotating random addresses would drown
+        # everything, so they are left out there, like on the All devices page.
+        exclude_randomized = not active_within_seconds or active_within_seconds > 3600
 
         devices, total = await db.get_devices_page(
             page=page,
@@ -404,6 +409,7 @@ class WebServer:
             hide_grouped=hide_grouped,
             active_within_seconds=active_within_seconds,
             first_seen_filter=first_seen_filter,
+            hide_nameless=hide_nameless,
         )
         stats = await db.get_dashboard_stats(include_ignored=True)
 
@@ -425,6 +431,7 @@ class WebServer:
                 active_within_seconds=active_within_seconds,
                 exclude_randomized=exclude_randomized,
                 first_seen_filter=first_seen_filter,
+                hide_nameless=hide_nameless,
             )
 
         device_list = [
@@ -1193,35 +1200,44 @@ class WebServer:
         (Config > Alerts, e.g. "drone") seen within the last 30 minutes --
         so a brand-new drone MAC that was never individually watched still
         jumps out the moment it's seen, not just returning devices."""
-        settings = await db.get_settings()
-        devices = await db.get_priority_devices(settings.type_alert_types)
+        # Watchlist and type alerts are sticky: they stay until someone
+        # acknowledges them (the cross), so nothing is missed.
+        alerts = await db.get_open_type_alerts()
+        now = datetime.now()
 
         device_list = []
-        for d in devices:
-            device_type = d.device_type or classify_device(
-                d.vendor,
-                d.friendly_name,
-                d.service_uuids,
-                d.device_class,
-                d.manufacturer_data,
-                appearance=d.appearance,
-                service_data=d.service_data,
-                mac=d.mac,
-            )
+        for a in alerts:
+            device_type = a["type"] or "unknown"
+            try:
+                present = (now - datetime.fromisoformat(a["last_seen"])).total_seconds() <= 60
+            except (TypeError, ValueError):
+                present = False
             device_list.append({
-                "mac": d.mac,
-                "vendor": d.vendor,
-                "friendly_name": d.friendly_name,
+                "mac": a["mac"],
+                "vendor": a["vendor"],
+                "friendly_name": a["friendly_name"],
                 "device_type": device_type,
                 "type_icon": get_type_icon(device_type),
                 "type_label": get_type_label(device_type),
-                "watched": d.watched,
-                "last_seen": (d.last_seen.isoformat()) if d.last_seen else None,
-                "last_rssi": d.last_rssi,
-                "reason": "watched" if d.watched else "type_alert",
+                "watched": bool(a["watched"]),
+                "first_seen": a["first_seen"],
+                "last_seen": a["last_seen"],
+                "present": present,
+                "alert_id": a["id"],
+                "reason": "watched" if a["reason"] == "watched" else "type_alert",
             })
 
         return web.json_response({"devices": device_list})
+
+    async def api_dismiss_alert(self, request: web.Request) -> web.Response:
+        try:
+            alert_id = int(request.match_info["alert_id"])
+        except ValueError:
+            return web.json_response({"error": "Invalid alert id"}, status=400)
+        return web.json_response({"dismissed": await db.dismiss_type_alert(alert_id)})
+
+    async def api_dismiss_all_alerts(self, request: web.Request) -> web.Response:
+        return web.json_response({"dismissed": await db.dismiss_type_alert(None)})
 
     async def api_device_dwell(self, request: web.Request) -> web.Response:
         """Get dwell time analysis for a device."""

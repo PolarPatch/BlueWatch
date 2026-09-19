@@ -158,6 +158,19 @@ CREATE TABLE IF NOT EXISTS settings (
     value TEXT
 );
 
+-- Type alerts (Config > Alerts type list, e.g. drone/flipper/camera) that stay
+-- on the dashboard until someone dismisses them, even after the device is gone.
+CREATE TABLE IF NOT EXISTS type_alerts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    mac TEXT NOT NULL,
+    device_type TEXT,
+    reason TEXT NOT NULL DEFAULT 'type',   -- 'type' (type alert) or 'watched'
+    first_seen TEXT NOT NULL,
+    last_seen TEXT NOT NULL,
+    dismissed_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_type_alerts_open ON type_alerts(dismissed_at, mac);
+
 -- One row per device per hour it was seen. Small and kept long-term, so the
 -- statistics graphs (and long-range history) don't have to scan the large,
 -- regularly exported sightings table.
@@ -623,6 +636,7 @@ def _build_device_query_filters(
     hide_grouped: bool = False,
     active_within_seconds: Optional[int] = None,
     first_seen_filter: Optional[str] = None,
+    hide_nameless: bool = False,
 ) -> tuple[str, list]:
     """Build WHERE clause and parameters for device list queries.
 
@@ -719,6 +733,15 @@ def _build_device_query_filters(
         "ORDER BY d2.last_seen DESC, d2.mac DESC LIMIT 1))"
     )
 
+    if hide_nameless:
+        # Unknown devices with neither an identifier nor a vendor: nothing to go
+        # on. Watched and categorized devices are never hidden this way.
+        conditions.append(
+            "NOT (COALESCE(d.device_type, d.auto_type, 'unknown') = 'unknown' "
+            "AND TRIM(COALESCE(d.friendly_name, '')) = '' AND TRIM(COALESCE(d.vendor, '')) = '' "
+            "AND d.watched = 0 AND d.group_id IS NULL)"
+        )
+
     if search_value:
         wildcard = f"%{search_value}%"
         conditions.append(
@@ -758,6 +781,7 @@ async def get_devices_page(
     hide_grouped: bool = False,
     active_within_seconds: Optional[int] = None,
     first_seen_filter: Optional[str] = None,
+    hide_nameless: bool = False,
 ) -> tuple[list[Device], int]:
     """Get a single page of devices and total count for the current query."""
     safe_page = max(1, page)
@@ -778,6 +802,7 @@ async def get_devices_page(
         hide_classified=hide_classified,
         hide_grouped=hide_grouped,
         first_seen_filter=first_seen_filter,
+        hide_nameless=hide_nameless,
     )
 
     base_query = "FROM devices d LEFT JOIN device_groups g ON g.id = d.group_id"
@@ -2660,6 +2685,91 @@ async def get_stats_overview(force: bool = False, stale_ok: bool = False) -> dic
         }
         _stats_overview_cache = (time.monotonic(), result)
         return result
+
+
+async def record_type_alerts(type_alert_types, regap_minutes: int = 5, active_seconds: int = 45) -> int:
+    """Create or refresh the sticky dashboard alerts for devices that are on the
+    watchlist or of an alert type (drone, Flipper, camera ...) and were seen just
+    now. An alert stays until someone dismisses it. A dismissed alert stays
+    dismissed while the device is still around; the device coming back after
+    `regap_minutes` away opens a new one. Returns the number of new alerts."""
+    types = [t for t in (type_alert_types or []) if t]
+    now = datetime.now()
+    cutoff = (now - timedelta(seconds=active_seconds)).isoformat()
+    condition = "watched = 1"
+    params: list = [cutoff]
+    if types:
+        condition += f" OR COALESCE(device_type, auto_type) IN ({', '.join('?' for _ in types)})"
+        params += types
+    created = 0
+    async with _connect() as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT mac, watched, COALESCE(device_type, auto_type) AS t, last_seen FROM devices "
+            f"WHERE ignored = 0 AND last_seen >= ? AND ({condition})",
+            params,
+        ) as cursor:
+            seen = await cursor.fetchall()
+        for row in seen:
+            async with db.execute(
+                "SELECT id, last_seen, dismissed_at FROM type_alerts WHERE mac = ? ORDER BY id DESC LIMIT 1",
+                (row["mac"],),
+            ) as cursor:
+                latest = await cursor.fetchone()
+            new_alert = latest is None
+            if latest is not None and latest["dismissed_at"] is not None:
+                try:
+                    gap = (datetime.fromisoformat(row["last_seen"]) - datetime.fromisoformat(latest["last_seen"])).total_seconds() / 60
+                except (TypeError, ValueError):
+                    gap = 0
+                new_alert = gap >= regap_minutes
+            if new_alert:
+                reason = "watched" if row["watched"] else "type"
+                await db.execute(
+                    "INSERT INTO type_alerts (mac, device_type, reason, first_seen, last_seen) VALUES (?, ?, ?, ?, ?)",
+                    (row["mac"], row["t"], reason, row["last_seen"], row["last_seen"]),
+                )
+                created += 1
+            else:
+                await db.execute("UPDATE type_alerts SET last_seen = ? WHERE id = ?", (row["last_seen"], latest["id"]))
+        await db.commit()
+    return created
+
+
+async def get_open_type_alerts(limit: int = 50) -> list[dict]:
+    async with _connect() as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT a.id, a.mac, a.reason, a.first_seen, a.last_seen, COALESCE(d.device_type, d.auto_type, a.device_type) AS type, "
+            "d.friendly_name, d.vendor, d.watched FROM type_alerts a LEFT JOIN devices d ON d.mac = a.mac "
+            "WHERE a.dismissed_at IS NULL ORDER BY a.last_seen DESC LIMIT ?",
+            (limit,),
+        ) as cursor:
+            return [dict(r) for r in await cursor.fetchall()]
+
+
+async def dismiss_type_alert(alert_id: Optional[int] = None) -> int:
+    """Dismiss one alert, or all open ones when alert_id is None."""
+    now = datetime.now().isoformat()
+    async with _connect() as db:
+        if alert_id is None:
+            cursor = await db.execute("UPDATE type_alerts SET dismissed_at = ? WHERE dismissed_at IS NULL", (now,))
+        else:
+            cursor = await db.execute(
+                "UPDATE type_alerts SET dismissed_at = ? WHERE id = ? AND dismissed_at IS NULL", (now, alert_id)
+            )
+        await db.commit()
+        return cursor.rowcount
+
+
+async def cleanup_type_alerts(days: int = 30) -> int:
+    cutoff = (datetime.now() - timedelta(days=days)).isoformat()
+    async with _connect() as db:
+        cursor = await db.execute(
+            "DELETE FROM type_alerts WHERE dismissed_at IS NOT NULL AND dismissed_at < ?", (cutoff,)
+        )
+        await db.commit()
+        return cursor.rowcount
 
 
 async def hourly_seen_ready() -> bool:
