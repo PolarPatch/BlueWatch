@@ -126,14 +126,30 @@ class NotificationManager:
         # -- same technique the watched-arrival check below uses), so it
         # doesn't spam on every single advertisement of a device that's
         # continuously present.
-        if device.device_type and device.device_type in self._settings.type_alert_types:
+        # The stored device_type column is only set by a manual override --
+        # automatic classification is computed on the fly -- so use the same
+        # computed type the dashboard shows, or a Flipper/drone/camera that
+        # was never manually typed would never trigger this alert.
+        from .classifier import classify_device, get_type_label
+        device_type = device.device_type or classify_device(
+            device.vendor,
+            device.friendly_name,
+            device.service_uuids,
+            device.device_class,
+            device.manufacturer_data,
+            appearance=device.appearance,
+            service_data=device.service_data,
+            mac=device.mac,
+        )
+        type_alert_sent = False
+        if device_type and device_type in self._settings.type_alert_types:
             should_alert = is_new
             if not should_alert and device.last_seen:
                 gap_minutes = (now - device.last_seen).total_seconds() / 60
                 should_alert = gap_minutes >= self._settings.watched_return_minutes
             if should_alert:
-                from .classifier import get_type_label
-                type_label = get_type_label(device.device_type)
+                type_alert_sent = True
+                type_label = get_type_label(device_type)
                 name = device.friendly_name or device.vendor or device.mac
                 await self._send_notification(
                     title=f"⚠ {type_label} detected nearby",
@@ -210,7 +226,10 @@ class NotificationManager:
                 minutes_absent = (now - prev_seen).total_seconds() / 60
 
                 # Device returning after absence
+                # (Skipped when the type alert above already announced this
+                # same return, so a watched Flipper doesn't notify twice.)
                 if (self._settings.notify_watched_return and
+                        not type_alert_sent and
                         minutes_absent >= self._settings.watched_return_minutes):
                     name = device.friendly_name or device.vendor or device.mac
                     absence_str = self._format_duration(minutes_absent)
