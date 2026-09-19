@@ -1368,10 +1368,16 @@ HTML_TEMPLATE = """
             document.getElementById('shortcuts-modal').classList.remove('active');
         }
 
+        // Only the newest request may update the screen: a slower, older
+        // request (e.g. the live "active now" refresh) finishing after the one
+        // for the category just clicked used to put the full list back.
+        let devicesRefreshSeq = 0;
         async function refreshDevices() {
+            const seq = ++devicesRefreshSeq;
             try {
                 const response = await fetch(buildDevicesUrl());
                 const data = await response.json();
+                if (seq !== devicesRefreshSeq) return;
                 allDevices = data.devices || [];
                 const knownMacs = new Set(allDevices.map(d => d.mac));
                 selectedMacs = new Set([...selectedMacs].filter(mac => knownMacs.has(mac)));
@@ -5949,10 +5955,16 @@ LIVE_TEMPLATE = """
             document.getElementById('shortcuts-modal').classList.remove('active');
         }
 
+        // Only the newest request may update the screen: a slower, older
+        // request (e.g. the live "active now" refresh) finishing after the one
+        // for the category just clicked used to put the full list back.
+        let devicesRefreshSeq = 0;
         async function refreshDevices() {
+            const seq = ++devicesRefreshSeq;
             try {
                 const response = await fetch(buildDevicesUrl());
                 const data = await response.json();
+                if (seq !== devicesRefreshSeq) return;
                 allDevices = data.devices || [];
                 const knownMacs = new Set(allDevices.map(d => d.mac));
                 selectedMacs = new Set([...selectedMacs].filter(mac => knownMacs.has(mac)));
