@@ -403,6 +403,41 @@ HTML_TEMPLATE = """
         .priority-dismiss:hover { background: var(--bg-hover); color: var(--text-primary); }
         .priority-clear { margin-left: auto; background: transparent; border: none; color: var(--text-muted); font-size: 0.65rem; cursor: pointer; text-decoration: underline; }
         .priority-clear:hover { color: var(--text-primary); }
+        /* Sidebar: compact one-line category rows (neutral colors) */
+        .cat-tile { display: flex; align-items: center; gap: 0.4rem; padding: 0.15rem 0.3rem; margin: 0; border-radius: 4px; }
+        .cat-tile:hover { background: var(--bg-tertiary); }
+        .cat-tile.active { background: var(--bg-hover); box-shadow: none; }
+        .cat-tile.active .cat-name { color: var(--text-primary); font-weight: 700; }
+        .cat-body { flex: 1; min-width: 0; display: flex; align-items: center; gap: 0.4rem; cursor: pointer; }
+        .cat-name { flex: 1; min-width: 0; font-size: 0.74rem; font-weight: 500; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .cat-tile:hover .cat-name, .cat-tile.active .cat-name { color: var(--text-primary); }
+        .cat-strip { flex: none; display: grid; grid-template-columns: repeat(24, 2px); gap: 1px; height: 0.5rem; }
+        .cat-strip i { border-radius: 1px; background: var(--bg-hover); }
+        .cat-tile.active .cat-strip i { background: var(--bg-tertiary); }
+        .cat-strip i.a1 { background: color-mix(in srgb, var(--accent-blue, #2563eb) 30%, var(--bg-hover)); }
+        .cat-strip i.a2 { background: color-mix(in srgb, var(--accent-blue, #2563eb) 55%, var(--bg-hover)); }
+        .cat-strip i.a3 { background: color-mix(in srgb, var(--accent-blue, #2563eb) 80%, var(--bg-hover)); }
+        .cat-strip i.a4 { background: var(--accent-blue, #2563eb); }
+        .cat-count { flex: none; min-width: 1.2rem; text-align: right; font-size: 0.72rem; font-variant-numeric: tabular-nums; color: var(--text-muted); }
+        .cat-dots { flex: none; display: inline-flex; align-items: center; gap: 0.25rem; min-width: 0.5rem; }
+        .cat-dot { width: 0.5rem; height: 0.5rem; border-radius: 50%; }
+        .cat-dot.now { background: #3fb950; animation: catPulse 2.2s ease-in-out infinite; }
+        .cat-dot.alert { background: #f59e0b; }
+        @keyframes catPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+        #categories-tree .category-children { margin-left: 0; border-left: none; }
+        /* Sidebar panels: no divider lines, neutral buttons */
+        .sidebar .panel { margin-bottom: 1rem; }
+        .sidebar .panel-header { border-bottom: none; padding-bottom: 0; margin-bottom: 0.45rem; }
+        .sidebar .btn-primary { background: var(--bg-tertiary); border-color: var(--border-color); color: var(--text-primary); }
+        .new-cat { padding: 0.25rem 0.3rem 0; }
+        .new-cat-link { background: none; border: none; padding: 0.15rem 0; color: var(--text-muted); font-family: var(--font-mono); font-size: 0.72rem; cursor: pointer; }
+        .new-cat-link:hover { color: var(--text-primary); }
+        .new-cat .search-input { width: 100%; font-size: 0.72rem; padding: 0.3rem 0.5rem; }
+        .range-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; }
+        .range-row .search-input { min-width: 0; font-size: 0.68rem; padding: 0.35rem 0.4rem; font-variant-numeric: tabular-nums; }
+        .range-row .btn { padding: 0.35rem 0.5rem; font-size: 0.68rem; }
+
+        .table-count { font-size: 0.72rem; color: var(--text-muted); white-space: nowrap; }
         /* Statistics graphs at the top of All devices */
         .stats-panels { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; margin-bottom: 0.75rem; }
         .stats-card { background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 10px; padding: 0.8rem 1rem; min-width: 0; }
@@ -1007,22 +1042,24 @@ HTML_TEMPLATE = """
                     </div>
                     <input type="range" id="first-seen-slider" min="1" max="7" step="1" value="1" oninput="onFirstSeenSliderChange()" style="width: 100%;">
                 </div>
-                <div id="categories-tree" style="padding: 0.5rem;"></div>
-                <div style="padding: 0.5rem; display: flex; gap: 0.4rem;">
-                    <input type="text" class="search-input" id="new-category-name" placeholder="New category name" style="font-size: 0.75rem; flex: 1;">
-                    <button class="btn btn-primary" onclick="createCategory()">+</button>
+                <div id="categories-tree" style="padding: 0.25rem;"></div>
+                <div class="new-cat">
+                    <button type="button" class="new-cat-link" id="new-cat-link" onclick="showNewCategory()">+ New category</button>
+                    <input type="text" class="search-input" id="new-category-name" placeholder="Category name, Enter to save" hidden onkeydown="newCategoryKey(event)" onblur="hideNewCategory()">
                 </div>
             </div>
 
             <div class="panel">
-                <div class="panel-header">Date Range Query</div>
-                <div style="display: flex; flex-direction: column; gap: 0.5rem;">
-                    <input type="datetime-local" class="search-input" id="search-start" style="font-size: 0.7rem;">
-                    <input type="datetime-local" class="search-input" id="search-end" style="font-size: 0.7rem;">
-                    <input type="text" class="search-input" id="search" placeholder="Search MAC, vendor, or identifier..." style="font-size: 0.75rem;">
-                    <div style="display: flex; gap: 0.5rem;">
-                        <button class="btn" style="flex:1;" onclick="clearDateFilters()">Clear</button>
-                        <button class="btn btn-primary" style="flex:1;" onclick="searchByDateRange()">Search</button>
+                <div class="panel-header">Search</div>
+                <input type="text" class="search-input" id="search" placeholder="Search MAC, vendor or identifier..." style="width: 100%; font-size: 0.75rem;">
+                <div id="time-range" style="margin-top: 0.5rem;">
+                    <div class="range-row">
+                        <input type="text" inputmode="numeric" maxlength="16" autocomplete="off" class="search-input" id="search-start" placeholder="dd.mm.yyyy hh:mm" title="From (dd.mm.yyyy hh:mm)" oninput="maskDateTime(this)">
+                        <input type="text" inputmode="numeric" maxlength="16" autocomplete="off" class="search-input" id="search-end" placeholder="dd.mm.yyyy hh:mm" title="To (dd.mm.yyyy hh:mm)" oninput="maskDateTime(this)">
+                    </div>
+                    <div class="range-row" style="margin-top: 0.4rem;">
+                        <button class="btn" onclick="clearDateFilters()">Clear</button>
+                        <button class="btn" onclick="searchByDateRange()">Search</button>
                     </div>
                 </div>
             </div>
@@ -1058,11 +1095,8 @@ HTML_TEMPLATE = """
             </div>
             <div class="table-container" id="devices-container">
                 <div class="table-header">
-                    <span class="table-title">Identified Targets <span id="selected-count" class="selected-summary" style="display: none;">· 0 selected</span></span>
+                    <span class="table-count"><span id="visible-count">--</span> devices <span id="selected-count" class="selected-summary" style="display: none;">· 0 selected</span></span>
                     <div class="table-actions">
-                        <span style="font-size: 0.7rem; color: var(--text-muted);">
-                            <span id="visible-count">--</span> targets
-                        </span>
                         <select class="form-input bulk-select" id="bulk-group-select">
                             <option value="">Assign group...</option>
                         </select>
@@ -1569,6 +1603,7 @@ HTML_TEMPLATE = """
                 categoriesCache = data.groups || [];
                 cachedGroups = categoriesCache;  // single source of truth -- see loadGroupsForDevice/loadGroupsForBulkSelect
                 renderCategoryTree();
+                loadCategoryStats();
             } catch (e) {
                 console.error('Failed to load categories:', e);
             }
@@ -1593,22 +1628,60 @@ HTML_TEMPLATE = """
             el.innerHTML = topLevel.map(g => renderCategoryNode(g)).join('');
         }
 
-        function renderCategoryNode(group) {
+        // ---- Category stats (counts, presence, 24 h activity) ----
+        let categoryStats = { groups: {}, views: {} };
+
+        async function loadCategoryStats() {
+            try {
+                const res = await fetch('/api/categories/stats');
+                if (!res.ok) return;
+                categoryStats = await res.json();
+                renderCategoryTree();
+            } catch (e) { console.error('Category stats error:', e); }
+        }
+
+        // A category's numbers include its subcategories.
+        function categoryAggregate(group) {
+            const own = (categoryStats.groups || {})[String(group.id)] || { total: 0, present: 0, alerts: 0, activity: new Array(24).fill(0) };
+            const agg = { total: own.total, present: own.present, alerts: own.alerts, activity: own.activity.slice() };
+            categoriesCache.filter(g => g.parent_id === group.id).forEach(child => {
+                const c = categoryAggregate(child);
+                agg.total += c.total; agg.present += c.present; agg.alerts += c.alerts;
+                c.activity.forEach((n, i) => { agg.activity[i] += n; });
+            });
+            return agg;
+        }
+
+        function activityStrip(activity) {
+            const max = Math.max(1, ...activity);
+            return '<span class="cat-strip" title="Devices seen per hour, last 24 h">' + activity.map((n, i) => {
+                const level = n === 0 ? 0 : Math.max(1, Math.ceil((n / max) * 4));
+                return '<i class="a' + level + '" title="' + n + ' devices"></i>';
+            }).join('') + '</span>';
+        }
+
+        function renderCategoryNode(group, depth) {
+            depth = depth || 0;
             const children = categoriesCache.filter(g => g.parent_id === group.id);
             const childrenHtml = children.length
-                ? '<div class="category-children">' + children.map(c => renderCategoryNode(c)).join('') + '</div>'
+                ? '<div class="category-children">' + children.map(c => renderCategoryNode(c, depth + 1)).join('') + '</div>'
                 : '';
             const isActive = currentGroupId === group.id;
+            const st = categoryAggregate(group);
+            const dots = (st.present > 0 ? '<i class="cat-dot now" title="' + st.present + ' here now"></i>' : '') +
+                (st.alerts ? '<i class="cat-dot alert" title="' + st.alerts + ' open alert(s)"></i>' : '');
             return (
-                '<div class="category-node' + (isActive ? ' active' : '') + '" draggable="true" data-id="' + group.id + '" ' +
+                '<div class="category-node cat-tile' + (depth ? ' cat-child' : '') + (isActive ? ' active' : '') + '" style="padding-left:' + (0.3 + depth * 0.7) + 'rem" draggable="true" data-id="' + group.id + '" ' +
                 'ondragstart="onCategoryDragStart(event, ' + group.id + ')" ' +
                 'ondragover="onCategoryDragOver(event)" ' +
                 'ondragleave="onCategoryDragLeave(event)" ' +
                 'ondrop="onCategoryDrop(event, ' + group.id + ')">' +
-                '<span class="category-label" style="color:' + (group.color || '#3b82f6') + '" onclick="selectCategory(' + group.id + ')" title="Click to show only this category\\'s devices, drag onto another category to nest it as a subcategory">' +
-                (group.icon || '📁') + ' ' + escapeHtml(obfuscateName(group.name)) +
+                '<span class="cat-body" onclick="selectCategory(' + group.id + ')" title="' + escapeHtml(obfuscateName(group.name)) + '">' +
+                '<span class="cat-name">' + escapeHtml(obfuscateName(group.name)) + '</span>' +
+                activityStrip(st.activity) +
                 '</span>' +
-                '<button class="category-delete" onclick="deleteCategory(' + group.id + ')" title="Delete category">×</button>' +
+                '<span class="cat-count">' + st.total + '</span>' +
+                '<span class="cat-dots">' + dots + '</span>' +
                 '</div>' + childrenHtml
             );
         }
@@ -1764,6 +1837,26 @@ HTML_TEMPLATE = """
             return '<div class="detail-item full"><div class="detail-label">Drone Remote ID (live)</div><div class="detail-value" style="font-size:0.8rem;">' + parts.join(' · ') + '</div></div>';
         }
 
+        function showNewCategory() {
+            document.getElementById('new-cat-link').hidden = true;
+            const input = document.getElementById('new-category-name');
+            input.hidden = false;
+            input.focus();
+        }
+
+        function hideNewCategory() {
+            const input = document.getElementById('new-category-name');
+            if (!input || input.hidden) return;
+            input.hidden = true;
+            input.value = '';
+            document.getElementById('new-cat-link').hidden = false;
+        }
+
+        function newCategoryKey(ev) {
+            if (ev.key === 'Enter') { ev.preventDefault(); createCategory(); }
+            else if (ev.key === 'Escape') { hideNewCategory(); }
+        }
+
         async function createCategory() {
             const input = document.getElementById('new-category-name');
             const name = (input.value || '').trim();
@@ -1775,6 +1868,7 @@ HTML_TEMPLATE = """
                     body: JSON.stringify({ name, color: '#3b82f6', icon: '📁' }),
                 });
                 input.value = '';
+                hideNewCategory();
                 await loadCategories();
             } catch (e) {
                 console.error('Failed to create category:', e);
@@ -1873,9 +1967,43 @@ HTML_TEMPLATE = """
             });
         }
 
+        // Date/time fields are plain text "dd.mm.yyyy hh:mm" (no calendar widget):
+        // digits are typed, dots / space / colon are inserted automatically.
+        function maskDateTime(el) {
+            const d = el.value.replace(/\\D/g, '').slice(0, 12);
+            let out = d.slice(0, 2);
+            if (d.length > 2) out += '.' + d.slice(2, 4);
+            if (d.length > 4) out += '.' + d.slice(4, 8);
+            if (d.length > 8) out += ' ' + d.slice(8, 10);
+            if (d.length > 10) out += ':' + d.slice(10, 12);
+            el.value = out;
+        }
+
+        // "dd.mm.yyyy[ hh:mm]" -> "yyyy-mm-ddThh:mm"; '' when empty; null when invalid.
+        function parseDateTimeText(text) {
+            const t = (text || '').trim();
+            if (!t) return '';
+            const m = t.match(/^(\\d{2})\\.(\\d{2})\\.(\\d{4})(?: (\\d{2}):(\\d{2}))?$/);
+            if (!m) return null;
+            const [, dd, mm, yyyy, hh = '00', mi = '00'] = m;
+            if (+mm < 1 || +mm > 12 || +dd < 1 || +dd > 31 || +hh > 23 || +mi > 59) return null;
+            return yyyy + '-' + mm + '-' + dd + 'T' + hh + ':' + mi;
+        }
+
+        function formatDateTimeText(date) {
+            const pad = n => String(n).padStart(2, '0');
+            return pad(date.getDate()) + '.' + pad(date.getMonth() + 1) + '.' + date.getFullYear() +
+                ' ' + pad(date.getHours()) + ':' + pad(date.getMinutes());
+        }
+
         async function searchByDateRange() {
-            const startInput = document.getElementById('search-start').value;
-            const endInput = document.getElementById('search-end').value;
+            const startInput = parseDateTimeText(document.getElementById('search-start').value);
+            const endInput = parseDateTimeText(document.getElementById('search-end').value);
+            if (startInput === null || endInput === null) {
+                alert('Use the format dd.mm.yyyy hh:mm, for example 19.09.2026 14:30');
+                return;
+            }
+            if (!startInput && !endInput) { clearDateFilters(); return; }
             if (!startInput && !endInput) { clearDateFilters(); return; }
             try {
                 let url = '/api/search?';
@@ -3399,8 +3527,8 @@ HTML_TEMPLATE = """
             if (!startEl || !endEl) return;
             const now = new Date();
             const anHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
-            startEl.value = toDatetimeLocalValue(anHourAgo);
-            endEl.value = toDatetimeLocalValue(now);
+            startEl.value = formatDateTimeText(anHourAgo);
+            endEl.value = formatDateTimeText(now);
         })();
 
         (function initHideCategorized() {
@@ -3414,6 +3542,7 @@ HTML_TEMPLATE = """
         updateSortIndicators();
         loadGroupsForBulkSelect();
         loadCategories();
+        setInterval(loadCategoryStats, 15000);
         updateSelectionUI();
         updatePaginationUI();
         refreshDevices();
