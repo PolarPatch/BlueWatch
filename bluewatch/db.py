@@ -24,6 +24,9 @@ class Device:
     vendor: Optional[str] = None
     friendly_name: Optional[str] = None
     device_type: Optional[str] = None
+    # Automatic classification, stored so SQL filters/counts can use it.
+    # device_type (manual override) wins over it.
+    auto_type: Optional[str] = None
     ignored: bool = False
     watched: bool = False  # Device of Interest
     first_seen: Optional[datetime] = None
@@ -154,6 +157,15 @@ CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
     value TEXT
 );
+
+-- One row per device per hour it was seen. Small and kept long-term, so the
+-- statistics graphs (and long-range history) don't have to scan the large,
+-- regularly exported sightings table.
+CREATE TABLE IF NOT EXISTS hourly_seen (
+    hour TEXT NOT NULL,      -- local time, "YYYY-MM-DDTHH"
+    mac TEXT NOT NULL,
+    PRIMARY KEY (hour, mac)
+) WITHOUT ROWID;
 
 CREATE TABLE IF NOT EXISTS name_vendor_map (
     name TEXT PRIMARY KEY COLLATE NOCASE,
@@ -353,6 +365,7 @@ async def init_db() -> None:
         # Migrations for devices table columns
         migrations = [
             ("device_type", "TEXT"),
+            ("auto_type", "TEXT"),
             ("watched", "INTEGER DEFAULT 0"),
             ("service_uuids", "TEXT"),
             ("bt_type", "TEXT DEFAULT 'ble'"),
@@ -487,6 +500,7 @@ def _parse_device_row(row) -> Device:
         vendor=row["vendor"],
         friendly_name=row["friendly_name"],
         device_type=row["device_type"] if "device_type" in keys else None,
+        auto_type=row["auto_type"] if "auto_type" in keys else None,
         ignored=bool(row["ignored"]),
         watched=bool(row["watched"]) if "watched" in keys else False,
         first_seen=datetime.fromisoformat(row["first_seen"]) if row["first_seen"] else None,
@@ -662,7 +676,7 @@ def _build_device_query_filters(
     elif filter_key in _DEVICE_FILTER_TYPES:
         filter_types = _DEVICE_FILTER_TYPES[filter_key]
         placeholders = ", ".join("?" for _ in filter_types)
-        conditions.append(f"COALESCE(d.device_type, 'unknown') IN ({placeholders})")
+        conditions.append(f"COALESCE(d.device_type, d.auto_type, 'unknown') IN ({placeholders})")
         params.extend(filter_types)
 
     search_value = (search or "").strip()
@@ -670,7 +684,7 @@ def _build_device_query_filters(
     if hide_classified or hide_grouped:
         sub_conditions = []
         if hide_classified:
-            sub_conditions.append("COALESCE(d.device_type, 'unknown') = 'unknown'")
+            sub_conditions.append("COALESCE(d.device_type, d.auto_type, 'unknown') = 'unknown'")
         if hide_grouped:
             sub_conditions.append("d.group_id IS NULL")
         conditions.append(" AND ".join(sub_conditions))
@@ -717,7 +731,7 @@ def _build_device_query_filters(
 
 
 _DEVICE_SORT_MAP = {
-    "class": "COALESCE(d.device_type, 'unknown')",
+    "class": "COALESCE(d.device_type, d.auto_type, 'unknown')",
     "mac": "d.mac",
     "vendor": "COALESCE(d.vendor, '')",
     "identifier": "COALESCE(d.friendly_name, '')",
@@ -908,7 +922,7 @@ async def _compute_dashboard_stats(include_ignored: bool = True) -> dict:
     # table on a Raspberry Pi.
     query = f"""
         WITH flagged AS MATERIALIZED (
-            SELECT d.last_seen, d.first_seen, d.watched, d.device_type,
+            SELECT d.last_seen, d.first_seen, d.watched, COALESCE(d.device_type, d.auto_type) AS device_type,
                    {randomized_sql} AS is_randomized
             FROM devices d
             {where_clause}
@@ -1411,10 +1425,19 @@ async def upsert_device(
             "INSERT INTO sightings (mac, timestamp, rssi) VALUES (?, ?, ?)",
             (mac, now.isoformat(), rssi)
         )
+        await db.execute(
+            "INSERT OR IGNORE INTO hourly_seen (hour, mac) VALUES (?, ?)",
+            (now.strftime("%Y-%m-%dT%H"), mac)
+        )
 
         await db.commit()
 
     device = await get_device(mac)
+    if device is not None:
+        try:
+            await _refresh_auto_type(device)
+        except Exception as e:  # never let classification break scanning
+            logger.debug(f"auto_type refresh failed for {mac}: {e}")
     return device, is_new
 
 
@@ -1819,6 +1842,14 @@ async def get_settings() -> Settings:
         auth_username=settings_dict.get("auth_username"),
         auth_password_hash=settings_dict.get("auth_password_hash"),
     )
+
+
+async def get_raw_setting(key: str, default: Optional[str] = None) -> Optional[str]:
+    """Read a single setting value (no schema for it in Settings)."""
+    async with _connect() as db:
+        async with db.execute("SELECT value FROM settings WHERE key = ?", (key,)) as cursor:
+            row = await cursor.fetchone()
+    return row[0] if row and row[0] is not None else default
 
 
 async def set_setting(key: str, value: str) -> None:
@@ -2415,7 +2446,7 @@ async def get_priority_devices(type_alert_types: tuple[str, ...], minutes: int =
             for d in candidates:
                 if d.mac in result_macs:
                     continue
-                device_type = d.device_type or classify_device(
+                device_type = d.device_type or d.auto_type or classify_device(
                     d.vendor, d.friendly_name, d.service_uuids, d.device_class,
                     d.manufacturer_data, appearance=d.appearance,
                     service_data=d.service_data, mac=d.mac,
@@ -2444,6 +2475,225 @@ async def get_last_seen_map() -> dict[str, datetime]:
         except (TypeError, ValueError):
             continue
     return out
+
+
+# ---------------------------------------------------------------------------
+# Statistics overview (the graphs at the top of the All devices page)
+# ---------------------------------------------------------------------------
+# The hourly "unique devices" query groups ~170k sightings from the last 24 h
+# (about 1.6 s on a Raspberry Pi 3), so the result is cached for a few minutes
+# and recomputed by at most one caller at a time.
+_STATS_OVERVIEW_TTL = 300.0
+_stats_overview_cache: tuple = (0.0, None)
+_stats_overview_lock = None  # asyncio.Lock, created lazily inside the loop
+
+
+def _auto_classify(d: Device) -> str:
+    """Automatic classification of a device row (ignores any manual override)."""
+    from .classifier import classify_device
+
+    return classify_device(
+        d.vendor, d.friendly_name, d.service_uuids, d.device_class,
+        d.manufacturer_data, appearance=d.appearance,
+        service_data=d.service_data, mac=d.mac,
+    )
+
+
+def _computed_device_type(d: Device) -> str:
+    """The type the dashboard shows: the manual override, else the stored
+    automatic type, else a fresh classification."""
+    return d.device_type or d.auto_type or _auto_classify(d)
+
+
+# Signature of what the automatic type was last computed from, per device, so
+# upsert_device() only re-classifies when the inputs actually changed.
+_auto_type_sig: dict = {}
+
+
+def _classification_signature(d: Device) -> int:
+    return hash(repr((
+        d.friendly_name, d.vendor, d.service_uuids, d.manufacturer_data,
+        d.service_data, d.appearance, d.device_class,
+    )))
+
+
+async def _refresh_auto_type(device: Device) -> None:
+    """Store the automatic type when it is missing or its inputs changed."""
+    sig = _classification_signature(device)
+    if device.auto_type is not None and _auto_type_sig.get(device.mac) == sig:
+        return
+    new_type = _auto_classify(device)
+    _auto_type_sig[device.mac] = sig
+    if new_type != device.auto_type:
+        async with _connect() as db:
+            await db.execute("UPDATE devices SET auto_type = ? WHERE mac = ?", (new_type, device.mac))
+            await db.commit()
+        device.auto_type = new_type
+
+
+async def backfill_auto_types(limit: int = 200) -> int:
+    """Classify devices that have no stored automatic type yet. Returns how
+    many were done (0 = nothing left)."""
+    async with _connect() as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT * FROM devices WHERE auto_type IS NULL LIMIT ?", (limit,)
+        ) as cursor:
+            devices = [_parse_device_row(r) for r in await cursor.fetchall()]
+        for d in devices:
+            new_type = _auto_classify(d)
+            _auto_type_sig[d.mac] = _classification_signature(d)
+            await db.execute("UPDATE devices SET auto_type = ? WHERE mac = ?", (new_type, d.mac))
+        await db.commit()
+    return len(devices)
+
+
+async def _devices_by_mac(db, macs: list) -> dict:
+    out: dict = {}
+    for i in range(0, len(macs), 500):
+        chunk = macs[i:i + 500]
+        placeholders = ", ".join("?" for _ in chunk)
+        async with db.execute(
+            f"SELECT * FROM devices WHERE mac IN ({placeholders})", chunk
+        ) as cursor:
+            for row in await cursor.fetchall():
+                out[row["mac"]] = _parse_device_row(row)
+    return out
+
+
+async def get_stats_overview(force: bool = False, stale_ok: bool = False) -> dict:
+    """Data for the statistics graphs: unique devices per hour for the last 24 h
+    (split by type) and the type mix of the devices active right now.
+
+    stale_ok: return whatever is cached, however old (the daemon refreshes it
+    in the background), and only compute inline when nothing is cached yet."""
+    global _stats_overview_cache, _stats_overview_lock
+    import asyncio
+    from .classifier import get_type_label
+
+    cached_at, cached = _stats_overview_cache
+    if cached is not None and stale_ok and not force:
+        return cached
+    if cached is not None and not force and time.monotonic() - cached_at < _STATS_OVERVIEW_TTL:
+        return cached
+    if _stats_overview_lock is None:
+        _stats_overview_lock = asyncio.Lock()
+    async with _stats_overview_lock:
+        cached_at, cached = _stats_overview_cache
+        if cached is not None and not force and time.monotonic() - cached_at < _STATS_OVERVIEW_TTL:
+            return cached
+
+        now = datetime.now()
+        current_hour = now.replace(minute=0, second=0, microsecond=0)
+        hour_starts = [current_hour - timedelta(hours=23 - i) for i in range(24)]
+        hour_keys = [h.strftime("%Y-%m-%dT%H") for h in hour_starts]
+        since = hour_starts[0].isoformat()
+        active_since = (now - timedelta(minutes=15)).isoformat()
+
+        async with _connect() as db:
+            db.row_factory = aiosqlite.Row
+            if await hourly_seen_ready():
+                query = "SELECT hour AS h, mac FROM hourly_seen WHERE hour >= ?"
+                params = (hour_keys[0],)
+            else:  # rollup not filled yet: fall back to the (slow) raw scan
+                query = ("SELECT substr(timestamp, 1, 13) AS h, mac FROM sightings "
+                         "WHERE timestamp >= ? GROUP BY h, mac")
+                params = (since,)
+            async with db.execute(query, params) as cursor:
+                pairs = [(r["h"], r["mac"]) for r in await cursor.fetchall()]
+            macs = sorted({m for _, m in pairs})
+            # Only the type is needed: read the stored one (light query) and
+            # fall back to a full classification for the rare device without.
+            type_of: dict = {}
+            missing: list = []
+            for i in range(0, len(macs), 500):
+                chunk = macs[i:i + 500]
+                placeholders = ", ".join("?" for _ in chunk)
+                async with db.execute(
+                    f"SELECT mac, COALESCE(device_type, auto_type) FROM devices WHERE mac IN ({placeholders})",
+                    chunk,
+                ) as cursor:
+                    for mac, t in await cursor.fetchall():
+                        if t:
+                            type_of[mac] = t
+                        else:
+                            missing.append(mac)
+            if missing:
+                for mac, device in (await _devices_by_mac(db, missing)).items():
+                    type_of[mac] = _computed_device_type(device)
+            active_types: dict = {}
+            active_total = 0
+            async with db.execute(
+                "SELECT COALESCE(device_type, auto_type, 'unknown'), COUNT(*) FROM devices "
+                "WHERE last_seen >= ? GROUP BY 1",
+                (active_since,),
+            ) as cursor:
+                for t, n in await cursor.fetchall():
+                    active_types[t] = n
+                    active_total += n
+
+        per_hour: dict = {k: {} for k in hour_keys}
+        totals: dict = {}
+        for h, mac in pairs:
+            bucket = per_hour.get(h)
+            t = type_of.get(mac)
+            if bucket is None or t is None:
+                continue
+            bucket[t] = bucket.get(t, 0) + 1
+            totals[t] = totals.get(t, 0) + 1
+
+        labels = {t: get_type_label(t) for t in set(totals) | set(active_types)}
+        result = {
+            "generated": now.isoformat(),
+            "hours": [
+                {"hour": k, "label": k[-2:], "unique": sum(per_hour[k].values()), "types": per_hour[k]}
+                for k in hour_keys
+            ],
+            "current_hour": hour_keys[-1],
+            "types_24h": totals,
+            "active_now": {
+                "window_minutes": 15,
+                "total": active_total,
+                "types": active_types,
+            },
+            "type_labels": labels,
+        }
+        _stats_overview_cache = (time.monotonic(), result)
+        return result
+
+
+async def hourly_seen_ready() -> bool:
+    return (await get_raw_setting("hourly_seen_backfill")) == "done"
+
+
+async def backfill_hourly_seen(max_days: int = 3) -> bool:
+    """Fill hourly_seen from the existing sightings, a few days per call so the
+    write lock is only held briefly. Returns True once everything is done."""
+    async with _connect() as db:
+        async with db.execute(
+            "SELECT DISTINCT substr(timestamp, 1, 10) FROM sightings "
+            "WHERE timestamp >= '2020' ORDER BY 1"
+        ) as cursor:
+            days = [r[0] for r in await cursor.fetchall()]
+    done_raw = await get_raw_setting("hourly_seen_backfill_days", "")
+    done = set(done_raw.split(",")) if done_raw else set()
+    todo = [d for d in days if d not in done]
+    for day in todo[:max_days]:
+        async with _connect() as db:
+            await db.execute(
+                "INSERT OR IGNORE INTO hourly_seen (hour, mac) "
+                "SELECT substr(timestamp, 1, 13), mac FROM sightings "
+                "WHERE timestamp >= ? AND timestamp < ? GROUP BY 1, 2",
+                (day, day + "~"),
+            )
+            await db.commit()
+        done.add(day)
+    if len(todo) <= max_days:
+        await set_setting("hourly_seen_backfill", "done")
+        await set_setting("hourly_seen_backfill_days", "")
+        return True
+    await set_setting("hourly_seen_backfill_days", ",".join(sorted(done)))
+    return False
 
 
 async def get_recent_sightings(mac: str, minutes: int = 15) -> list[dict]:

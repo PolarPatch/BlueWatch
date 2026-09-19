@@ -16,7 +16,7 @@ from typing import Optional
 
 from aiohttp import web
 
-from .. import db, rpa
+from .. import archive, db, rpa
 from ..classifier import classify_device, get_type_icon, get_type_label, get_all_types, is_randomized_mac, is_macos_uuid, is_mdns_key, get_uuid_names
 from ..patterns import generate_hourly_heatmap, generate_daily_heatmap
 from .templates import ABOUT_TEMPLATE, HTML_TEMPLATE, LIVE_TEMPLATE, LOGIN_TEMPLATE, SETTINGS_TEMPLATE
@@ -181,6 +181,11 @@ class WebServer:
         self.app.router.add_get("/api/search", self.api_search)
         self.app.router.add_get("/api/stats", self.api_stats)
         self.app.router.add_get("/api/live-stats", self.api_live_stats)
+        self.app.router.add_get("/api/stats/overview", self.api_stats_overview)
+        self.app.router.add_get("/api/export/auto", self.api_auto_export_get)
+        self.app.router.add_post("/api/export/auto", self.api_auto_export_save)
+        self.app.router.add_post("/api/export/auto/run", self.api_auto_export_run)
+        self.app.router.add_get("/api/export/files/{name}", self.api_auto_export_file)
         # Settings
         self.app.router.add_get("/api/settings", self.api_get_settings)
         self.app.router.add_post("/api/settings", self.api_update_settings)
@@ -1430,6 +1435,63 @@ class WebServer:
             "active_today": global_stats["active_today"],
             "total_sightings": global_stats["total_sightings"],
         })
+
+    async def _auto_export_status(self) -> dict:
+        files = archive.list_files()
+        last_result = None
+        raw = await db.get_raw_setting("auto_export_last_result")
+        if raw:
+            try:
+                last_result = json.loads(raw)
+            except ValueError:
+                pass
+        return {
+            "enabled": (await db.get_raw_setting("auto_export_enabled", "0")) == "1",
+            "days": int(await db.get_raw_setting("auto_export_days", "14")),
+            "directory": str(archive.EXPORT_DIR),
+            "last_run": await db.get_raw_setting("auto_export_last_run"),
+            "last_result": last_result,
+            "running": archive.is_running(),
+            "files": files,
+            "total_bytes": sum(f["size"] for f in files),
+            "free_bytes": archive.free_bytes(),
+        }
+
+    async def api_auto_export_get(self, request: web.Request) -> web.Response:
+        return web.json_response(await self._auto_export_status())
+
+    async def api_auto_export_save(self, request: web.Request) -> web.Response:
+        try:
+            data = await request.json()
+            days = int(data.get("days", 14))
+            if not 1 <= days <= 3650:
+                return web.json_response({"error": "Days must be between 1 and 3650"}, status=400)
+            await db.set_setting("auto_export_enabled", "1" if data.get("enabled") else "0")
+            await db.set_setting("auto_export_days", str(days))
+        except (ValueError, TypeError):
+            return web.json_response({"error": "Invalid request"}, status=400)
+        return web.json_response(await self._auto_export_status())
+
+    async def api_auto_export_run(self, request: web.Request) -> web.Response:
+        """Start an export now (runs in the background; poll the status)."""
+        if archive.is_running():
+            return web.json_response({"error": "An export is already running"}, status=409)
+        days = max(1, int(await db.get_raw_setting("auto_export_days", "14")))
+        asyncio.get_running_loop().create_task(archive.run_export(days))
+        return web.json_response({"status": "started"})
+
+    async def api_auto_export_file(self, request: web.Request) -> web.StreamResponse:
+        path = archive.file_path(request.match_info["name"])
+        if path is None:
+            return web.json_response({"error": "File not found"}, status=404)
+        return web.FileResponse(
+            path,
+            headers={"Content-Disposition": f'attachment; filename="{path.name}"'},
+        )
+
+    async def api_stats_overview(self, request: web.Request) -> web.Response:
+        """Graph data for the statistics section (cached for a few minutes)."""
+        return web.json_response(await db.get_stats_overview(stale_ok=True))
 
     async def api_live_stats(self, request: web.Request) -> web.Response:
         """Stats for the "nearby now" live view."""

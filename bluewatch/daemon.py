@@ -9,6 +9,7 @@ import platform
 import signal
 import sys
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -20,6 +21,7 @@ from .config import SCAN_INTERVAL, SOCKET_PATH, METRICS_PORT
 from .scanner import BluetoothScanner, ScannedDevice, list_adapters
 from .esp32_scanner import ESP32Scanner
 from .mdns import MdnsScanner
+from . import archive
 from .web import WebServer
 from .webapp.server import _device_to_json
 from .notifications import NotificationManager
@@ -139,6 +141,10 @@ class BlueWatchDaemon:
         asyncio.create_task(self._esp32_scanner_manager())
         asyncio.create_task(self._esp32_ingest_loop())
         asyncio.create_task(self._mdns_ingest_loop())
+        asyncio.create_task(self._stats_overview_loop())
+        asyncio.create_task(self._auto_type_backfill_loop())
+        asyncio.create_task(self._hourly_seen_backfill_loop())
+        asyncio.create_task(self._auto_export_loop())
         await self._scan_loop()
 
     async def _ble_continuous_manager(self) -> None:
@@ -237,6 +243,78 @@ class BlueWatchDaemon:
             except Exception as e:
                 logger.error(f"ESP32 ingest error: {e}")
             await asyncio.sleep(SCAN_INTERVAL)
+
+    async def _auto_type_backfill_loop(self) -> None:
+        """One-time background job: store the automatic type for devices that
+        have none yet (so the Hide classified filter and the type counts see
+        it). Small batches with pauses so scanning and the web UI keep up on a
+        Raspberry Pi; ends when nothing is left."""
+        await asyncio.sleep(20)
+        done = 0
+        while self.running:
+            try:
+                n = await db.backfill_auto_types(limit=200)
+            except Exception as e:
+                logger.warning(f"Auto-type backfill failed: {e}")
+                return
+            if n == 0:
+                break
+            done += n
+            await asyncio.sleep(2)
+        if done:
+            logger.info(f"Stored the automatic type for {done} devices")
+
+    async def _hourly_seen_backfill_loop(self) -> None:
+        """One-time background job: fill the hourly rollup from existing
+        sightings, a few days at a time so writes are never blocked long."""
+        if await db.hourly_seen_ready():
+            return
+        await asyncio.sleep(45)
+        while self.running:
+            try:
+                if await db.backfill_hourly_seen(max_days=2):
+                    logger.info("Hourly rollup filled from existing sightings")
+                    await db.get_stats_overview(force=True)
+                    return
+            except Exception as e:
+                logger.warning(f"Hourly rollup backfill failed: {e}")
+                return
+            await asyncio.sleep(3)
+
+    async def _auto_export_loop(self) -> None:
+        """Once a day (at night), when enabled in Config > Export: write
+        observations older than N days to CSV files and remove them from the
+        database. See archive.py."""
+        await asyncio.sleep(120)
+        while self.running:
+            try:
+                if await db.get_raw_setting("auto_export_enabled", "0") == "1":
+                    days = max(1, int(await db.get_raw_setting("auto_export_days", "14")))
+                    last = await db.get_raw_setting("auto_export_last_run")
+                    hours_since = 999.0
+                    if last:
+                        hours_since = (datetime.now() - datetime.fromisoformat(last)).total_seconds() / 3600
+                    if hours_since >= 20 and datetime.now().hour >= 3:
+                        result = await archive.run_export(days)
+                        if result.get("ok") and result.get("days"):
+                            logger.info(
+                                f"Automatic export: {result['rows']} sightings from "
+                                f"{result['days']} day(s) written to CSV and removed"
+                            )
+            except Exception as e:
+                logger.warning(f"Automatic export loop error: {e}")
+            await asyncio.sleep(1800)
+
+    async def _stats_overview_loop(self) -> None:
+        """Keeps the statistics graphs' data fresh in the background (the query
+        takes seconds on a Raspberry Pi), so the page never waits for it."""
+        await asyncio.sleep(30)  # let startup settle first
+        while self.running:
+            try:
+                await db.get_stats_overview(force=True)
+            except Exception as e:
+                logger.warning(f"Statistics refresh failed: {e}")
+            await asyncio.sleep(300)
 
     # How often devices announcing themselves on the LAN (mDNS) are re-checked.
     _MDNS_INTERVAL = 60
@@ -721,6 +799,11 @@ class BlueWatchDaemon:
                                 f"Pruned {deleted} stale devices "
                                 f"(older than {prune_days} days, fewer than {min_sightings} sightings)"
                             )
+                    elif await db.get_raw_setting("auto_export_enabled", "0") == "1":
+                        # Automatic export (Config > Export) already removes old
+                        # sightings, but only after writing them to CSV; plain
+                        # deletion here would lose them.
+                        pass
                     else:
                         # Age-only: trim old sighting rows, keep device records.
                         deleted = await db.cleanup_old_sightings(prune_days)
