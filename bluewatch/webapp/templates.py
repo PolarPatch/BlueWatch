@@ -5139,7 +5139,7 @@ LIVE_TEMPLATE = """
         .cat-dot.now { background: #3fb950; animation: catPulse 2.2s ease-in-out infinite; }
         .cat-dot.alert { background: #f59e0b; }
         @keyframes catPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
-        #categories-tree .category-children { margin-left: 0.5rem; border-left: 1px solid var(--border-color); }
+        #categories-tree .category-children { margin-left: 0; border-left: none; }
         .category-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .category-delete {
             background: transparent;
@@ -6705,7 +6705,7 @@ LIVE_TEMPLATE = """
             const dots = (st.present > 0 ? '<i class="cat-dot now" title="' + st.present + ' here now"></i>' : '') +
                 (st.alerts ? '<i class="cat-dot alert" title="' + st.alerts + ' open alert(s)"></i>' : '');
             return (
-                '<div class="category-node cat-tile' + (depth ? ' cat-child' : '') + (isActive ? ' active' : '') + '" draggable="true" data-id="' + group.id + '" ' +
+                '<div class="category-node cat-tile' + (depth ? ' cat-child' : '') + (isActive ? ' active' : '') + '" style="padding-left:' + (0.3 + depth * 0.7) + 'rem" draggable="true" data-id="' + group.id + '" ' +
                 'ondragstart="onCategoryDragStart(event, ' + group.id + ')" ' +
                 'ondragover="onCategoryDragOver(event)" ' +
                 'ondragleave="onCategoryDragLeave(event)" ' +
