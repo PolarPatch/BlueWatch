@@ -1618,10 +1618,12 @@ class WebServer:
             device_type = r["type"] or "unknown"
             rows.append({
                 "m": r["mac"],
+                "n": (r["friendly_name"] or r["vendor"] or "")[:16],
                 "t": device_type,
                 "r": r["rssi"],
                 "a": round(max(age, 0)),
                 "l": 1 if device_type in alert_types else 0,
+                "w": 1 if r["watched"] else 0,
             })
             if len(rows) >= 150:
                 break
