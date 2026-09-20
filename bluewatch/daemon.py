@@ -176,7 +176,9 @@ class BlueWatchDaemon:
         WatchdogSec configured."""
         interval = 15
         while self.running:
-            if time.monotonic() - self._last_scan_cycle < interval * 2:
+            # A busy Pi 3 can take well over a minute for one scan cycle, so the
+            # limit is generous: a real hang is still caught within ~3 minutes.
+            if time.monotonic() - self._last_scan_cycle < interval * 8:
                 _sd_notify("WATCHDOG=1")
             await asyncio.sleep(interval)
 

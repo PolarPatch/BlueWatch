@@ -820,12 +820,17 @@ async def get_devices_page(
 
         page_params = [*params, safe_page_size, offset]
         async with db.execute(
+            # Pick the page first and only then compute the per-device
+            # subqueries, so they run for one page of rows, not every device
+            # that matches the filter.
             f"""SELECT d.*,
                 (SELECT s.rssi FROM sightings s WHERE s.mac = d.mac ORDER BY s.timestamp DESC LIMIT 1) AS last_rssi,
                 (SELECT COUNT(*) FROM devices d2 WHERE d2.identity_id = d.identity_id) AS identity_mac_count,
                 (SELECT SUM(d2.total_sightings) FROM devices d2 WHERE d2.identity_id = d.identity_id) AS identity_total_sightings,
                 (SELECT MIN(d2.first_seen) FROM devices d2 WHERE d2.identity_id = d.identity_id) AS identity_first_seen
-                {base_query}{where_clause}{order_clause} LIMIT ? OFFSET ?""",
+                FROM (
+                    SELECT d.* {base_query}{where_clause}{order_clause} LIMIT ? OFFSET ?
+                ) d""",
             page_params,
         ) as cursor:
             rows = await cursor.fetchall()

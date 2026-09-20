@@ -3643,15 +3643,16 @@ HTML_TEMPLATE = """
             if (m) setTimeout(function() { showDevice(decodeURIComponent(m[1])); }, 400);
         })();
         loadCategories();
-        setInterval(loadCategoryStats, 15000);
+        setInterval(function() { if (!document.hidden) loadCategoryStats(); }, 15000);
         updateSelectionUI();
         updatePaginationUI();
         refreshDevices();
-        setInterval(refreshDevices, 10000);
+        setInterval(function() { if (!document.hidden) refreshDevices(); }, 10000);
         loadStatsOverview();
         setInterval(loadStatsOverview, 300000);
         loadPriorityDevices();
-        setInterval(loadPriorityDevices, 10000);
+        setInterval(function() { if (!document.hidden) loadPriorityDevices(); }, 10000);
+        document.addEventListener('visibilitychange', function() { if (!document.hidden) refreshDevices(); });
         startLiveEventStream();
     </script>
 </body>
@@ -8765,15 +8766,16 @@ LIVE_TEMPLATE = """
         updateSortIndicators();
         loadGroupsForBulkSelect();
         loadCategories();
-        setInterval(loadCategoryStats, 15000);
+        setInterval(function() { if (!document.hidden) loadCategoryStats(); }, 15000);
         updateSelectionUI();
         updatePaginationUI();
         refreshDevices();
         loadLiveStats();
-        setInterval(refreshDevices, 3000);
+        setInterval(function() { if (!document.hidden) refreshDevices(); }, 5000);
         loadPriorityDevices();
-        setInterval(loadPriorityDevices, 5000);
-        setInterval(loadLiveStats, 3000);
+        setInterval(function() { if (!document.hidden) loadPriorityDevices(); }, 5000);
+        setInterval(function() { if (!document.hidden) loadLiveStats(); }, 3000);
+        document.addEventListener('visibilitychange', function() { if (!document.hidden) refreshDevices(); });
         startLiveEventStream();
     </script>
 </body>
