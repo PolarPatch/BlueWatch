@@ -57,7 +57,7 @@ not in the original. See `SPEC.md` for the original design notes and
 *Signal radar: distance from the centre is signal strength, with a live log of arrivals and departures*
 
 ![Settings](screenshots/settings.png)
-*Tabbed configuration page, Alerts, Operations, Groups, Security, WiGLE, and Export*
+*Tabbed configuration page: Alerts, Operations, Groups (shown), Classes, Security, WiGLE, Export and more*
 
 ![Device Details](screenshots/device-detail.png)
 *Per-device detail view, activity heatmaps, presence timeline, signal history, notes, and category assignment*
