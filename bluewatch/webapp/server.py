@@ -150,6 +150,7 @@ class WebServer:
         self.app.router.add_get("/api/radar", self.api_radar)
         self.app.router.add_get("/api/display", self.api_display)
         self.app.router.add_get("/api/display/device", self.api_display_device)
+        self.app.router.add_get("/api/display/radar", self.api_display_radar)
         # A missing assets dir must never stop the web UI from starting.
         if ASSETS_DIR.is_dir():
             self.app.router.add_static("/assets/", path=str(ASSETS_DIR), name="assets")
@@ -1595,6 +1596,36 @@ class WebServer:
                 "l": 1 if device_type in alert_types else 0,
             })
         return web.json_response({"total": total, "d": rows})
+
+    async def api_display_radar(self, request: web.Request) -> web.Response:
+        """Radar dots for small displays: MAC (the display derives the angle from
+        it, like the web radar), type, latest RSSI, age and alert flag."""
+        try:
+            window = max(30, min(int(request.query.get("window", "300")), 3600))
+        except ValueError:
+            window = 300
+        settings = await db.get_settings()
+        alert_types = set(settings.type_alert_types or [])
+        now = datetime.now()
+        rows = []
+        for r in await db.get_radar_devices(window):
+            if r["rssi"] is None or r["bt_type"] == "lan":
+                continue
+            try:
+                age = (now - datetime.fromisoformat(r["last_seen"])).total_seconds()
+            except (TypeError, ValueError):
+                age = window
+            device_type = r["type"] or "unknown"
+            rows.append({
+                "m": r["mac"],
+                "t": device_type,
+                "r": r["rssi"],
+                "a": round(max(age, 0)),
+                "l": 1 if device_type in alert_types else 0,
+            })
+            if len(rows) >= 150:
+                break
+        return web.json_response({"d": rows})
 
     async def api_display_device(self, request: web.Request) -> web.Response:
         """Compact device details for small displays: the fields of the
