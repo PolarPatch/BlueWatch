@@ -4,7 +4,7 @@
 
 # BlueWatch
 
-Get alerts when new Bluetooth devices appear in your local neighbourhood.
+Passive Bluetooth neighbourhood monitor for Raspberry Pi and Linux: a live radar, device triage, categories and alerts for new devices.
 
 The real strength shows up once you actually start using it: categorize
 the devices you already know, your own phones, your TV, the smart
@@ -17,6 +17,17 @@ of devices you've already triaged. The dashboard stops being a wall of
 MAC addresses and turns into an actual presence radar for your
 surroundings. You notice the one device that doesn't belong, not the
 fifty that do.
+
+## What's in it
+
+- **Live dashboard and signal radar.** See what is around you right now. The radar shows signal strength as distance, marks new arrivals and departures, and keeps a live event log.
+- **Automatic device types.** Phones, TVs, trackers, wearables and cycling gear, drones, cars and more are recognised from their Bluetooth advertisements, and you can override any of them.
+- **Your own categories.** Sort familiar devices into nested categories with drag and drop, so the unfamiliar ones stand out.
+- **Sticky alerts.** Pick device types to watch. An alert stays until you dismiss it, and comes back if the device returns after being away.
+- **Devices on your network.** Nearby LAN devices found through mDNS show up next to the Bluetooth ones.
+- **Statistics that stay fast.** Hourly overview graphs and an hourly rollup keep the dashboard quick even with thousands of devices.
+- **Automatic CSV export and cleanup.** Old observations are written to one plain CSV file per day and removed from the database. It is off by default.
+- **Runs on small hardware.** Includes stability fixes for the Bluetooth controller on a Raspberry Pi 3.
 
 Started from [bluehood](https://github.com/dannymcc/bluehood) (MIT licensed, see `CREDITS.md`) but has since diverged into its own project: known/
 unknown device triage, user-defined nested categories with drag-and-drop
