@@ -166,6 +166,15 @@ RADAR_TEMPLATE = r"""<!DOCTYPE html>
 
     // ----- state -----
     let devices = [];
+    // Demo mode (?demo=1), as on the other pages: names become generic placeholders
+    // and addresses are zeroed, so the radar is safe to screenshot.
+    const DEMO = new URLSearchParams(window.location.search).get('demo') === '1' || localStorage.getItem('bluewatch_demo_mode') === 'true';
+    const DEMO_NAMES = ['Guest Phone', 'Kitchen Speaker', 'Smart Plug', 'Wireless Headset', 'Fitness Tracker', 'Smart TV', 'Tablet', 'Car Bluetooth', 'IoT Sensor', 'Robot Vacuum', 'Doorbell Camera', 'Smart Watch', 'Bluetooth Mouse', 'Game Controller', 'E-bike Lock'];
+    function demoName(mac) {
+        let h = 0;
+        for (let i = 0; i < mac.length; i++) h = (h * 31 + mac.charCodeAt(i)) >>> 0;
+        return DEMO_NAMES[h % DEMO_NAMES.length];
+    }
     let zoom = 1, paused = false, windowSec = 300;
     let selected = null;
     const hiddenTypes = new Set();
@@ -482,6 +491,7 @@ RADAR_TEMPLATE = r"""<!DOCTYPE html>
             if (!res.ok) return;
             const data = await res.json();
             devices = data.devices || [];
+            if (DEMO) devices.forEach(d => { if (d.name) d.name = demoName(d.mac); });
             const seen = new Set();
             devices.forEach(d => {
                 if (d.rssi == null) return;
@@ -507,7 +517,7 @@ RADAR_TEMPLATE = r"""<!DOCTYPE html>
             '<div class="title">' + esc(d.name || d.vendor || d.type_label) + '</div>' +
             '<div class="row"><span>Type</span><b>' + esc(d.type_label) + (d.alert ? ' (alert)' : '') + '</b></div>' +
             (d.vendor ? '<div class="row"><span>Vendor</span><b>' + esc(d.vendor) + '</b></div>' : '') +
-            '<div class="row"><span>Address</span><b>' + esc(d.mac) + '</b></div>' +
+            '<div class="row"><span>Address</span><b>' + esc(DEMO ? '00:00:00:00:00:00' : d.mac) + '</b></div>' +
             '<div class="row"><span>Signal</span><b>' + (d.rssi != null ? d.rssi + ' dBm' : '—') + '</b></div>' +
             '<div class="row"><span>Last seen</span><b>' + ago(d.age) + '</b></div>' +
             '<div class="row"><span>Sightings</span><b>' + d.sightings + '</b></div>' +
