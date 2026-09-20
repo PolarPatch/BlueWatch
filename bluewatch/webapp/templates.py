@@ -4162,6 +4162,11 @@ SETTINGS_TEMPLATE = """
     
 
     <script>
+        // Demo mode (?demo=1 before the #tab, or the bluewatch_demo_mode flag), as on the other
+        // pages: category and watchlist names become placeholders and addresses are zeroed.
+        const demoMode = localStorage.getItem('bluewatch_demo_mode') === 'true' || new URLSearchParams(window.location.search).get('demo') === '1';
+        const DEMO_GROUPS = ['Family', 'Guests', 'Home', 'Neighbours', 'Office', 'Vehicles', 'Visitors', 'Work', 'Other'];
+        const DEMO_NAMES = ['Guest Phone', 'Kitchen Speaker', 'Smart Plug', 'Wireless Headset', 'Fitness Tracker', 'Smart TV', 'Tablet', 'Car Bluetooth', 'IoT Sensor', 'Robot Vacuum', 'Doorbell Camera', 'Smart Watch', 'Bluetooth Mouse', 'Game Controller', 'E-bike Lock'];
         function applyTheme(theme) {
             document.documentElement.setAttribute('data-theme', theme);
             const btn = document.getElementById('theme-toggle');
@@ -4232,7 +4237,7 @@ SETTINGS_TEMPLATE = """
                     return;
                 }
                 devices.forEach(function(d) {
-                    const name = d.friendly_name || d.vendor || d.mac;
+                    const name = demoMode ? DEMO_NAMES[devices.indexOf(d) % DEMO_NAMES.length] : (d.friendly_name || d.vendor || d.mac);
                     var row = document.createElement('div');
                     row.style.cssText = 'display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.4rem 0.6rem; background: var(--bg-secondary); border-radius: 6px;';
                     var info = document.createElement('div');
@@ -4242,7 +4247,7 @@ SETTINGS_TEMPLATE = """
                     nameLine.textContent = (d.type_icon || '') + ' ' + name;
                     var macLine = document.createElement('div');
                     macLine.style.cssText = 'font-size: 0.7rem; color: var(--text-muted);';
-                    macLine.textContent = d.mac;
+                    macLine.textContent = demoMode ? '00:00:00:00:00:00' : d.mac;
                     info.appendChild(nameLine);
                     info.appendChild(macLine);
                     var removeBtn = document.createElement('button');
@@ -4429,7 +4434,7 @@ SETTINGS_TEMPLATE = """
                     swatch.style.cssText = 'width: 12px; height: 12px; border-radius: 2px; background: ' + g.color + ';';
                     var name = document.createElement('span');
                     name.style.cssText = 'flex: 1; font-size: 0.85rem;';
-                    name.textContent = g.name;
+                    name.textContent = demoMode ? DEMO_GROUPS[data.groups.indexOf(g) % DEMO_GROUPS.length] : g.name;
                     var renameBtn = document.createElement('button');
                     renameBtn.className = 'btn';
                     renameBtn.style.cssText = 'padding: 0.25rem 0.5rem; font-size: 0.7rem;';
