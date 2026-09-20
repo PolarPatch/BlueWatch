@@ -149,6 +149,7 @@ class WebServer:
         self.app.router.add_get("/radar", self.radar_page)
         self.app.router.add_get("/api/radar", self.api_radar)
         self.app.router.add_get("/api/display", self.api_display)
+        self.app.router.add_get("/api/display/device", self.api_display_device)
         # A missing assets dir must never stop the web UI from starting.
         if ASSETS_DIR.is_dir():
             self.app.router.add_static("/assets/", path=str(ASSETS_DIR), name="assets")
@@ -1585,6 +1586,7 @@ class WebServer:
             device_type = d.device_type or d.auto_type or "unknown"
             age = int((now - d.last_seen).total_seconds()) if d.last_seen else 0
             rows.append({
+                "m": d.mac,
                 "n": (d.friendly_name or d.vendor or d.mac)[:28],
                 "t": device_type,
                 "r": d.last_rssi,
@@ -1593,6 +1595,65 @@ class WebServer:
                 "l": 1 if device_type in alert_types else 0,
             })
         return web.json_response({"total": total, "d": rows})
+
+    async def api_display_device(self, request: web.Request) -> web.Response:
+        """Compact device details for small displays: the fields of the
+        Device Details card plus the Live Signal (last 15 min) and Signal
+        History (7 days) graphs, already reduced to a few dozen points."""
+        mac = request.query.get("mac", "")
+        device = await db.get_device(mac)
+        if not device:
+            return web.json_response({"error": "not found"}, status=404)
+        now = datetime.now()
+
+        def _bucketed(samples, start, seconds, count):
+            """samples: [(datetime, rssi)] -> per bucket [min, max] (0 = no data)."""
+            out = [[0, 0] for _ in range(count)]
+            span = seconds / count
+            for ts, rssi in samples:
+                i = int((ts - start).total_seconds() // span)
+                if 0 <= i < count:
+                    lo, hi = out[i]
+                    out[i] = [rssi if lo == 0 else min(lo, rssi), rssi if hi == 0 else max(hi, rssi)]
+            return out
+
+        def _parse(rows):
+            parsed = []
+            for r in rows:
+                try:
+                    parsed.append((datetime.fromisoformat(r["timestamp"]), int(r["rssi"])))
+                except (KeyError, TypeError, ValueError):
+                    continue
+            return parsed
+
+        recent = _parse(await db.get_recent_sightings(mac, 15))
+        history = _parse(await db.get_rssi_history(mac, 7))
+        live = [round((lo + hi) / 2) for lo, hi in _bucketed(recent, now - timedelta(minutes=15), 900, 60)]
+        hist = _bucketed(history, now - timedelta(days=7), 7 * 86400, 80)
+        current = (recent or history or [(None, None)])[-1][1]
+
+        groups = {g.id: g.name for g in await db.get_groups()}
+        device_type = device.device_type or device.auto_type or "unknown"
+
+        def _fmt(ts):
+            return ts.strftime("%d.%m %H:%M") if ts else ""
+
+        return web.json_response({
+            "m": device.mac,
+            "n": device.friendly_name or "",
+            "v": device.vendor or "",
+            "ty": get_type_label(device_type),
+            "g": groups.get(device.group_id, "") if device.group_id else "",
+            "nt": (device.notes or "")[:80],
+            "fs": _fmt(device.first_seen),
+            "ls": _fmt(device.last_seen),
+            "sg": device.total_sightings,
+            "rs": current,
+            "px": db.rssi_to_proximity_zone(current) if current else "unknown",
+            "w": 1 if device.watched else 0,
+            "live": live,
+            "hist": hist,
+        })
 
     async def api_stats_overview(self, request: web.Request) -> web.Response:
         """Graph data for the statistics section (cached for a few minutes)."""
