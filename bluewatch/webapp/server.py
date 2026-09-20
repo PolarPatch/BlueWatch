@@ -148,6 +148,7 @@ class WebServer:
         self.app.router.add_get("/all", self.index)
         self.app.router.add_get("/radar", self.radar_page)
         self.app.router.add_get("/api/radar", self.api_radar)
+        self.app.router.add_get("/api/display", self.api_display)
         # A missing assets dir must never stop the web UI from starting.
         if ASSETS_DIR.is_dir():
             self.app.router.add_static("/assets/", path=str(ASSETS_DIR), name="assets")
@@ -1550,6 +1551,48 @@ class WebServer:
                 "random": is_randomized_mac(r["mac"]),
             })
         return web.json_response({"window": window, "devices": out})
+
+    async def api_display(self, request: web.Request) -> web.Response:
+        """Very compact device list for small displays (e.g. an ESP32 screen).
+
+        Same filters as the dashboard (hide_classified, hide_grouped,
+        hide_nameless), newest first, at most `limit` rows (default 100).
+        Short keys keep the response small enough for a microcontroller."""
+        def _flag(name: str) -> bool:
+            return request.query.get(name) == "1"
+
+        try:
+            limit = max(1, min(int(request.query.get("limit", "100")), 100))
+        except ValueError:
+            limit = 100
+        devices, total = await db.get_devices_page(
+            page=1,
+            page_size=limit,
+            include_ignored=True,
+            device_filter="all",
+            sort_column="last_seen",
+            sort_direction="desc",
+            exclude_randomized=True,
+            hide_classified=_flag("hide_classified"),
+            hide_grouped=_flag("hide_grouped"),
+            hide_nameless=_flag("hide_nameless"),
+        )
+        settings = await db.get_settings()
+        alert_types = set(settings.type_alert_types or [])
+        now = datetime.now()
+        rows = []
+        for d in devices:
+            device_type = d.device_type or d.auto_type or "unknown"
+            age = int((now - d.last_seen).total_seconds()) if d.last_seen else 0
+            rows.append({
+                "n": (d.friendly_name or d.vendor or d.mac)[:28],
+                "t": device_type,
+                "r": d.last_rssi,
+                "a": max(age, 0),
+                "w": 1 if d.watched else 0,
+                "l": 1 if device_type in alert_types else 0,
+            })
+        return web.json_response({"total": total, "d": rows})
 
     async def api_stats_overview(self, request: web.Request) -> web.Response:
         """Graph data for the statistics section (cached for a few minutes)."""
