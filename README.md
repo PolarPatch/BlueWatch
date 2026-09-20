@@ -48,7 +48,13 @@ not in the original. See `SPEC.md` for the original design notes and
 ## Screenshots
 
 ![Dashboard](screenshots/dashboard.png)
-*Live dashboard, devices seen in the last minute, with category filtering, search, and at-a-glance stats*
+*Live dashboard: devices seen right now, category sidebar with activity strips, priority alerts, filters and search*
+
+![All devices](screenshots/all-devices.png)
+*All devices: hourly statistics graphs, device types seen, priority alerts and the full filterable device list*
+
+![Radar](screenshots/radar.png)
+*Signal radar: distance from the centre is signal strength, with a live log of arrivals and departures*
 
 ![Settings](screenshots/settings.png)
 *Tabbed configuration page, Alerts, Operations, Groups, Security, WiGLE, and Export*
