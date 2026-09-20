@@ -1629,7 +1629,14 @@ class WebServer:
         recent = _parse(await db.get_recent_sightings(mac, 15))
         history = _parse(await db.get_rssi_history(mac, 7))
         live = [round((lo + hi) / 2) for lo, hi in _bucketed(recent, now - timedelta(minutes=15), 900, 60)]
-        hist = _bucketed(history, now - timedelta(days=7), 7 * 86400, 80)
+        # Like the web chart, the history is spread by sample, not by clock time,
+        # so a device seen only a few times still gets a readable graph.
+        hist = []
+        if history:
+            groups = min(80, len(history))
+            for g in range(groups):
+                chunk = [r for _, r in history[g * len(history) // groups:(g + 1) * len(history) // groups]]
+                hist.append([min(chunk), max(chunk)])
         current = (recent or history or [(None, None)])[-1][1]
 
         groups = {g.id: g.name for g in await db.get_groups()}
