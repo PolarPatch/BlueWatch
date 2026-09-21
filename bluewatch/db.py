@@ -2574,6 +2574,30 @@ async def _refresh_auto_type(device: Device) -> None:
         device.auto_type = new_type
 
 
+async def recompute_auto_types(after_rowid: int = 0, limit: int = 200) -> tuple[int, int, int]:
+    """Recompute the stored automatic type for one batch of devices, in place.
+    Returns (last rowid handled, devices looked at, devices whose type changed);
+    looked at == 0 means the pass is finished."""
+    async with _connect() as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT rowid AS rid, * FROM devices WHERE rowid > ? ORDER BY rowid LIMIT ?", (after_rowid, limit)
+        ) as cursor:
+            rows = await cursor.fetchall()
+        changed = 0
+        last = after_rowid
+        for r in rows:
+            last = r["rid"]
+            d = _parse_device_row(r)
+            new_type = _auto_classify(d)
+            _auto_type_sig[d.mac] = _classification_signature(d)
+            if new_type != d.auto_type:
+                await db.execute("UPDATE devices SET auto_type = ? WHERE mac = ?", (new_type, d.mac))
+                changed += 1
+        await db.commit()
+    return last, len(rows), changed
+
+
 async def backfill_auto_types(limit: int = 200) -> int:
     """Classify devices that have no stored automatic type yet. Returns how
     many were done (0 = nothing left)."""

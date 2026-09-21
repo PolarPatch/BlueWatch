@@ -1145,7 +1145,32 @@ def classify_by_vendor_company_id(manufacturer_data: Optional[dict]) -> Optional
 # Vendor patterns for classification
 # Format: (pattern_to_match_in_vendor, device_type)
 # Patterns are matched case-insensitively
+# Bump this when the classification rules change: on the next start every
+# stored automatic type is recomputed in the background (manual types are kept).
+CLASSIFIER_VERSION = 2
+
 VENDOR_PATTERNS = [
+    # Surveillance and security cameras, matched by the registered vendor name.
+    # Kept first and specific (full company names) so they win over the broad
+    # patterns below and never match by accident ("ring" alone would hit
+    # "Hearing"). Vendor list: SquachWatch-CYD's camera/ALPR groups, checked
+    # against the IEEE registrant names; see CREDITS.md.
+    ("verkada", TYPE_CAMERA),
+    ("axis communications", TYPE_CAMERA),
+    ("hikvision", TYPE_CAMERA),
+    ("reolink", TYPE_CAMERA),
+    ("arlo technologies", TYPE_CAMERA),
+    ("ring llc", TYPE_CAMERA),
+    ("blink by amazon", TYPE_CAMERA),
+    ("immedia semiconductor", TYPE_CAMERA),
+    ("genetec", TYPE_CAMERA),
+    ("avigilon", TYPE_CAMERA),
+    ("axon enterprise", TYPE_CAMERA),
+    ("taser international", TYPE_CAMERA),
+    ("dahua", TYPE_CAMERA),
+    ("amcrest", TYPE_CAMERA),
+    ("lorex", TYPE_CAMERA),
+
     # Phones / Mobile devices
     ("apple", TYPE_PHONE),  # Could be phone, tablet, laptop, watch - default to phone
     ("samsung electronics", TYPE_PHONE),

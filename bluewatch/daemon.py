@@ -16,7 +16,7 @@ from typing import Optional
 import aiohttp
 
 from . import active_scan, db, wigle, __version__
-from .classifier import is_randomized_mac
+from .classifier import CLASSIFIER_VERSION, is_randomized_mac
 from .config import SCAN_INTERVAL, SOCKET_PATH, METRICS_PORT
 from .scanner import BluetoothScanner, ScannedDevice, list_adapters
 from .esp32_scanner import ESP32Scanner
@@ -253,6 +253,24 @@ class BlueWatchDaemon:
         it). Small batches with pauses so scanning and the web UI keep up on a
         Raspberry Pi; ends when nothing is left."""
         await asyncio.sleep(20)
+        try:
+            # New classification rules: recompute the stored automatic types in
+            # place (small batches, types are never blanked while it runs).
+            if await db.get_raw_setting("classifier_version") != str(CLASSIFIER_VERSION):
+                logger.info("Classification rules changed: recomputing automatic types in the background")
+                after, changed = 0, 0
+                while self.running:
+                    after, n, c = await db.recompute_auto_types(after, limit=200)
+                    changed += c
+                    if n == 0:
+                        break
+                    await asyncio.sleep(1)
+                else:
+                    return
+                await db.set_setting("classifier_version", str(CLASSIFIER_VERSION))
+                logger.info(f"Recomputed automatic types, {changed} devices changed")
+        except Exception as e:
+            logger.warning(f"Could not recompute automatic types: {e}")
         done = 0
         while self.running:
             try:

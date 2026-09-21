@@ -200,3 +200,13 @@ Pete LLC (MIT License): signal strength as distance from the centre, dots colore
 by device type, a sweeping beam and dimming of devices that are gone. Written from
 scratch for BlueWatch; no Fieldwatch code is included.
 
+## Camera vendors
+
+The camera vendor names in `VENDOR_PATTERNS` (Verkada, Axis, Hikvision, Reolink,
+Arlo, Ring, Blink, Genetec, Avigilon, Axon/TASER, Dahua, Amcrest, Lorex) come from
+the vendor groups in [SquachWatch-CYD](https://github.com/skizzophrenic/SquachWatch-CYD)
+by skizzophrenic (GPL-3.0). Only the facts (which vendors make surveillance
+cameras) were used, matched by registered vendor name; no code was copied. Its
+`docs/DETECTIONS.md` is also a good reference for how each signature was checked
+against the IEEE registry.
+
