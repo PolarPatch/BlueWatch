@@ -380,6 +380,7 @@ class WebServer:
         hide_classified = request.query.get("hide_classified") == "1"
         hide_grouped = request.query.get("hide_grouped") == "1"
         hide_nameless = request.query.get("hide_nameless") == "1"
+        hide_apple = request.query.get("hide_apple") == "1"
 
         first_seen_filter = request.query.get("first_seen") or None
         if first_seen_filter not in ("6h", "12h", "24h", "48h", "7d", "30d"):
@@ -417,6 +418,7 @@ class WebServer:
             active_within_seconds=active_within_seconds,
             first_seen_filter=first_seen_filter,
             hide_nameless=hide_nameless,
+            hide_apple=hide_apple,
         )
         stats = await db.get_dashboard_stats(include_ignored=True)
 
@@ -439,6 +441,7 @@ class WebServer:
                 exclude_randomized=exclude_randomized,
                 first_seen_filter=first_seen_filter,
                 hide_nameless=hide_nameless,
+                hide_apple=hide_apple,
             )
 
         device_list = [
@@ -1578,6 +1581,7 @@ class WebServer:
             hide_classified=_flag("hide_classified"),
             hide_grouped=_flag("hide_grouped"),
             hide_nameless=_flag("hide_nameless"),
+            hide_apple=_flag("hide_apple"),
         )
         settings = await db.get_settings()
         alert_types = set(settings.type_alert_types or [])

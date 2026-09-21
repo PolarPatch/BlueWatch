@@ -1047,6 +1047,10 @@ HTML_TEMPLATE = """
                         <input type="checkbox" id="hide-nameless-toggle" onchange="toggleHideNameless()">
                         Hide unknowns
                     </label>
+                    <label class="filter-check" title="Hides Apple devices (by vendor, identifier or Apple's Bluetooth company ID). Devices you have categorized or watched are never hidden this way.">
+                        <input type="checkbox" id="hide-apple-toggle" onchange="toggleHideApple()">
+                        Hide Apple
+                    </label>
                 </div>
                 <div class="filter-sliders">
                     <span class="stat-cap">Seen within</span>
@@ -1246,6 +1250,7 @@ HTML_TEMPLATE = """
         let hideClassified = localStorage.getItem('bluewatch_hide_classified') === 'true';
         let hideGrouped = localStorage.getItem('bluewatch_hide_grouped') === 'true';
         let hideNameless = localStorage.getItem('bluewatch_hide_nameless') === 'true';
+        let hideApple = localStorage.getItem('bluewatch_hide_apple') === 'true';
         let rssiThreshold = -100;
         let sightingsThreshold = 1;
         let dateFilteredDevices = null;
@@ -1307,6 +1312,16 @@ HTML_TEMPLATE = """
             refreshDevices();
         }
 
+        function toggleHideApple() {
+            const checkbox = document.getElementById('hide-apple-toggle');
+            hideApple = checkbox ? checkbox.checked : false;
+            localStorage.setItem('bluewatch_hide_apple', hideApple);
+            selectedMacs.clear();
+            lastSelectedIndex = null;
+            pagination.page = 1;
+            refreshDevices();
+        }
+
         function onRssiThresholdChange() {
             const slider = document.getElementById('rssi-threshold');
             rssiThreshold = parseInt(slider.value, 10);
@@ -1340,6 +1355,7 @@ HTML_TEMPLATE = """
                 params.set('group_id', currentGroupId);
             }
             if (hideNameless && !viewingSpecificCategory) params.set('hide_nameless', '1');
+            if (hideApple && !viewingSpecificCategory) params.set('hide_apple', '1');
             params.set('sort', sortState.column);
             params.set('direction', getServerSortDirection());
 
@@ -3626,6 +3642,8 @@ HTML_TEMPLATE = """
             if (groupCb) groupCb.checked = hideGrouped;
             const namelessCb = document.getElementById('hide-nameless-toggle');
             if (namelessCb) namelessCb.checked = hideNameless;
+            const appleCb = document.getElementById('hide-apple-toggle');
+            if (appleCb) appleCb.checked = hideApple;
             const seenSlider = document.getElementById('seen-within-slider');
             if (seenSlider) {
                 seenSlider.value = String(seenWithinLevel);
@@ -6202,6 +6220,10 @@ LIVE_TEMPLATE = """
                         <input type="checkbox" id="hide-nameless-toggle" onchange="toggleHideNameless()">
                         Hide unknowns
                     </label>
+                    <label class="filter-check" title="Hides Apple devices (by vendor, identifier or Apple's Bluetooth company ID). Devices you have categorized or watched are never hidden this way.">
+                        <input type="checkbox" id="hide-apple-toggle" onchange="toggleHideApple()">
+                        Hide Apple
+                    </label>
                     </div>
                     <div class="filter-sliders">
                         <span class="stat-cap">Seen within</span>
@@ -6356,6 +6378,7 @@ LIVE_TEMPLATE = """
         let hideClassified = localStorage.getItem('bluewatch_hide_classified') === 'true';
         let hideGrouped = localStorage.getItem('bluewatch_hide_grouped') === 'true';
         let hideNameless = localStorage.getItem('bluewatch_hide_nameless') === 'true';
+        let hideApple = localStorage.getItem('bluewatch_hide_apple') === 'true';
         let rssiThreshold = -100;
         let sightingsThreshold = 1;
         let dateFilteredDevices = null;
@@ -6440,6 +6463,7 @@ LIVE_TEMPLATE = """
                 params.set('group_id', '__all__');  // "off": every device, categorized ones too
             }
             if (hideNameless && !viewingSpecificCategory) params.set('hide_nameless', '1');
+            if (hideApple && !viewingSpecificCategory) params.set('hide_apple', '1');
             params.set('sort', sortState.column);
             params.set('direction', getServerSortDirection());
 
@@ -7029,6 +7053,16 @@ LIVE_TEMPLATE = """
             const checkbox = document.getElementById('hide-nameless-toggle');
             hideNameless = checkbox ? checkbox.checked : false;
             localStorage.setItem('bluewatch_hide_nameless', hideNameless);
+            selectedMacs.clear();
+            lastSelectedIndex = null;
+            pagination.page = 1;
+            refreshDevices();
+        }
+
+        function toggleHideApple() {
+            const checkbox = document.getElementById('hide-apple-toggle');
+            hideApple = checkbox ? checkbox.checked : false;
+            localStorage.setItem('bluewatch_hide_apple', hideApple);
             selectedMacs.clear();
             lastSelectedIndex = null;
             pagination.page = 1;
@@ -8765,6 +8799,8 @@ LIVE_TEMPLATE = """
             if (groupCb) groupCb.checked = hideGrouped;
             const namelessCb = document.getElementById('hide-nameless-toggle');
             if (namelessCb) namelessCb.checked = hideNameless;
+            const appleCb = document.getElementById('hide-apple-toggle');
+            if (appleCb) appleCb.checked = hideApple;
         })();
 
         updateViewToggle();

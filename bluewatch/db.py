@@ -637,6 +637,7 @@ def _build_device_query_filters(
     active_within_seconds: Optional[int] = None,
     first_seen_filter: Optional[str] = None,
     hide_nameless: bool = False,
+    hide_apple: bool = False,
 ) -> tuple[str, list]:
     """Build WHERE clause and parameters for device list queries.
 
@@ -733,6 +734,16 @@ def _build_device_query_filters(
         "ORDER BY d2.last_seen DESC, d2.mac DESC LIMIT 1))"
     )
 
+    if hide_apple:
+        # Apple devices, by vendor, by an "Apple ..." identifier, or by Apple's
+        # Bluetooth company ID (0x004C = 76) in the advertisement. Watched and
+        # categorized devices are never hidden this way.
+        conditions.append(
+            "NOT ((COALESCE(d.vendor, '') LIKE 'Apple%' OR COALESCE(d.friendly_name, '') LIKE 'Apple%' "
+            "OR COALESCE(d.manufacturer_data, '') LIKE '%\"76\": %') "
+            "AND d.watched = 0 AND d.group_id IS NULL)"
+        )
+
     if hide_nameless:
         # Unknown devices with neither an identifier nor a vendor: nothing to go
         # on. Watched and categorized devices are never hidden this way.
@@ -782,6 +793,7 @@ async def get_devices_page(
     active_within_seconds: Optional[int] = None,
     first_seen_filter: Optional[str] = None,
     hide_nameless: bool = False,
+    hide_apple: bool = False,
 ) -> tuple[list[Device], int]:
     """Get a single page of devices and total count for the current query."""
     safe_page = max(1, page)
@@ -803,6 +815,7 @@ async def get_devices_page(
         hide_grouped=hide_grouped,
         first_seen_filter=first_seen_filter,
         hide_nameless=hide_nameless,
+        hide_apple=hide_apple,
     )
 
     base_query = "FROM devices d LEFT JOIN device_groups g ON g.id = d.group_id"
