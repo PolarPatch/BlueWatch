@@ -1147,7 +1147,7 @@ def classify_by_vendor_company_id(manufacturer_data: Optional[dict]) -> Optional
 # Patterns are matched case-insensitively
 # Bump this when the classification rules change: on the next start every
 # stored automatic type is recomputed in the background (manual types are kept).
-CLASSIFIER_VERSION = 2
+CLASSIFIER_VERSION = 3
 
 VENDOR_PATTERNS = [
     # Surveillance and security cameras, matched by the registered vendor name.
@@ -1858,6 +1858,24 @@ def classify_device(
             return TYPE_TV
         if any(x in name_lower for x in ("car", "vehicle", "model 3", "model y", "model s", "tpms") + VEHICLE_OEM_NAME_PATTERNS):
             return TYPE_VEHICLE
+
+        # rtl_433 (sub-GHz, 433/868 MHz) model names -- brands reliably
+        # decoded in Europe per rtl_433's own protocol table, source:
+        # merbanan/rtl_433 README. Weather stations and remotes/doorbells
+        # both land in the existing smart-home bucket rather than new
+        # types, since that's already the closest fit (Environmental
+        # Sensing / smart-home sensors above use the same type).
+        if any(x in name_lower for x in (
+            "lacrosse", "la crosse", "bresser", "auriol", "fineoffset", "fine offset",
+            "oregon-th", "oregon scientific", "nexus-th", "wh1080", "wh31", "wh51",
+            "wh65", "wh80", "wh90", "wh45", "ws80", "ws90",
+        )):
+            return TYPE_SMART_HOME
+        if any(x in name_lower for x in (
+            "somfy", "nice-flor", "dickert", "proflame", "instat", "watts-vision",
+            "honeywell-activlink", "elro-db", "chuango", "cavius",
+        )):
+            return TYPE_SMART_HOME
 
     # Try Classic BT device class (more reliable than vendor guessing)
     if device_class is not None:
