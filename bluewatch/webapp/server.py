@@ -20,6 +20,7 @@ from .. import archive, db, rpa
 from ..classifier import classify_device, get_type_icon, get_type_label, get_all_types, is_randomized_mac, is_macos_uuid, is_mdns_key, get_uuid_names
 from ..patterns import generate_hourly_heatmap, generate_daily_heatmap
 from .radar_template import RADAR_TEMPLATE
+from .rf_template import RF_TEMPLATE
 from .templates import ABOUT_TEMPLATE, HTML_TEMPLATE, LIVE_TEMPLATE, LOGIN_TEMPLATE, SETTINGS_TEMPLATE
 
 logger = logging.getLogger(__name__)
@@ -147,6 +148,8 @@ class WebServer:
         self.app.router.add_get("/about", self.about_page)
         self.app.router.add_get("/all", self.index)
         self.app.router.add_get("/radar", self.radar_page)
+        self.app.router.add_get("/rf", self.rf_page)
+        self.app.router.add_get("/api/rf-log", self.api_rf_log)
         self.app.router.add_get("/api/radar", self.api_radar)
         self.app.router.add_get("/api/display", self.api_display)
         self.app.router.add_get("/api/display/device", self.api_display_device)
@@ -1526,6 +1529,18 @@ class WebServer:
     async def radar_page(self, request: web.Request) -> web.Response:
         """Serve the radar view."""
         return web.Response(text=RADAR_TEMPLATE, content_type="text/html")
+
+    async def rf_page(self, request: web.Request) -> web.Response:
+        """Serve the temporary /rf raw sub-GHz firehose view."""
+        return web.Response(text=RF_TEMPLATE, content_type="text/html")
+
+    async def api_rf_log(self, request: web.Request) -> web.Response:
+        """Raw, un-deduplicated rtl_433 events for the /rf page -- every
+        decode logged, independent of the devices table."""
+        limit = int(request.query.get("limit", "200"))
+        limit = max(1, min(limit, 1000))
+        events = await db.get_rf_log(limit=limit)
+        return web.json_response(events)
 
     async def api_radar(self, request: web.Request) -> web.Response:
         """Compact device list for the radar: what was seen within the window,

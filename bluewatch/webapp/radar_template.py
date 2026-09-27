@@ -87,6 +87,7 @@ RADAR_TEMPLATE = r"""<!DOCTYPE html>
             <a href="/" class="nav-link">Dashboard</a>
             <a href="/all" class="nav-link">All devices</a>
             <a href="/radar" class="nav-link active">Radar</a>
+            <a href="/rf" class="nav-link">RF log</a>
             <a href="/settings" class="nav-link">Config</a>
         </nav>
     </div>

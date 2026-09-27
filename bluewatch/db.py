@@ -200,6 +200,21 @@ CREATE TABLE IF NOT EXISTS irk_keys (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Temporary exploration table for the /rf page: every decoded rtl_433
+-- (sub-GHz, 433/868 MHz) line, raw and un-deduplicated -- unlike
+-- devices.rf_state (latest reading per device, overwritten each time),
+-- this is a running log so the operator can see everything the RTL-SDR
+-- actually picks up while getting a feel for what's worth building on.
+-- Self-pruning (see log_rf_event) so it never grows unbounded.
+CREATE TABLE IF NOT EXISTS rf_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    model TEXT,
+    device_key TEXT,
+    rssi REAL,
+    raw_json TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS wigle_lookup_cache (
     mac TEXT PRIMARY KEY,
     vendor TEXT,
@@ -2427,6 +2442,54 @@ async def set_rtl433_settings(enabled: bool, frequencies: str) -> None:
             (frequencies or _RTL433_DEFAULT_FREQUENCIES,),
         )
         await db.commit()
+
+
+_RF_LOG_MAX_ROWS = 5000
+
+
+async def log_rf_event(model: Optional[str], device_key: Optional[str], rssi: Optional[float], raw: dict) -> None:
+    """Append one raw rtl_433 decode to the temporary /rf firehose log --
+    every event, un-deduplicated, independent of the devices table. Prunes
+    down to the newest _RF_LOG_MAX_ROWS each time so this exploratory table
+    never grows unbounded."""
+    async with _connect() as db:
+        await db.execute(
+            "INSERT INTO rf_log (model, device_key, rssi, raw_json) VALUES (?, ?, ?, ?)",
+            (model, device_key, rssi, json.dumps(raw)),
+        )
+        await db.execute(
+            "DELETE FROM rf_log WHERE id NOT IN "
+            "(SELECT id FROM rf_log ORDER BY id DESC LIMIT ?)",
+            (_RF_LOG_MAX_ROWS,),
+        )
+        await db.commit()
+
+
+async def get_rf_log(limit: int = 200) -> list[dict]:
+    """Newest-first raw rtl_433 events for the /rf page."""
+    async with _connect() as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT id, timestamp, model, device_key, rssi, raw_json FROM rf_log "
+            "ORDER BY id DESC LIMIT ?",
+            (limit,),
+        ) as cursor:
+            rows = await cursor.fetchall()
+    out = []
+    for row in rows:
+        try:
+            raw = json.loads(row["raw_json"])
+        except (json.JSONDecodeError, TypeError):
+            raw = {}
+        out.append({
+            "id": row["id"],
+            "timestamp": row["timestamp"],
+            "model": row["model"],
+            "device_key": row["device_key"],
+            "rssi": row["rssi"],
+            "raw": raw,
+        })
+    return out
 
 
 async def get_custom_types() -> list[dict]:

@@ -438,6 +438,15 @@ class BlueWatchDaemon:
             if scanner is not None:
                 try:
                     for device in await scanner.scan():
+                        try:
+                            await db.log_rf_event(
+                                model=device.model,
+                                device_key=device.key,
+                                rssi=device.rssi,
+                                raw=device.raw,
+                            )
+                        except Exception as e:
+                            logger.debug(f"rf_log insert failed: {e}")
                         rf_state = {k: v for k, v in device.raw.items() if k not in self._RTL433_METADATA_KEYS} or None
                         db_device, is_new = await db.upsert_device(
                             mac=device.key,

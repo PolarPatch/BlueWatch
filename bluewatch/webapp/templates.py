@@ -1022,6 +1022,7 @@ HTML_TEMPLATE = """
                 <a href="/" class="nav-link">Dashboard</a>
                 <a href="/all" class="nav-link active">All devices</a>
                 <a href="/radar" class="nav-link">Radar</a>
+                <a href="/rf" class="nav-link">RF log</a>
                 <a href="/settings" class="nav-link">Config</a>
             </nav>
         </div>
@@ -3808,6 +3809,7 @@ SETTINGS_TEMPLATE = """
                 <a href="/" class="nav-link">Dashboard</a>
                 <a href="/all" class="nav-link">All devices</a>
                 <a href="/radar" class="nav-link">Radar</a>
+                <a href="/rf" class="nav-link">RF log</a>
                 <a href="/settings" class="nav-link active">Config</a>
             </nav>
         </div>
@@ -5107,6 +5109,7 @@ ABOUT_TEMPLATE = """
                 <a href="/" class="nav-link">Dashboard</a>
                 <a href="/all" class="nav-link">All devices</a>
                 <a href="/radar" class="nav-link">Radar</a>
+                <a href="/rf" class="nav-link">RF log</a>
                 <a href="/settings" class="nav-link">Config</a>
             </nav>
         </div>
@@ -6228,6 +6231,7 @@ LIVE_TEMPLATE = """
                 <a href="/" class="nav-link active">Dashboard</a>
                 <a href="/all" class="nav-link">All devices</a>
                 <a href="/radar" class="nav-link">Radar</a>
+                <a href="/rf" class="nav-link">RF log</a>
                 <a href="/settings" class="nav-link">Config</a>
             </nav>
         </div>
