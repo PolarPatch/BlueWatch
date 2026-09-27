@@ -1562,7 +1562,15 @@ class WebServer:
 
         Same filters as the dashboard (hide_classified, hide_grouped,
         hide_nameless), newest first, at most `limit` rows (default 100).
-        Short keys keep the response small enough for a microcontroller."""
+        Short keys keep the response small enough for a microcontroller.
+
+        `active_within` (seconds) restricts this to devices seen within that
+        window -- a small board is a "what's around right now" glance, not
+        a browsable archive of everything ever seen, so the display sends
+        one (see LIST_WINDOW_SECONDS in its config.h). Omitted, this shows
+        the full history, same as before. A short window also includes
+        randomized addresses (there's often nothing else nearby to show),
+        the same rule the dashboard's own "Seen within"/live view uses."""
         def _flag(name: str) -> bool:
             return request.query.get(name) == "1"
 
@@ -1570,6 +1578,14 @@ class WebServer:
             limit = max(1, min(int(request.query.get("limit", "100")), 100))
         except ValueError:
             limit = 100
+        active_within_seconds = None
+        raw_active_within = request.query.get("active_within")
+        if raw_active_within:
+            try:
+                active_within_seconds = max(1, int(raw_active_within))
+            except ValueError:
+                pass
+        exclude_randomized = not active_within_seconds or active_within_seconds > 3600
         devices, total = await db.get_devices_page(
             page=1,
             page_size=limit,
@@ -1577,7 +1593,8 @@ class WebServer:
             device_filter="all",
             sort_column="last_seen",
             sort_direction="desc",
-            exclude_randomized=True,
+            exclude_randomized=exclude_randomized,
+            active_within_seconds=active_within_seconds,
             hide_classified=_flag("hide_classified"),
             hide_grouped=_flag("hide_grouped"),
             hide_nameless=_flag("hide_nameless"),
@@ -1603,11 +1620,23 @@ class WebServer:
 
     async def api_display_radar(self, request: web.Request) -> web.Response:
         """Radar dots for small displays: MAC (the display derives the angle from
-        it, like the web radar), type, latest RSSI, age and alert flag."""
+        it, like the web radar), type, latest RSSI, age and alert flag.
+
+        get_radar_devices() has no SQL-level filters of its own (unlike
+        get_devices_page(), which the other display/dashboard endpoints go
+        through), so hide_classified/hide_grouped/hide_nameless/hide_apple
+        are applied here in Python instead -- same meaning as everywhere
+        else: hide_classified keeps only devices with no known type,
+        hide_apple matches by vendor or identifier (no manufacturer_data
+        here to check, unlike the dashboard's own version of this filter)."""
         try:
             window = max(30, min(int(request.query.get("window", "300")), 3600))
         except ValueError:
             window = 300
+        hide_classified = request.query.get("hide_classified") == "1"
+        hide_grouped = request.query.get("hide_grouped") == "1"
+        hide_nameless = request.query.get("hide_nameless") == "1"
+        hide_apple = request.query.get("hide_apple") == "1"
         settings = await db.get_settings()
         alert_types = set(settings.type_alert_types or [])
         now = datetime.now()
@@ -1615,11 +1644,20 @@ class WebServer:
         for r in await db.get_radar_devices(window):
             if r["rssi"] is None or r["bt_type"] == "lan":
                 continue
+            device_type = r["type"] or "unknown"
+            if hide_classified and device_type != "unknown":
+                continue
+            if hide_grouped and r["group_id"] is not None:
+                continue
+            if hide_nameless and device_type == "unknown" and not r["friendly_name"] and not r["vendor"] and not r["watched"] and r["group_id"] is None:
+                continue
+            if hide_apple and not r["watched"] and r["group_id"] is None:
+                if (r["vendor"] or "").startswith("Apple") or (r["friendly_name"] or "").startswith("Apple"):
+                    continue
             try:
                 age = (now - datetime.fromisoformat(r["last_seen"])).total_seconds()
             except (TypeError, ValueError):
                 age = window
-            device_type = r["type"] or "unknown"
             rows.append({
                 "m": r["mac"],
                 "n": (r["friendly_name"] or r["vendor"] or "")[:16],
