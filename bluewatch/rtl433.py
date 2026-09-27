@@ -74,14 +74,15 @@ class Rtl433Scanner:
     def __init__(self) -> None:
         self._proc: Optional[asyncio.subprocess.Process] = None
 
-    async def start(self) -> bool:
+    async def start(self, frequencies: Optional[list[str]] = None) -> bool:
         if not _binary_available():
             logger.info("rtl_433 not installed -- sub-GHz (433/868 MHz) discovery skipped")
             return False
+        freqs = frequencies or RTL433_FREQUENCIES
         args = ["rtl_433", "-F", "json"]
-        for freq in RTL433_FREQUENCIES:
+        for freq in freqs:
             args += ["-f", freq]
-        if len(RTL433_FREQUENCIES) > 1:
+        if len(freqs) > 1:
             args += ["-H", str(RTL433_HOP_SECONDS)]
         try:
             self._proc = await asyncio.create_subprocess_exec(
@@ -102,7 +103,7 @@ class Rtl433Scanner:
             logger.info(f"rtl_433 exited immediately (no RTL-SDR plugged in?): {stderr.strip()[-300:]}")
             self._proc = None
             return False
-        logger.info(f"Sub-GHz (rtl_433) discovery started on {', '.join(RTL433_FREQUENCIES)}")
+        logger.info(f"Sub-GHz (rtl_433) discovery started on {', '.join(freqs)}")
         asyncio.create_task(self._drain_stderr())
         return True
 

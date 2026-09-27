@@ -2711,6 +2711,7 @@ HTML_TEMPLATE = """
                 samsungStatusHtml(d) +
                 fastpairBatteryHtml(d) +
                 droneStateHtml(d) +
+                rfStateHtml(d) +
                 '<div class="detail-item"' + (d.identity_mac_count > 1 && d.identity_first_seen ? ' title="Earliest sighting across all ' + d.identity_mac_count + ' rotated addresses clustered under this identity"' : '') + '><div class="detail-label">First seen</div><div class="detail-value mono">' + (d.identity_mac_count > 1 && d.identity_first_seen ? new Date(d.identity_first_seen).toLocaleString() : (d.first_seen ? new Date(d.first_seen).toLocaleString() : '—')) + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">Last seen</div><div class="detail-value mono">' + (d.last_seen ? new Date(d.last_seen).toLocaleString() : '—') + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">Activity Pattern</div><div class="detail-value">' + (data.pattern || 'Insufficient data') + '</div></div>' +
@@ -3786,6 +3787,7 @@ SETTINGS_TEMPLATE = """
         <a href="#wigle" data-tab="wigle" onclick="switchTab('wigle')">WiGLE</a>
         <a href="#fastpair" data-tab="fastpair" onclick="switchTab('fastpair')">Fast Pair</a>
         <a href="#esp32" data-tab="esp32" onclick="switchTab('esp32')">ESP32 Scanner</a>
+        <a href="#rtl433" data-tab="rtl433" onclick="switchTab('rtl433')">RTL-SDR</a>
         <a href="#export" data-tab="export" onclick="switchTab('export')">Export</a>
         <a href="#about" data-tab="about" onclick="switchTab('about')">About</a>
     </nav>
@@ -4103,6 +4105,30 @@ SETTINGS_TEMPLATE = """
                         <label for="esp32-host" style="font-size: 0.8rem; color: var(--text-muted); white-space: nowrap;">Host / IP</label>
                         <input type="text" class="form-input" id="esp32-host" placeholder="192.168.5.1" style="max-width: 12rem;" onchange="saveEsp32Settings()">
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- RTL-SDR Tab -->
+        <div class="config-tab" id="tab-rtl433">
+            <div class="page-header">
+                <div class="page-title">System Configuration</div>
+                <h1 class="page-heading">RTL-SDR</h1>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">Sub-GHz Discovery (433/868 MHz)</div>
+                <div class="panel-body">
+                    <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 1rem;">If an RTL-SDR dongle is plugged into this host, BlueWatch runs <a href="https://github.com/merbanan/rtl_433" target="_blank" rel="noopener" style="color: var(--accent-blue);">rtl_433</a> to passively receive on the 433/868 MHz ISM band -- TPMS (tyre pressure) sensors, weather stations, doorbells, remotes and more, alongside Bluetooth and LAN devices. Receive only: nothing is ever transmitted. Off entirely if no dongle or the <code>rtl_433</code> tool is present, regardless of this setting.</p>
+                    <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;">
+                        <input type="checkbox" id="rtl433-enabled" onchange="saveRtl433Settings()">
+                        <label for="rtl433-enabled" style="font-size: 0.85rem;">Enable sub-GHz discovery</label>
+                    </div>
+                    <div style="display: flex; gap: 0.5rem; align-items: center;">
+                        <label for="rtl433-frequencies" style="font-size: 0.8rem; color: var(--text-muted); white-space: nowrap;">Frequencies</label>
+                        <input type="text" class="form-input" id="rtl433-frequencies" placeholder="433.92M,868.3M" style="max-width: 16rem;" onchange="saveRtl433Settings()">
+                    </div>
+                    <p style="font-size: 0.7rem; color: var(--text-muted); margin-top: 0.5rem;">Comma-separated, hopped between every few seconds. 433.92M covers almost everything; 868.3M catches some newer sensors and doorbells too.</p>
                 </div>
             </div>
         </div>
@@ -4691,6 +4717,7 @@ SETTINGS_TEMPLATE = """
                     loadWigleSettings();
         loadFastpairSettings();
         loadEsp32Settings();
+        loadRtl433Settings();
         loadWatchedDevices();
                     showStatus('WiGLE credentials saved', 'success');
                 } else {
@@ -4763,6 +4790,35 @@ SETTINGS_TEMPLATE = """
                     showStatus(err.error || 'Error saving ESP32 scanner settings', 'error');
                 }
             } catch (error) { showStatus('Error saving ESP32 scanner settings', 'error'); }
+        }
+
+        async function loadRtl433Settings() {
+            const enabledBox = document.getElementById('rtl433-enabled');
+            if (!enabledBox) return;
+            try {
+                const response = await fetch('/api/rtl433-settings');
+                const data = await response.json();
+                enabledBox.checked = !!data.enabled;
+                document.getElementById('rtl433-frequencies').value = data.frequencies || '433.92M,868.3M';
+            } catch (error) { /* leave fields as-is */ }
+        }
+
+        async function saveRtl433Settings() {
+            const enabled = document.getElementById('rtl433-enabled').checked;
+            const frequencies = document.getElementById('rtl433-frequencies').value;
+            try {
+                const response = await fetch('/api/rtl433-settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ enabled: enabled, frequencies: frequencies })
+                });
+                if (response.ok) {
+                    showStatus('RTL-SDR settings saved', 'success');
+                } else {
+                    const err = await response.json().catch(() => ({}));
+                    showStatus(err.error || 'Error saving RTL-SDR settings', 'error');
+                }
+            } catch (error) { showStatus('Error saving RTL-SDR settings', 'error'); }
         }
 
         async function renameGroup(g) {
@@ -4925,6 +4981,7 @@ SETTINGS_TEMPLATE = """
         loadWigleSettings();
         loadFastpairSettings();
         loadEsp32Settings();
+        loadRtl433Settings();
         loadWatchedDevices();
     </script>
 </body>
@@ -7868,6 +7925,7 @@ LIVE_TEMPLATE = """
                 samsungStatusHtml(d) +
                 fastpairBatteryHtml(d) +
                 droneStateHtml(d) +
+                rfStateHtml(d) +
                 '<div class="detail-item"' + (d.identity_mac_count > 1 && d.identity_first_seen ? ' title="Earliest sighting across all ' + d.identity_mac_count + ' rotated addresses clustered under this identity"' : '') + '><div class="detail-label">First seen</div><div class="detail-value mono">' + (d.identity_mac_count > 1 && d.identity_first_seen ? new Date(d.identity_first_seen).toLocaleString() : (d.first_seen ? new Date(d.first_seen).toLocaleString() : '—')) + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">Last seen</div><div class="detail-value mono">' + (d.last_seen ? new Date(d.last_seen).toLocaleString() : '—') + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">Activity Pattern</div><div class="detail-value">' + (data.pattern || 'Insufficient data') + '</div></div>' +

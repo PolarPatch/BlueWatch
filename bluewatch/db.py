@@ -48,6 +48,8 @@ class Device:
     fastpair_battery_at: Optional[datetime] = None  # When fastpair_battery was last updated
     drone_state: Optional[dict] = None  # Latest decoded ASTM F3411/OpenDroneID Remote ID snapshot (position/altitude/status/UAS ID/operator info) -- overwritten every sighting, not fill-once
     drone_state_at: Optional[datetime] = None  # When drone_state was last updated
+    rf_state: Optional[dict] = None  # Latest decoded sub-GHz (rtl_433) sensor reading -- temperature/humidity/battery/etc, only for bt_type='rf' -- overwritten every sighting
+    rf_state_at: Optional[datetime] = None  # When rf_state was last updated
     group_id: Optional[int] = None  # Device group (category or subcategory)
     notes: Optional[str] = None  # Operator notes
     new_device_notified: bool = True  # Whether new-device notification has been sent
@@ -414,6 +416,11 @@ async def init_db() -> None:
             # OpenDroneID Remote ID (classifier.decode_drone_remote_id).
             ("drone_state", "TEXT"),
             ("drone_state_at", "TIMESTAMP"),
+            # Same overwritten-every-sighting treatment, for decoded sub-GHz
+            # (rtl_433) sensor readings -- temperature, humidity, battery,
+            # etc. Only ever set for bt_type='rf' devices.
+            ("rf_state", "TEXT"),
+            ("rf_state_at", "TIMESTAMP"),
         ]
 
         for column, column_type in migrations:
@@ -508,6 +515,13 @@ def _parse_device_row(row) -> Device:
         except (json.JSONDecodeError, TypeError):
             pass
 
+    rf_state = None
+    if "rf_state" in keys and row["rf_state"]:
+        try:
+            rf_state = json.loads(row["rf_state"])
+        except (json.JSONDecodeError, TypeError):
+            pass
+
     return Device(
         mac=row["mac"],
         vendor=row["vendor"],
@@ -567,6 +581,11 @@ def _parse_device_row(row) -> Device:
         drone_state_at=(
             datetime.fromisoformat(row["drone_state_at"])
             if "drone_state_at" in keys and row["drone_state_at"] else None
+        ),
+        rf_state=rf_state,
+        rf_state_at=(
+            datetime.fromisoformat(row["rf_state_at"])
+            if "rf_state_at" in keys and row["rf_state_at"] else None
         ),
     )
 
@@ -1126,6 +1145,7 @@ async def upsert_device(
     manufacturer_data: Optional[dict] = None,
     service_data: Optional[dict] = None,
     appearance: Optional[int] = None,
+    rf_state: Optional[dict] = None,
 ) -> tuple[Device, bool]:
     """Insert or update a device and record a sighting.
 
@@ -1201,6 +1221,7 @@ async def upsert_device(
 
     drone_state = decode_drone_remote_id(service_data) if service_data else None
     drone_state_json = json.dumps(drone_state) if drone_state else None
+    rf_state_json = json.dumps(rf_state) if rf_state else None
 
     # A cryptographic IRK match (if any key is configured and resolves this
     # address) is strictly stronger evidence than the advertised-name
@@ -1365,6 +1386,12 @@ async def upsert_device(
                 updates.append("drone_state_at = ?")
                 params.append(now.isoformat())
 
+            if rf_state_json is not None:
+                updates.append("rf_state = ?")
+                params.append(rf_state_json)
+                updates.append("rf_state_at = ?")
+                params.append(now.isoformat())
+
             # An IRK match always wins over whatever identity_id (if any)
             # the device already had -- it's a proof, not a guess.
             existing_identity_id = existing["identity_id"] if "identity_id" in existing.keys() else None
@@ -1399,8 +1426,8 @@ async def upsert_device(
             # Insert new device
             await db.execute(
                 """
-                INSERT INTO devices (mac, vendor, friendly_name, first_seen, last_seen, total_sightings, service_uuids, bt_type, device_class, manufacturer_data, service_data, appearance, new_device_notified, apple_activity, apple_activity_at, samsung_status, samsung_status_at, fastpair_battery, fastpair_battery_at, drone_state, drone_state_at)
-                VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO devices (mac, vendor, friendly_name, first_seen, last_seen, total_sightings, service_uuids, bt_type, device_class, manufacturer_data, service_data, appearance, new_device_notified, apple_activity, apple_activity_at, samsung_status, samsung_status_at, fastpair_battery, fastpair_battery_at, drone_state, drone_state_at, rf_state, rf_state_at)
+                VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     mac, insert_vendor, friendly_name, now.isoformat(), now.isoformat(), uuids_json, bt_type,
@@ -1409,6 +1436,7 @@ async def upsert_device(
                     samsung_status_json, now.isoformat() if samsung_status_json else None,
                     fastpair_battery_json, now.isoformat() if fastpair_battery_json else None,
                     drone_state_json, now.isoformat() if drone_state_json else None,
+                    rf_state_json, now.isoformat() if rf_state_json else None,
                 )
             )
 
@@ -2363,6 +2391,40 @@ async def set_esp32_scanner_settings(enabled: bool, host: str) -> None:
         await db.execute(
             "INSERT OR REPLACE INTO settings (key, value) VALUES ('esp32_scanner_host', ?)",
             (host or _ESP32_SCANNER_DEFAULT_HOST,),
+        )
+        await db.commit()
+
+
+_RTL433_DEFAULT_FREQUENCIES = "433.92M,868.3M"
+
+
+async def get_rtl433_settings() -> tuple[bool, str]:
+    """Whether optional sub-GHz (433/868 MHz) discovery via rtl_433 and an
+    RTL-SDR dongle is enabled, and which frequencies to hop between.
+    Defaults to enabled -- this only ever does anything if the rtl_433
+    binary and an actual RTL-SDR are both present (see rtl433.py), so
+    leaving it on by default is harmless for anyone without the hardware."""
+    async with _connect() as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT key, value FROM settings WHERE key IN ('rtl433_enabled', 'rtl433_frequencies')"
+        ) as cursor:
+            rows = await cursor.fetchall()
+    values = {row["key"]: row["value"] for row in rows}
+    enabled = values.get("rtl433_enabled", "1") == "1"
+    frequencies = values.get("rtl433_frequencies") or _RTL433_DEFAULT_FREQUENCIES
+    return (enabled, frequencies)
+
+
+async def set_rtl433_settings(enabled: bool, frequencies: str) -> None:
+    async with _connect() as db:
+        await db.execute(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES ('rtl433_enabled', ?)",
+            ("1" if enabled else "0",),
+        )
+        await db.execute(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES ('rtl433_frequencies', ?)",
+            (frequencies or _RTL433_DEFAULT_FREQUENCIES,),
         )
         await db.commit()
 

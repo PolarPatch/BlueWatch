@@ -395,28 +395,56 @@ class BlueWatchDaemon:
 
     _RTL433_INTERVAL = 5
 
+    # Pure protocol plumbing, not a sensor reading -- left out of the stored
+    # rf_state snapshot so what's shown is temperature/humidity/battery/
+    # channel/etc, not rtl_433's own bookkeeping fields.
+    _RTL433_METADATA_KEYS = frozenset({"time", "model", "id", "mic", "protocol"})
+
     async def _rtl433_ingest_loop(self) -> None:
         """Adds devices found on 433/868 MHz via rtl_433 and an RTL-SDR
         dongle (TPMS, weather stations, remotes, doorbells...) alongside
         the Bluetooth and LAN ones -- receive only, entirely optional
-        hardware. If no RTL-SDR/rtl_433 is present this logs one line and
-        returns; nothing else changes. Set BLUEWATCH_RTL433=0 to disable
-        even when the hardware is there."""
+        hardware. Started/stopped/restarted to match the operator's Config
+        setting (checked periodically), same idea as the ESP32 scanner
+        manager. If no RTL-SDR/rtl_433 is present, starting is a no-op that
+        logs one line and retries later rather than erroring. Set
+        BLUEWATCH_RTL433=0 to force it off regardless of the Config setting."""
         if os.environ.get("BLUEWATCH_RTL433", "1") == "0":
             logger.info("Sub-GHz (rtl_433) discovery disabled by BLUEWATCH_RTL433=0")
             return
-        scanner = Rtl433Scanner()
-        if not await scanner.start():
-            return
-        try:
-            while self.running:
+        scanner: Optional[Rtl433Scanner] = None
+        running_frequencies = None
+        while self.running:
+            try:
+                enabled, frequencies = await db.get_rtl433_settings()
+            except Exception as e:
+                logger.warning(f"Could not read rtl_433 settings: {e}")
+                enabled, frequencies = True, None
+
+            if not enabled and scanner is not None:
+                await scanner.stop()
+                scanner = None
+                running_frequencies = None
+            elif enabled and (scanner is None or frequencies != running_frequencies):
+                if scanner is not None:
+                    await scanner.stop()
+                freq_list = [f.strip() for f in frequencies.split(",") if f.strip()] if frequencies else None
+                scanner = Rtl433Scanner()
+                if await scanner.start(frequencies=freq_list):
+                    running_frequencies = frequencies
+                else:
+                    scanner = None  # no dongle/binary -- try again next check
+
+            if scanner is not None:
                 try:
                     for device in await scanner.scan():
+                        rf_state = {k: v for k, v in device.raw.items() if k not in self._RTL433_METADATA_KEYS} or None
                         db_device, is_new = await db.upsert_device(
                             mac=device.key,
                             friendly_name=device.label,
                             rssi=int(device.rssi) if device.rssi is not None else None,
                             bt_type="rf",
+                            rf_state=rf_state,
                         )
                         if self._web_server is not None:
                             try:
@@ -426,8 +454,8 @@ class BlueWatchDaemon:
                         await self._notifications.on_device_seen(db_device, is_new)
                 except Exception as e:
                     logger.error(f"rtl_433 ingest error: {e}")
-                await asyncio.sleep(self._RTL433_INTERVAL)
-        finally:
+            await asyncio.sleep(self._RTL433_INTERVAL if scanner else 30)
+        if scanner is not None:
             await scanner.stop()
 
     async def stop(self) -> None:

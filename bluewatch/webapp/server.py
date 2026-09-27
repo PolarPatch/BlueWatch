@@ -221,6 +221,8 @@ class WebServer:
         self.app.router.add_post("/api/fastpair-settings", self.api_set_fastpair_settings)
         self.app.router.add_get("/api/esp32-scanner-settings", self.api_get_esp32_scanner_settings)
         self.app.router.add_post("/api/esp32-scanner-settings", self.api_set_esp32_scanner_settings)
+        self.app.router.add_get("/api/rtl433-settings", self.api_get_rtl433_settings)
+        self.app.router.add_post("/api/rtl433-settings", self.api_set_rtl433_settings)
         # Authentication
         self.app.router.add_post("/api/auth/login", self.api_login)
         self.app.router.add_post("/api/auth/logout", self.api_logout)
@@ -743,6 +745,8 @@ class WebServer:
                 "fastpair_battery_at": (device.fastpair_battery_at.isoformat()) if device.fastpair_battery_at else None,
                 "drone_state": device.drone_state,
                 "drone_state_at": (device.drone_state_at.isoformat()) if device.drone_state_at else None,
+                "rf_state": device.rf_state,
+                "rf_state_at": (device.rf_state_at.isoformat()) if device.rf_state_at else None,
             },
             "type_label": get_type_label(device_type),
             "uuid_names": get_uuid_names(device.service_uuids),
@@ -2085,6 +2089,22 @@ class WebServer:
             enabled = bool(data.get("enabled"))
             host = (data.get("host") or "").strip() or "192.168.5.1"
             await db.set_esp32_scanner_settings(enabled, host)
+            return web.json_response({"status": "ok"})
+        except Exception as e:
+            return web.json_response({"error": str(e)}, status=400)
+
+    async def api_get_rtl433_settings(self, request: web.Request) -> web.Response:
+        """Whether optional sub-GHz (433/868 MHz) discovery via rtl_433 and
+        an RTL-SDR dongle is enabled, and which frequencies it hops."""
+        enabled, frequencies = await db.get_rtl433_settings()
+        return web.json_response({"enabled": enabled, "frequencies": frequencies})
+
+    async def api_set_rtl433_settings(self, request: web.Request) -> web.Response:
+        try:
+            data = await request.json()
+            enabled = bool(data.get("enabled"))
+            frequencies = (data.get("frequencies") or "").strip() or "433.92M,868.3M"
+            await db.set_rtl433_settings(enabled, frequencies)
             return web.json_response({"status": "ok"})
         except Exception as e:
             return web.json_response({"error": str(e)}, status=400)
