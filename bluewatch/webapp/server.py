@@ -1553,6 +1553,7 @@ class WebServer:
                 "age": round(max(age, 0)),
                 "sightings": r["total_sightings"],
                 "lan": r["bt_type"] == "lan",
+                "rf": r["bt_type"] == "rf",
                 "random": is_randomized_mac(r["mac"]),
             })
         return web.json_response({"window": window, "devices": out})
@@ -1642,7 +1643,7 @@ class WebServer:
         now = datetime.now()
         rows = []
         for r in await db.get_radar_devices(window):
-            if r["rssi"] is None or r["bt_type"] == "lan":
+            if r["rssi"] is None or r["bt_type"] in ("lan", "rf"):
                 continue
             device_type = r["type"] or "unknown"
             if hide_classified and device_type != "unknown":

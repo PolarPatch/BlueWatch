@@ -21,6 +21,7 @@ from .config import SCAN_INTERVAL, SOCKET_PATH, METRICS_PORT
 from .scanner import BluetoothScanner, ScannedDevice, list_adapters
 from .esp32_scanner import ESP32Scanner
 from .mdns import MdnsScanner
+from .rtl433 import Rtl433Scanner
 from . import archive
 from .web import WebServer
 from .webapp.server import _device_to_json
@@ -141,6 +142,7 @@ class BlueWatchDaemon:
         asyncio.create_task(self._esp32_scanner_manager())
         asyncio.create_task(self._esp32_ingest_loop())
         asyncio.create_task(self._mdns_ingest_loop())
+        asyncio.create_task(self._rtl433_ingest_loop())
         asyncio.create_task(self._stats_overview_loop())
         asyncio.create_task(self._auto_type_backfill_loop())
         asyncio.create_task(self._hourly_seen_backfill_loop())
@@ -388,6 +390,43 @@ class BlueWatchDaemon:
                 except Exception as e:
                     logger.error(f"mDNS ingest error: {e}")
                 await asyncio.sleep(self._MDNS_INTERVAL)
+        finally:
+            await scanner.stop()
+
+    _RTL433_INTERVAL = 5
+
+    async def _rtl433_ingest_loop(self) -> None:
+        """Adds devices found on 433/868 MHz via rtl_433 and an RTL-SDR
+        dongle (TPMS, weather stations, remotes, doorbells...) alongside
+        the Bluetooth and LAN ones -- receive only, entirely optional
+        hardware. If no RTL-SDR/rtl_433 is present this logs one line and
+        returns; nothing else changes. Set BLUEWATCH_RTL433=0 to disable
+        even when the hardware is there."""
+        if os.environ.get("BLUEWATCH_RTL433", "1") == "0":
+            logger.info("Sub-GHz (rtl_433) discovery disabled by BLUEWATCH_RTL433=0")
+            return
+        scanner = Rtl433Scanner()
+        if not await scanner.start():
+            return
+        try:
+            while self.running:
+                try:
+                    for device in await scanner.scan():
+                        db_device, is_new = await db.upsert_device(
+                            mac=device.key,
+                            friendly_name=device.label,
+                            rssi=int(device.rssi) if device.rssi is not None else None,
+                            bt_type="rf",
+                        )
+                        if self._web_server is not None:
+                            try:
+                                await self._web_server.broadcast_sighting(_device_to_json(db_device))
+                            except Exception as e:
+                                logger.debug(f"Live-event broadcast failed: {e}")
+                        await self._notifications.on_device_seen(db_device, is_new)
+                except Exception as e:
+                    logger.error(f"rtl_433 ingest error: {e}")
+                await asyncio.sleep(self._RTL433_INTERVAL)
         finally:
             await scanner.stop()
 

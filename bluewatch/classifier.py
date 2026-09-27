@@ -1856,7 +1856,7 @@ def classify_device(
             return TYPE_SPEAKER
         if any(x in name_lower for x in ["tv", "roku", "firestick", "chromecast"]):
             return TYPE_TV
-        if any(x in name_lower for x in ("car", "vehicle", "model 3", "model y", "model s") + VEHICLE_OEM_NAME_PATTERNS):
+        if any(x in name_lower for x in ("car", "vehicle", "model 3", "model y", "model s", "tpms") + VEHICLE_OEM_NAME_PATTERNS):
             return TYPE_VEHICLE
 
     # Try Classic BT device class (more reliable than vendor guessing)

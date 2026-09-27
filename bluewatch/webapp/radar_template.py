@@ -201,7 +201,7 @@ RADAR_TEMPLATE = r"""<!DOCTYPE html>
     }
 
     function passes(d) {
-        if (d.rssi == null || d.lan) return false;
+        if (d.rssi == null || d.lan || d.rf) return false;
         if (hiddenTypes.has(d.type)) return false;
         if (document.getElementById('hide-unknown').checked && d.type === 'unknown' && !d.name && !d.vendor && !d.watched && !d.grouped) return false;
         if (document.getElementById('hide-random').checked && d.random) return false;
