@@ -1920,6 +1920,42 @@ HTML_TEMPLATE = """
             return '<div class="detail-item full"><div class="detail-label">Drone Remote ID (live)</div><div class="detail-value" style="font-size:0.8rem;">' + parts.join(' · ') + '</div></div>';
         }
 
+        // Sub-GHz (rtl_433) sensor readings -- TPMS, weather stations, etc.
+        // Unlike drone_state above there's no fixed schema (rtl_433 has
+        // 200+ protocols, each with its own fields), so this formats
+        // whatever numeric/boolean fields showed up generically rather
+        // than naming each one -- still readable, since field names are
+        // already things like temperature_C or battery_ok.
+        function rfStateHtml(d) {
+            if (!d.rf_state || !d.rf_state_at) return '';
+            const ageMs = Date.now() - new Date(d.rf_state_at).getTime();
+            if (ageMs > 30 * 60 * 1000) return '';
+            const unitFor = k => {
+                if (/_C$/.test(k)) return '°C';
+                if (/_F$/.test(k)) return '°F';
+                if (/_hPa$/.test(k)) return ' hPa';
+                if (/_kPa$/.test(k)) return ' kPa';
+                if (/_km_h$/.test(k)) return ' km/h';
+                if (/_mm$/.test(k)) return ' mm';
+                if (/_mph$/.test(k)) return ' mph';
+                if (/_V$/.test(k)) return ' V';
+                if (k === 'humidity') return '%';
+                return '';
+            };
+            const nameFor = k => k.replace(/_ok$/, '').replace(/_[A-Za-z]+$/, '').replace(/_/g, ' ')
+                .replace(/\b\w/g, c => c.toUpperCase());
+            const parts = [];
+            for (const [k, v] of Object.entries(d.rf_state)) {
+                if (v === null || v === undefined || typeof v === 'object') continue;
+                let val = v;
+                if (k.endsWith('_ok')) val = v ? 'OK' : 'LOW';
+                else if (typeof v === 'boolean') val = v ? 'yes' : 'no';
+                parts.push(escapeHtml(nameFor(k)) + ': ' + escapeHtml(String(val)) + unitFor(k));
+            }
+            if (!parts.length) return '';
+            return '<div class="detail-item full"><div class="detail-label">Sub-GHz reading (live)</div><div class="detail-value" style="font-size:0.8rem;">' + parts.join(' · ') + '</div></div>';
+        }
+
         function showNewCategory() {
             document.getElementById('new-cat-link').hidden = true;
             const input = document.getElementById('new-category-name');
@@ -7236,6 +7272,42 @@ LIVE_TEMPLATE = """
             if (s.operator_id) parts.push('Operator ID ' + escapeHtml(s.operator_id));
             if (!parts.length) return '';
             return '<div class="detail-item full"><div class="detail-label">Drone Remote ID (live)</div><div class="detail-value" style="font-size:0.8rem;">' + parts.join(' · ') + '</div></div>';
+        }
+
+        // Sub-GHz (rtl_433) sensor readings -- TPMS, weather stations, etc.
+        // Unlike drone_state above there's no fixed schema (rtl_433 has
+        // 200+ protocols, each with its own fields), so this formats
+        // whatever numeric/boolean fields showed up generically rather
+        // than naming each one -- still readable, since field names are
+        // already things like temperature_C or battery_ok.
+        function rfStateHtml(d) {
+            if (!d.rf_state || !d.rf_state_at) return '';
+            const ageMs = Date.now() - new Date(d.rf_state_at).getTime();
+            if (ageMs > 30 * 60 * 1000) return '';
+            const unitFor = k => {
+                if (/_C$/.test(k)) return '°C';
+                if (/_F$/.test(k)) return '°F';
+                if (/_hPa$/.test(k)) return ' hPa';
+                if (/_kPa$/.test(k)) return ' kPa';
+                if (/_km_h$/.test(k)) return ' km/h';
+                if (/_mm$/.test(k)) return ' mm';
+                if (/_mph$/.test(k)) return ' mph';
+                if (/_V$/.test(k)) return ' V';
+                if (k === 'humidity') return '%';
+                return '';
+            };
+            const nameFor = k => k.replace(/_ok$/, '').replace(/_[A-Za-z]+$/, '').replace(/_/g, ' ')
+                .replace(/\b\w/g, c => c.toUpperCase());
+            const parts = [];
+            for (const [k, v] of Object.entries(d.rf_state)) {
+                if (v === null || v === undefined || typeof v === 'object') continue;
+                let val = v;
+                if (k.endsWith('_ok')) val = v ? 'OK' : 'LOW';
+                else if (typeof v === 'boolean') val = v ? 'yes' : 'no';
+                parts.push(escapeHtml(nameFor(k)) + ': ' + escapeHtml(String(val)) + unitFor(k));
+            }
+            if (!parts.length) return '';
+            return '<div class="detail-item full"><div class="detail-label">Sub-GHz reading (live)</div><div class="detail-value" style="font-size:0.8rem;">' + parts.join(' · ') + '</div></div>';
         }
 
         function showNewCategory() {
