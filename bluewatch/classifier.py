@@ -1388,6 +1388,14 @@ SERVICE_UUID_PATTERNS = [
     ("00003082", TYPE_FLIPPER),
     ("00003083", TYPE_FLIPPER),
 
+    # BLE tire pressure sensors (aftermarket, phone-app-paired -- not the
+    # 315/433 MHz RF a car's own ECU listens for, which needs an SDR and is
+    # out of scope here). 0xFBB0 is the vendor UUID a wide, cross-checked
+    # set of these actually advertise (source: ra6070/BLE-TPMS, an ESP32
+    # BLE-TPMS reverse-engineering project, MIT licensed, plus independent
+    # confirmation from Arduino/Espruino forum teardown threads).
+    ("0000fbb0", TYPE_VEHICLE),
+
     # Sony Sound Connect / SongPal proprietary service UUIDs -- a more
     # specific audio-device signal than the generic Sony company ID
     # fallback below (source: blesploit device-library).
