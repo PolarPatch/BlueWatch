@@ -41,6 +41,38 @@ HTML_TEMPLATE = """
             --border-active: #999999;
         }
 
+        /* Low-vision contrast control (issue #2): rather than a separate
+           fixed "dim" theme, the Config > Display contrast slider
+           interpolates --bg-*/--text-*/--border-color between each
+           theme's own default values (above/below) and a softer endpoint,
+           applied as inline custom properties (see applyContrast() in the
+           script block) that override whichever [data-theme] is active. */
+
+        /* Cyberpunk theme -- neon-on-near-black, glow accents, same layout.
+           Palette pulled from WDGWars' Uplink screen (operator's reference). */
+        [data-theme="cyberpunk"] {
+            --bg-primary: #05070d;
+            --bg-secondary: #0b0f18;
+            --bg-tertiary: #111827;
+            --bg-hover: #182234;
+            --bg-panel: #0b0f18;
+            --text-primary: #d7f9ff;
+            --text-secondary: #7fb8c9;
+            --text-muted: #4d6a78;
+            --accent-red: #ff4d8d;
+            --accent-orange: #ff8a3d;
+            --accent-amber: #ffd166;
+            --accent-green: #39ff9e;
+            --accent-blue: #22e5ff;
+            --accent-cyan: #22e5ff;
+            --border-color: #1b2a3a;
+            --border-active: #22e5ff;
+        }
+        [data-theme="cyberpunk"] body {
+            background-image: radial-gradient(circle at 15% 0%, rgba(34, 229, 255, 0.06), transparent 45%),
+                               radial-gradient(circle at 85% 100%, rgba(255, 77, 141, 0.05), transparent 45%);
+        }
+
         [data-theme="light"] .type-phone { background: #dbeafe; color: #1d4ed8; }
         [data-theme="light"] .type-laptop { background: #ccfbf1; color: #0f766e; }
         [data-theme="light"] .type-audio { background: #f3e8ff; color: #7c3aed; }
@@ -1027,7 +1059,7 @@ HTML_TEMPLATE = """
             </nav>
         </div>
         <div class="topbar-right">
-            <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Toggle light/dark mode">☀</button>
+            <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Cycle theme: dark / light / cyberpunk">☀</button>
         </div>
     </header>
 
@@ -1220,15 +1252,67 @@ HTML_TEMPLATE = """
     </div>
 
     <script>
+        // Contrast slider (issue #2): interpolates bg/text/border between each
+        // theme's own default colors and a softer endpoint, applied as inline
+        // custom properties that override whichever [data-theme] is active.
+        // 100 = untouched theme default, 0 = softest. See Config > Display.
+        const THEME_CONTRAST_ENDPOINTS = {
+            dark: {
+                full: {'--bg-primary': '#0d1117', '--bg-secondary': '#161b22', '--bg-tertiary': '#1c232c', '--bg-hover': '#242c37', '--text-primary': '#e6edf3', '--text-secondary': '#a6afb9', '--border-color': '#30363d'},
+                soft: {'--bg-primary': '#21262d', '--bg-secondary': '#2d333b', '--bg-tertiary': '#343b44', '--bg-hover': '#3a424c', '--text-primary': '#c9d1d9', '--text-secondary': '#9198a1', '--border-color': '#454c56'},
+            },
+            light: {
+                full: {'--bg-primary': '#f5f5f5', '--bg-secondary': '#e8e8e8', '--bg-tertiary': '#ffffff', '--bg-hover': '#d8d8d8', '--text-primary': '#1a1a1a', '--text-secondary': '#555555', '--border-color': '#cccccc'},
+                soft: {'--bg-primary': '#e4e4e4', '--bg-secondary': '#d9d9d9', '--bg-tertiary': '#eaeaea', '--bg-hover': '#cfcfcf', '--text-primary': '#3a3a3a', '--text-secondary': '#5f5f5f', '--border-color': '#bbbbbb'},
+            },
+            cyberpunk: {
+                full: {'--bg-primary': '#05070d', '--bg-secondary': '#0b0f18', '--bg-tertiary': '#111827', '--bg-hover': '#182234', '--text-primary': '#d7f9ff', '--text-secondary': '#7fb8c9', '--border-color': '#1b2a3a'},
+                soft: {'--bg-primary': '#12151f', '--bg-secondary': '#181c28', '--bg-tertiary': '#1e2333', '--bg-hover': '#242a3a', '--text-primary': '#b9dee6', '--text-secondary': '#6f95a3', '--border-color': '#2a3548'},
+            },
+        };
+
+        function _hexToRgb(hex) {
+            const n = parseInt(hex.slice(1), 16);
+            return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+        }
+        function _rgbToHex(rgb) {
+            return '#' + rgb.map(v => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('');
+        }
+        function _lerpColor(a, b, t) {
+            const ra = _hexToRgb(a), rb = _hexToRgb(b);
+            return _rgbToHex(ra.map((v, i) => v + (rb[i] - v) * t));
+        }
+
+        function getContrast() {
+            const v = parseInt(localStorage.getItem('bluewatch_contrast'), 10);
+            return isNaN(v) ? 100 : Math.max(0, Math.min(100, v));
+        }
+
+        function applyContrast(theme, contrast) {
+            const endpoints = THEME_CONTRAST_ENDPOINTS[theme] || THEME_CONTRAST_ENDPOINTS.dark;
+            const root = document.documentElement.style;
+            const t = (contrast === undefined || contrast === null) ? 100 : contrast;
+            if (t >= 100) {
+                for (const k of Object.keys(endpoints.full)) root.removeProperty(k);
+                return;
+            }
+            const mix = 1 - (Math.max(0, t) / 100);
+            for (const k of Object.keys(endpoints.full)) {
+                root.setProperty(k, _lerpColor(endpoints.full[k], endpoints.soft[k], mix));
+            }
+        }
+
         function applyTheme(theme) {
             document.documentElement.setAttribute('data-theme', theme);
+            applyContrast(theme, getContrast());
             const btn = document.getElementById('theme-toggle');
-            if (btn) btn.textContent = theme === 'light' ? '☽' : '☀';
+            if (btn) btn.textContent = theme === 'light' ? '☽' : (theme === 'cyberpunk' ? '⚡' : '☀');
         }
 
         function toggleTheme() {
+            const order = ['dark', 'light', 'cyberpunk'];
             const current = document.documentElement.getAttribute('data-theme') || 'dark';
-            const next = current === 'dark' ? 'light' : 'dark';
+            const next = order[(order.indexOf(current) + 1) % order.length];
             localStorage.setItem('bluewatch_theme', next);
             applyTheme(next);
         }
@@ -3785,6 +3869,7 @@ SETTINGS_TEMPLATE = """
 
         .btn { padding: 0.6rem 1.25rem; border-radius: 6px; font-family: var(--font-mono); font-size: 0.7rem; font-weight: 500; cursor: pointer; border: 1px solid var(--border-color); background: var(--bg-tertiary); color: var(--text-secondary);  letter-spacing: 0.05em; text-decoration: none; display: inline-block; transition: all 0.1s; }
         .btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+        .btn.on { border-color: var(--accent-blue); color: var(--text-primary); background: var(--bg-hover); }
         .btn-primary { background: var(--accent-red); border-color: var(--accent-red); color: white; }
         .btn-primary:hover { background: #1d4ed8; }
 
@@ -3813,7 +3898,7 @@ SETTINGS_TEMPLATE = """
                 <a href="/settings" class="nav-link active">Config</a>
             </nav>
         </div>
-        <div><button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Toggle light/dark mode">☀</button></div>
+        <div><button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Cycle theme: dark / light / cyberpunk">☀</button></div>
     </header>
 
     <nav class="config-nav">
@@ -3826,6 +3911,7 @@ SETTINGS_TEMPLATE = """
         <a href="#fastpair" data-tab="fastpair" onclick="switchTab('fastpair')">Fast Pair</a>
         <a href="#esp32" data-tab="esp32" onclick="switchTab('esp32')">ESP32 Scanner</a>
         <a href="#rtl433" data-tab="rtl433" onclick="switchTab('rtl433')">RTL-SDR</a>
+        <a href="#display" data-tab="display" onclick="switchTab('display')">Display</a>
         <a href="#export" data-tab="export" onclick="switchTab('export')">Export</a>
         <a href="#about" data-tab="about" onclick="switchTab('about')">About</a>
     </nav>
@@ -4171,6 +4257,43 @@ SETTINGS_TEMPLATE = """
             </div>
         </div>
 
+        <!-- Display Tab -->
+        <div class="config-tab" id="tab-display">
+            <div class="page-header">
+                <div class="page-title">System Configuration</div>
+                <h1 class="page-heading">Display</h1>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">Theme</div>
+                <div class="panel-body">
+                    <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 1rem;">Stored in this browser only -- each device/browser remembers its own choice.</p>
+                    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                        <button class="btn" id="theme-btn-dark" onclick="setDisplayTheme('dark')">Dark</button>
+                        <button class="btn" id="theme-btn-light" onclick="setDisplayTheme('light')">Light</button>
+                        <button class="btn" id="theme-btn-cyberpunk" onclick="setDisplayTheme('cyberpunk')">Cyberpunk</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">Contrast</div>
+                <div class="panel-body">
+                    <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 1rem;">Requested in <a href="https://github.com/PolarPatch/BlueWatch/issues/2" target="_blank" rel="noopener" style="color: var(--accent-blue);">issue #2</a> for low-vision users who find plain dark/light too harsh either direction. Softens background/text/border colors within whichever theme is selected above -- 100 is the theme's normal look, lower values reduce the contrast between background and text.</p>
+                    <div style="display: flex; align-items: center; gap: 0.75rem; max-width: 26rem;">
+                        <span style="font-size: 0.7rem; color: var(--text-muted);">Soft</span>
+                        <input type="range" id="contrast-slider" min="0" max="100" value="100" style="flex: 1;" oninput="onContrastInput(this.value)" onchange="saveContrast(this.value)">
+                        <span style="font-size: 0.7rem; color: var(--text-muted);">Full</span>
+                        <span id="contrast-value" style="font-size: 0.8rem; min-width: 2.5rem; text-align: right;">100</span>
+                    </div>
+                    <div style="margin-top: 0.75rem;">
+                        <button class="btn" onclick="setContrastPreset(35)">Dim (preset)</button>
+                        <button class="btn" onclick="setContrastPreset(100)">Reset to full</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Export Tab -->
         <div class="config-tab" id="tab-export">
             <div class="page-header">
@@ -4249,14 +4372,66 @@ SETTINGS_TEMPLATE = """
         const demoMode = localStorage.getItem('bluewatch_demo_mode') === 'true' || new URLSearchParams(window.location.search).get('demo') === '1';
         const DEMO_GROUPS = ['Family', 'Guests', 'Home', 'Neighbours', 'Office', 'Vehicles', 'Visitors', 'Work', 'Other'];
         const DEMO_NAMES = ['Guest Phone', 'Kitchen Speaker', 'Smart Plug', 'Wireless Headset', 'Fitness Tracker', 'Smart TV', 'Tablet', 'Car Bluetooth', 'IoT Sensor', 'Robot Vacuum', 'Doorbell Camera', 'Smart Watch', 'Bluetooth Mouse', 'Game Controller', 'E-bike Lock'];
+        // Contrast slider (issue #2): interpolates bg/text/border between each
+        // theme's own default colors and a softer endpoint, applied as inline
+        // custom properties that override whichever [data-theme] is active.
+        // 100 = untouched theme default, 0 = softest. See Config > Display.
+        const THEME_CONTRAST_ENDPOINTS = {
+            dark: {
+                full: {'--bg-primary': '#0d1117', '--bg-secondary': '#161b22', '--bg-tertiary': '#1c232c', '--bg-hover': '#242c37', '--text-primary': '#e6edf3', '--text-secondary': '#a6afb9', '--border-color': '#30363d'},
+                soft: {'--bg-primary': '#21262d', '--bg-secondary': '#2d333b', '--bg-tertiary': '#343b44', '--bg-hover': '#3a424c', '--text-primary': '#c9d1d9', '--text-secondary': '#9198a1', '--border-color': '#454c56'},
+            },
+            light: {
+                full: {'--bg-primary': '#f5f5f5', '--bg-secondary': '#e8e8e8', '--bg-tertiary': '#ffffff', '--bg-hover': '#d8d8d8', '--text-primary': '#1a1a1a', '--text-secondary': '#555555', '--border-color': '#cccccc'},
+                soft: {'--bg-primary': '#e4e4e4', '--bg-secondary': '#d9d9d9', '--bg-tertiary': '#eaeaea', '--bg-hover': '#cfcfcf', '--text-primary': '#3a3a3a', '--text-secondary': '#5f5f5f', '--border-color': '#bbbbbb'},
+            },
+            cyberpunk: {
+                full: {'--bg-primary': '#05070d', '--bg-secondary': '#0b0f18', '--bg-tertiary': '#111827', '--bg-hover': '#182234', '--text-primary': '#d7f9ff', '--text-secondary': '#7fb8c9', '--border-color': '#1b2a3a'},
+                soft: {'--bg-primary': '#12151f', '--bg-secondary': '#181c28', '--bg-tertiary': '#1e2333', '--bg-hover': '#242a3a', '--text-primary': '#b9dee6', '--text-secondary': '#6f95a3', '--border-color': '#2a3548'},
+            },
+        };
+
+        function _hexToRgb(hex) {
+            const n = parseInt(hex.slice(1), 16);
+            return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+        }
+        function _rgbToHex(rgb) {
+            return '#' + rgb.map(v => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('');
+        }
+        function _lerpColor(a, b, t) {
+            const ra = _hexToRgb(a), rb = _hexToRgb(b);
+            return _rgbToHex(ra.map((v, i) => v + (rb[i] - v) * t));
+        }
+
+        function getContrast() {
+            const v = parseInt(localStorage.getItem('bluewatch_contrast'), 10);
+            return isNaN(v) ? 100 : Math.max(0, Math.min(100, v));
+        }
+
+        function applyContrast(theme, contrast) {
+            const endpoints = THEME_CONTRAST_ENDPOINTS[theme] || THEME_CONTRAST_ENDPOINTS.dark;
+            const root = document.documentElement.style;
+            const t = (contrast === undefined || contrast === null) ? 100 : contrast;
+            if (t >= 100) {
+                for (const k of Object.keys(endpoints.full)) root.removeProperty(k);
+                return;
+            }
+            const mix = 1 - (Math.max(0, t) / 100);
+            for (const k of Object.keys(endpoints.full)) {
+                root.setProperty(k, _lerpColor(endpoints.full[k], endpoints.soft[k], mix));
+            }
+        }
+
         function applyTheme(theme) {
             document.documentElement.setAttribute('data-theme', theme);
+            applyContrast(theme, getContrast());
             const btn = document.getElementById('theme-toggle');
-            if (btn) btn.textContent = theme === 'light' ? '☽' : '☀';
+            if (btn) btn.textContent = theme === 'light' ? '☽' : (theme === 'cyberpunk' ? '⚡' : '☀');
         }
         function toggleTheme() {
+            const order = ['dark', 'light', 'cyberpunk'];
             const current = document.documentElement.getAttribute('data-theme') || 'dark';
-            const next = current === 'dark' ? 'light' : 'dark';
+            const next = order[(order.indexOf(current) + 1) % order.length];
             localStorage.setItem('bluewatch_theme', next);
             applyTheme(next);
         }
@@ -4757,6 +4932,7 @@ SETTINGS_TEMPLATE = """
         loadEsp32Settings();
         loadRtl433Settings();
         loadWatchedDevices();
+        loadDisplaySettings();
                     showStatus('WiGLE credentials saved', 'success');
                 } else {
                     const err = await response.json().catch(() => ({}));
@@ -4857,6 +5033,47 @@ SETTINGS_TEMPLATE = """
                     showStatus(err.error || 'Error saving RTL-SDR settings', 'error');
                 }
             } catch (error) { showStatus('Error saving RTL-SDR settings', 'error'); }
+        }
+
+        // Display (theme + contrast) -- purely client-side, stored in
+        // localStorage only (same as the theme toggle itself always was),
+        // nothing to load from the server. See applyTheme()/applyContrast()
+        // near the top of this script.
+        function loadDisplaySettings() {
+            const theme = document.documentElement.getAttribute('data-theme') || 'dark';
+            const contrast = getContrast();
+            for (const t of ['dark', 'light', 'cyberpunk']) {
+                const btn = document.getElementById('theme-btn-' + t);
+                if (btn) btn.classList.toggle('on', t === theme);
+            }
+            const slider = document.getElementById('contrast-slider');
+            const label = document.getElementById('contrast-value');
+            if (slider) slider.value = contrast;
+            if (label) label.textContent = contrast;
+        }
+
+        function setDisplayTheme(theme) {
+            localStorage.setItem('bluewatch_theme', theme);
+            applyTheme(theme);
+            loadDisplaySettings();
+        }
+
+        function onContrastInput(value) {
+            const theme = document.documentElement.getAttribute('data-theme') || 'dark';
+            applyContrast(theme, parseInt(value, 10));
+            const label = document.getElementById('contrast-value');
+            if (label) label.textContent = value;
+        }
+
+        function saveContrast(value) {
+            localStorage.setItem('bluewatch_contrast', value);
+        }
+
+        function setContrastPreset(value) {
+            const slider = document.getElementById('contrast-slider');
+            if (slider) slider.value = value;
+            onContrastInput(value);
+            saveContrast(value);
         }
 
         async function renameGroup(g) {
@@ -5008,7 +5225,7 @@ SETTINGS_TEMPLATE = """
 
         // Tab routing: read hash on load, default to alerts
         var hash = window.location.hash.replace('#', '') || 'alerts';
-        switchTab(['alerts', 'operations', 'groups', 'classes', 'security', 'wigle', 'fastpair', 'esp32', 'export', 'about'].indexOf(hash) !== -1 ? hash : 'alerts');
+        switchTab(['alerts', 'operations', 'groups', 'classes', 'security', 'wigle', 'fastpair', 'esp32', 'rtl433', 'display', 'export', 'about'].indexOf(hash) !== -1 ? hash : 'alerts');
 
         loadSettings();
         loadAuthStatus();
@@ -5021,6 +5238,7 @@ SETTINGS_TEMPLATE = """
         loadEsp32Settings();
         loadRtl433Settings();
         loadWatchedDevices();
+        loadDisplaySettings();
     </script>
 </body>
 </html>
@@ -5113,7 +5331,7 @@ ABOUT_TEMPLATE = """
                 <a href="/settings" class="nav-link">Config</a>
             </nav>
         </div>
-        <div><button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Toggle light/dark mode">☀</button></div>
+        <div><button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Cycle theme: dark / light / cyberpunk">☀</button></div>
     </header>
 
     <main class="main">
@@ -5185,14 +5403,66 @@ ABOUT_TEMPLATE = """
     
 
     <script>
+        // Contrast slider (issue #2): interpolates bg/text/border between each
+        // theme's own default colors and a softer endpoint, applied as inline
+        // custom properties that override whichever [data-theme] is active.
+        // 100 = untouched theme default, 0 = softest. See Config > Display.
+        const THEME_CONTRAST_ENDPOINTS = {
+            dark: {
+                full: {'--bg-primary': '#0d1117', '--bg-secondary': '#161b22', '--bg-tertiary': '#1c232c', '--bg-hover': '#242c37', '--text-primary': '#e6edf3', '--text-secondary': '#a6afb9', '--border-color': '#30363d'},
+                soft: {'--bg-primary': '#21262d', '--bg-secondary': '#2d333b', '--bg-tertiary': '#343b44', '--bg-hover': '#3a424c', '--text-primary': '#c9d1d9', '--text-secondary': '#9198a1', '--border-color': '#454c56'},
+            },
+            light: {
+                full: {'--bg-primary': '#f5f5f5', '--bg-secondary': '#e8e8e8', '--bg-tertiary': '#ffffff', '--bg-hover': '#d8d8d8', '--text-primary': '#1a1a1a', '--text-secondary': '#555555', '--border-color': '#cccccc'},
+                soft: {'--bg-primary': '#e4e4e4', '--bg-secondary': '#d9d9d9', '--bg-tertiary': '#eaeaea', '--bg-hover': '#cfcfcf', '--text-primary': '#3a3a3a', '--text-secondary': '#5f5f5f', '--border-color': '#bbbbbb'},
+            },
+            cyberpunk: {
+                full: {'--bg-primary': '#05070d', '--bg-secondary': '#0b0f18', '--bg-tertiary': '#111827', '--bg-hover': '#182234', '--text-primary': '#d7f9ff', '--text-secondary': '#7fb8c9', '--border-color': '#1b2a3a'},
+                soft: {'--bg-primary': '#12151f', '--bg-secondary': '#181c28', '--bg-tertiary': '#1e2333', '--bg-hover': '#242a3a', '--text-primary': '#b9dee6', '--text-secondary': '#6f95a3', '--border-color': '#2a3548'},
+            },
+        };
+
+        function _hexToRgb(hex) {
+            const n = parseInt(hex.slice(1), 16);
+            return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+        }
+        function _rgbToHex(rgb) {
+            return '#' + rgb.map(v => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('');
+        }
+        function _lerpColor(a, b, t) {
+            const ra = _hexToRgb(a), rb = _hexToRgb(b);
+            return _rgbToHex(ra.map((v, i) => v + (rb[i] - v) * t));
+        }
+
+        function getContrast() {
+            const v = parseInt(localStorage.getItem('bluewatch_contrast'), 10);
+            return isNaN(v) ? 100 : Math.max(0, Math.min(100, v));
+        }
+
+        function applyContrast(theme, contrast) {
+            const endpoints = THEME_CONTRAST_ENDPOINTS[theme] || THEME_CONTRAST_ENDPOINTS.dark;
+            const root = document.documentElement.style;
+            const t = (contrast === undefined || contrast === null) ? 100 : contrast;
+            if (t >= 100) {
+                for (const k of Object.keys(endpoints.full)) root.removeProperty(k);
+                return;
+            }
+            const mix = 1 - (Math.max(0, t) / 100);
+            for (const k of Object.keys(endpoints.full)) {
+                root.setProperty(k, _lerpColor(endpoints.full[k], endpoints.soft[k], mix));
+            }
+        }
+
         function applyTheme(theme) {
             document.documentElement.setAttribute('data-theme', theme);
+            applyContrast(theme, getContrast());
             const btn = document.getElementById('theme-toggle');
-            if (btn) btn.textContent = theme === 'light' ? '☽' : '☀';
+            if (btn) btn.textContent = theme === 'light' ? '☽' : (theme === 'cyberpunk' ? '⚡' : '☀');
         }
         function toggleTheme() {
+            const order = ['dark', 'light', 'cyberpunk'];
             const current = document.documentElement.getAttribute('data-theme') || 'dark';
-            const next = current === 'dark' ? 'light' : 'dark';
+            const next = order[(order.indexOf(current) + 1) % order.length];
             localStorage.setItem('bluewatch_theme', next);
             applyTheme(next);
         }
@@ -5241,6 +5511,38 @@ LIVE_TEMPLATE = """
             --text-muted: #888888;
             --border-color: #cccccc;
             --border-active: #999999;
+        }
+
+        /* Low-vision contrast control (issue #2): rather than a separate
+           fixed "dim" theme, the Config > Display contrast slider
+           interpolates --bg-*/--text-*/--border-color between each
+           theme's own default values (above/below) and a softer endpoint,
+           applied as inline custom properties (see applyContrast() in the
+           script block) that override whichever [data-theme] is active. */
+
+        /* Cyberpunk theme -- neon-on-near-black, glow accents, same layout.
+           Palette pulled from WDGWars' Uplink screen (operator's reference). */
+        [data-theme="cyberpunk"] {
+            --bg-primary: #05070d;
+            --bg-secondary: #0b0f18;
+            --bg-tertiary: #111827;
+            --bg-hover: #182234;
+            --bg-panel: #0b0f18;
+            --text-primary: #d7f9ff;
+            --text-secondary: #7fb8c9;
+            --text-muted: #4d6a78;
+            --accent-red: #ff4d8d;
+            --accent-orange: #ff8a3d;
+            --accent-amber: #ffd166;
+            --accent-green: #39ff9e;
+            --accent-blue: #22e5ff;
+            --accent-cyan: #22e5ff;
+            --border-color: #1b2a3a;
+            --border-active: #22e5ff;
+        }
+        [data-theme="cyberpunk"] body {
+            background-image: radial-gradient(circle at 15% 0%, rgba(34, 229, 255, 0.06), transparent 45%),
+                               radial-gradient(circle at 85% 100%, rgba(255, 77, 141, 0.05), transparent 45%);
         }
 
         [data-theme="light"] .type-phone { background: #dbeafe; color: #1d4ed8; }
@@ -6236,7 +6538,7 @@ LIVE_TEMPLATE = """
             </nav>
         </div>
         <div class="topbar-right">
-            <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Toggle light/dark mode">☀</button>
+            <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Cycle theme: dark / light / cyberpunk">☀</button>
         </div>
     </header>
 
@@ -6444,15 +6746,67 @@ LIVE_TEMPLATE = """
     </div>
 
     <script>
+        // Contrast slider (issue #2): interpolates bg/text/border between each
+        // theme's own default colors and a softer endpoint, applied as inline
+        // custom properties that override whichever [data-theme] is active.
+        // 100 = untouched theme default, 0 = softest. See Config > Display.
+        const THEME_CONTRAST_ENDPOINTS = {
+            dark: {
+                full: {'--bg-primary': '#0d1117', '--bg-secondary': '#161b22', '--bg-tertiary': '#1c232c', '--bg-hover': '#242c37', '--text-primary': '#e6edf3', '--text-secondary': '#a6afb9', '--border-color': '#30363d'},
+                soft: {'--bg-primary': '#21262d', '--bg-secondary': '#2d333b', '--bg-tertiary': '#343b44', '--bg-hover': '#3a424c', '--text-primary': '#c9d1d9', '--text-secondary': '#9198a1', '--border-color': '#454c56'},
+            },
+            light: {
+                full: {'--bg-primary': '#f5f5f5', '--bg-secondary': '#e8e8e8', '--bg-tertiary': '#ffffff', '--bg-hover': '#d8d8d8', '--text-primary': '#1a1a1a', '--text-secondary': '#555555', '--border-color': '#cccccc'},
+                soft: {'--bg-primary': '#e4e4e4', '--bg-secondary': '#d9d9d9', '--bg-tertiary': '#eaeaea', '--bg-hover': '#cfcfcf', '--text-primary': '#3a3a3a', '--text-secondary': '#5f5f5f', '--border-color': '#bbbbbb'},
+            },
+            cyberpunk: {
+                full: {'--bg-primary': '#05070d', '--bg-secondary': '#0b0f18', '--bg-tertiary': '#111827', '--bg-hover': '#182234', '--text-primary': '#d7f9ff', '--text-secondary': '#7fb8c9', '--border-color': '#1b2a3a'},
+                soft: {'--bg-primary': '#12151f', '--bg-secondary': '#181c28', '--bg-tertiary': '#1e2333', '--bg-hover': '#242a3a', '--text-primary': '#b9dee6', '--text-secondary': '#6f95a3', '--border-color': '#2a3548'},
+            },
+        };
+
+        function _hexToRgb(hex) {
+            const n = parseInt(hex.slice(1), 16);
+            return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+        }
+        function _rgbToHex(rgb) {
+            return '#' + rgb.map(v => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('');
+        }
+        function _lerpColor(a, b, t) {
+            const ra = _hexToRgb(a), rb = _hexToRgb(b);
+            return _rgbToHex(ra.map((v, i) => v + (rb[i] - v) * t));
+        }
+
+        function getContrast() {
+            const v = parseInt(localStorage.getItem('bluewatch_contrast'), 10);
+            return isNaN(v) ? 100 : Math.max(0, Math.min(100, v));
+        }
+
+        function applyContrast(theme, contrast) {
+            const endpoints = THEME_CONTRAST_ENDPOINTS[theme] || THEME_CONTRAST_ENDPOINTS.dark;
+            const root = document.documentElement.style;
+            const t = (contrast === undefined || contrast === null) ? 100 : contrast;
+            if (t >= 100) {
+                for (const k of Object.keys(endpoints.full)) root.removeProperty(k);
+                return;
+            }
+            const mix = 1 - (Math.max(0, t) / 100);
+            for (const k of Object.keys(endpoints.full)) {
+                root.setProperty(k, _lerpColor(endpoints.full[k], endpoints.soft[k], mix));
+            }
+        }
+
         function applyTheme(theme) {
             document.documentElement.setAttribute('data-theme', theme);
+            applyContrast(theme, getContrast());
             const btn = document.getElementById('theme-toggle');
-            if (btn) btn.textContent = theme === 'light' ? '☽' : '☀';
+            if (btn) btn.textContent = theme === 'light' ? '☽' : (theme === 'cyberpunk' ? '⚡' : '☀');
         }
 
         function toggleTheme() {
+            const order = ['dark', 'light', 'cyberpunk'];
             const current = document.documentElement.getAttribute('data-theme') || 'dark';
-            const next = current === 'dark' ? 'light' : 'dark';
+            const next = order[(order.indexOf(current) + 1) % order.length];
             localStorage.setItem('bluewatch_theme', next);
             applyTheme(next);
         }
@@ -9010,7 +9364,7 @@ LOGIN_TEMPLATE = """
     </style>
 </head>
 <body>
-    <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Toggle light/dark mode">☀</button>
+    <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Cycle theme: dark / light / cyberpunk">☀</button>
     <div class="login-container">
         <div class="login-box">
             <div class="login-header">
@@ -9036,14 +9390,66 @@ LOGIN_TEMPLATE = """
     </div>
 
     <script>
+        // Contrast slider (issue #2): interpolates bg/text/border between each
+        // theme's own default colors and a softer endpoint, applied as inline
+        // custom properties that override whichever [data-theme] is active.
+        // 100 = untouched theme default, 0 = softest. See Config > Display.
+        const THEME_CONTRAST_ENDPOINTS = {
+            dark: {
+                full: {'--bg-primary': '#0d1117', '--bg-secondary': '#161b22', '--bg-tertiary': '#1c232c', '--bg-hover': '#242c37', '--text-primary': '#e6edf3', '--text-secondary': '#a6afb9', '--border-color': '#30363d'},
+                soft: {'--bg-primary': '#21262d', '--bg-secondary': '#2d333b', '--bg-tertiary': '#343b44', '--bg-hover': '#3a424c', '--text-primary': '#c9d1d9', '--text-secondary': '#9198a1', '--border-color': '#454c56'},
+            },
+            light: {
+                full: {'--bg-primary': '#f5f5f5', '--bg-secondary': '#e8e8e8', '--bg-tertiary': '#ffffff', '--bg-hover': '#d8d8d8', '--text-primary': '#1a1a1a', '--text-secondary': '#555555', '--border-color': '#cccccc'},
+                soft: {'--bg-primary': '#e4e4e4', '--bg-secondary': '#d9d9d9', '--bg-tertiary': '#eaeaea', '--bg-hover': '#cfcfcf', '--text-primary': '#3a3a3a', '--text-secondary': '#5f5f5f', '--border-color': '#bbbbbb'},
+            },
+            cyberpunk: {
+                full: {'--bg-primary': '#05070d', '--bg-secondary': '#0b0f18', '--bg-tertiary': '#111827', '--bg-hover': '#182234', '--text-primary': '#d7f9ff', '--text-secondary': '#7fb8c9', '--border-color': '#1b2a3a'},
+                soft: {'--bg-primary': '#12151f', '--bg-secondary': '#181c28', '--bg-tertiary': '#1e2333', '--bg-hover': '#242a3a', '--text-primary': '#b9dee6', '--text-secondary': '#6f95a3', '--border-color': '#2a3548'},
+            },
+        };
+
+        function _hexToRgb(hex) {
+            const n = parseInt(hex.slice(1), 16);
+            return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+        }
+        function _rgbToHex(rgb) {
+            return '#' + rgb.map(v => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('');
+        }
+        function _lerpColor(a, b, t) {
+            const ra = _hexToRgb(a), rb = _hexToRgb(b);
+            return _rgbToHex(ra.map((v, i) => v + (rb[i] - v) * t));
+        }
+
+        function getContrast() {
+            const v = parseInt(localStorage.getItem('bluewatch_contrast'), 10);
+            return isNaN(v) ? 100 : Math.max(0, Math.min(100, v));
+        }
+
+        function applyContrast(theme, contrast) {
+            const endpoints = THEME_CONTRAST_ENDPOINTS[theme] || THEME_CONTRAST_ENDPOINTS.dark;
+            const root = document.documentElement.style;
+            const t = (contrast === undefined || contrast === null) ? 100 : contrast;
+            if (t >= 100) {
+                for (const k of Object.keys(endpoints.full)) root.removeProperty(k);
+                return;
+            }
+            const mix = 1 - (Math.max(0, t) / 100);
+            for (const k of Object.keys(endpoints.full)) {
+                root.setProperty(k, _lerpColor(endpoints.full[k], endpoints.soft[k], mix));
+            }
+        }
+
         function applyTheme(theme) {
             document.documentElement.setAttribute('data-theme', theme);
+            applyContrast(theme, getContrast());
             const btn = document.getElementById('theme-toggle');
-            if (btn) btn.textContent = theme === 'light' ? '☽' : '☀';
+            if (btn) btn.textContent = theme === 'light' ? '☽' : (theme === 'cyberpunk' ? '⚡' : '☀');
         }
         function toggleTheme() {
+            const order = ['dark', 'light', 'cyberpunk'];
             const current = document.documentElement.getAttribute('data-theme') || 'dark';
-            const next = current === 'dark' ? 'light' : 'dark';
+            const next = order[(order.indexOf(current) + 1) % order.length];
             localStorage.setItem('bluewatch_theme', next);
             applyTheme(next);
         }
