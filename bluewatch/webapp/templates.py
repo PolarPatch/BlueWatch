@@ -2896,7 +2896,7 @@ HTML_TEMPLATE = """
                 '<div class="heatmap-col">' +
                 '<div class="heatmap-section" style="order:1;" id="live-signal-section">' +
                 '<div class="heatmap-title">Live Signal</div>' +
-                '<div class="rssi-chart" id="live-signal-chart" style="height: 90px;"></div>' +
+                '<div class="rssi-chart" id="live-signal-chart" style="height: 180px;"></div>' +
                 '<div style="display: flex; justify-content: space-between; align-items: baseline; font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">' +
                 '<span style="display: flex; align-items: baseline; gap: 0.3rem;"><span id="live-signal-rssi" style="font-weight: 400; color: var(--text-primary);">—</span><span id="live-signal-trend" style="font-family: monospace; font-weight: 700;"></span><span id="live-signal-avg">avg —</span></span>' +
                 '<span id="live-signal-footer">first — · last —</span>' +
@@ -2919,7 +2919,7 @@ HTML_TEMPLATE = """
                 '<div class="heatmap-col">' +
                 '<div class="heatmap-section" style="order:2;" id="rssi-section">' +
                 '<div class="heatmap-title">Signal History (7d)</div>' +
-                '<div class="rssi-chart" id="rssi-chart" style="height: 90px;"><div style="color: var(--text-muted); font-size: 0.75rem; text-align: center; padding-top: 1.5rem;">Loading...</div></div>' +
+                '<div class="rssi-chart" id="rssi-chart" style="height: 180px;"><div style="color: var(--text-muted); font-size: 0.75rem; text-align: center; padding-top: 1.5rem;">Loading...</div></div>' +
                 '</div>' +
                 '<div class="heatmap-section" style="order:4;">' +
                 '<div class="heatmap-title">Daily Activity</div>' +
@@ -3441,7 +3441,7 @@ HTML_TEMPLATE = """
             // live window -- no "current reading" dot or trend arrow here,
             // this is a static historical read, not a live one).
             const width = container.clientWidth - 20;
-            const height = 50;
+            const height = container.clientHeight || 50;
             const padding = { left: 30, right: 10, top: 6, bottom: 15 };
             const rssiValues = rssiData.map(d => d.rssi);
             const dataMin = Math.min(...rssiValues);
@@ -8550,7 +8550,7 @@ LIVE_TEMPLATE = """
                 '<div class="heatmap-col">' +
                 '<div class="heatmap-section" style="order:1;" id="live-signal-section">' +
                 '<div class="heatmap-title">Live Signal</div>' +
-                '<div class="rssi-chart" id="live-signal-chart" style="height: 90px;"></div>' +
+                '<div class="rssi-chart" id="live-signal-chart" style="height: 180px;"></div>' +
                 '<div style="display: flex; justify-content: space-between; align-items: baseline; font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">' +
                 '<span style="display: flex; align-items: baseline; gap: 0.3rem;"><span id="live-signal-rssi" style="font-weight: 400; color: var(--text-primary);">—</span><span id="live-signal-trend" style="font-family: monospace; font-weight: 700;"></span><span id="live-signal-avg">avg —</span></span>' +
                 '<span id="live-signal-footer">first — · last —</span>' +
@@ -8573,7 +8573,7 @@ LIVE_TEMPLATE = """
                 '<div class="heatmap-col">' +
                 '<div class="heatmap-section" style="order:2;" id="rssi-section">' +
                 '<div class="heatmap-title">Signal History (7d)</div>' +
-                '<div class="rssi-chart" id="rssi-chart" style="height: 90px;"><div style="color: var(--text-muted); font-size: 0.75rem; text-align: center; padding-top: 1.5rem;">Loading...</div></div>' +
+                '<div class="rssi-chart" id="rssi-chart" style="height: 180px;"><div style="color: var(--text-muted); font-size: 0.75rem; text-align: center; padding-top: 1.5rem;">Loading...</div></div>' +
                 '</div>' +
                 '<div class="heatmap-section" style="order:4;">' +
                 '<div class="heatmap-title">Daily Activity</div>' +
@@ -9095,7 +9095,7 @@ LIVE_TEMPLATE = """
             // live window -- no "current reading" dot or trend arrow here,
             // this is a static historical read, not a live one).
             const width = container.clientWidth - 20;
-            const height = 50;
+            const height = container.clientHeight || 50;
             const padding = { left: 30, right: 10, top: 6, bottom: 15 };
             const rssiValues = rssiData.map(d => d.rssi);
             const dataMin = Math.min(...rssiValues);
