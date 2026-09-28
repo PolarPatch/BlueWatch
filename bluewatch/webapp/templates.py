@@ -2536,7 +2536,7 @@ HTML_TEMPLATE = """
                     const rawDisplayName = d.friendly_name || d.vendor || d.mac;
                     let displayName = d.friendly_name ? obfuscateName(rawDisplayName) : (d.vendor ? rawDisplayName : obfuscateMAC(rawDisplayName));
                     if (d.identity_mac_count > 1) {
-                        displayName += ' <span class="identity-badge" title="' + d.identity_mac_count + ' MAC addresses clustered as one device (rotation)">×' + d.identity_mac_count + '</span>';
+                        displayName += ' <span class="identity-badge" title="' + d.identity_mac_count + ' MAC addresses clustered as one device (rotation)' + (d.identity_link_method ? ' · linked by ' + d.identity_link_method : '') + '">×' + d.identity_mac_count + '</span>';
                     }
                     // Truncate long macOS UUID addresses in compact view
                     if (!d.friendly_name && !d.vendor && isMacOSUUID(d.mac)) {
@@ -2560,7 +2560,7 @@ HTML_TEMPLATE = """
                     (d.name_conflict_at ? ' <span class="name-conflict-badge" style="color: var(--accent-red, #dc2626);" title="Possible spoofing: this MAC previously advertised a different name (now: ' + escapeHtml(d.name_conflict_name || '') + ')">⚠</span>' : '') +
                     '</td>' +
                     '<td class="device-name">' + (d.friendly_name ? obfuscateName(d.friendly_name) : '—') +
-                    (d.identity_mac_count > 1 ? ' <span class="identity-badge" title="' + d.identity_mac_count + ' MAC addresses clustered as one device (rotation)">×' + d.identity_mac_count + '</span>' : '') +
+                    (d.identity_mac_count > 1 ? ' <span class="identity-badge" title="' + d.identity_mac_count + ' MAC addresses clustered as one device (rotation)' + (d.identity_link_method ? ' · linked by ' + d.identity_link_method : '') + '">×' + d.identity_mac_count + '</span>' : '') +
                     '</td>' +
                     '<td class="vendor-name">' + (d.vendor ? obfuscateName(d.vendor) : '—') + '</td>' +
                     '<td class="rssi-value">' + (d.last_rssi != null ? d.last_rssi + ' dBm' : '—') + '</td>' +
@@ -2738,7 +2738,7 @@ HTML_TEMPLATE = """
 
             content.innerHTML = '<div class="detail-grid">' +
                 '<div class="detail-item"><div class="detail-label">Address</div><div class="detail-value mono" style="font-size:' + (isMacOSUUID(d.mac) ? '0.65rem' : '0.85rem') + '; word-break: break-all;">' + obfuscateMAC(d.mac) + '</div></div>' +
-                '<div class="detail-item"><div class="detail-label">Identifier' + (d.identity_mac_count > 1 ? ' <span class="identity-badge" title="' + d.identity_mac_count + ' MAC addresses clustered as one device (rotation)">×' + d.identity_mac_count + '</span>' : '') + '</div><input class="form-input" id="device-identifier" value="' + escapeHtml(d.friendly_name || '') + '" placeholder="No identifier -- set manually" style="font-size: 0.85rem;" onchange="setDeviceName(\\'' + d.mac + '\\', this.value)"></div>' +
+                '<div class="detail-item"><div class="detail-label">Identifier' + (d.identity_mac_count > 1 ? ' <span class="identity-badge" title="' + d.identity_mac_count + ' MAC addresses clustered as one device (rotation)' + (d.identity_link_method ? ' · linked by ' + d.identity_link_method : '') + '">×' + d.identity_mac_count + '</span>' : '') + '</div><input class="form-input" id="device-identifier" value="' + escapeHtml(d.friendly_name || '') + '" placeholder="No identifier -- set manually" style="font-size: 0.85rem;" onchange="setDeviceName(\\'' + d.mac + '\\', this.value)"></div>' +
                 (d.name_conflict_at ? '<div class="detail-item full" style="border-color: var(--accent-red, #dc2626);"><div class="detail-label" style="color: var(--accent-red, #dc2626);">⚠ Possible Spoofing</div><div class="detail-value">This MAC previously advertised a different name. Now seen as: "' + escapeHtml(d.name_conflict_name || '') + '" (at ' + new Date(d.name_conflict_at).toLocaleString() + ')</div></div>' : '') +
                 '<div class="detail-item"><div class="detail-label">Type</div><select class="form-input" id="device-type" onchange="setDeviceType(\\'' + d.mac + '\\', this.value)" style="font-size: 0.8rem;"></select></div>' +
                 '<div class="detail-item"><div class="detail-label">Vendor OUI</div><input class="form-input" id="device-vendor" value="' + escapeHtml(d.vendor || '') + '" placeholder="Unknown -- set manually" style="font-size: 0.85rem;" onchange="setDeviceVendor(\\'' + d.mac + '\\', this.value)"></div>' +
@@ -7889,7 +7889,7 @@ LIVE_TEMPLATE = """
                     const rawDisplayName = d.friendly_name || d.vendor || d.mac;
                     let displayName = d.friendly_name ? obfuscateName(rawDisplayName) : (d.vendor ? rawDisplayName : obfuscateMAC(rawDisplayName));
                     if (d.identity_mac_count > 1) {
-                        displayName += ' <span class="identity-badge" title="' + d.identity_mac_count + ' MAC addresses clustered as one device (rotation)">×' + d.identity_mac_count + '</span>';
+                        displayName += ' <span class="identity-badge" title="' + d.identity_mac_count + ' MAC addresses clustered as one device (rotation)' + (d.identity_link_method ? ' · linked by ' + d.identity_link_method : '') + '">×' + d.identity_mac_count + '</span>';
                     }
                     // Truncate long macOS UUID addresses in compact view
                     if (!d.friendly_name && !d.vendor && isMacOSUUID(d.mac)) {
@@ -7913,7 +7913,7 @@ LIVE_TEMPLATE = """
                     (d.name_conflict_at ? ' <span class="name-conflict-badge" style="color: var(--accent-red, #dc2626);" title="Possible spoofing: this MAC previously advertised a different name (now: ' + escapeHtml(d.name_conflict_name || '') + ')">⚠</span>' : '') +
                     '</td>' +
                     '<td class="device-name">' + (d.friendly_name ? obfuscateName(d.friendly_name) : '—') +
-                    (d.identity_mac_count > 1 ? ' <span class="identity-badge" title="' + d.identity_mac_count + ' MAC addresses clustered as one device (rotation)">×' + d.identity_mac_count + '</span>' : '') +
+                    (d.identity_mac_count > 1 ? ' <span class="identity-badge" title="' + d.identity_mac_count + ' MAC addresses clustered as one device (rotation)' + (d.identity_link_method ? ' · linked by ' + d.identity_link_method : '') + '">×' + d.identity_mac_count + '</span>' : '') +
                     '</td>' +
                     '<td class="vendor-name">' + (d.vendor ? obfuscateName(d.vendor) : '—') + '</td>' +
                     '<td class="rssi-value">' + (d.last_rssi != null ? d.last_rssi + ' dBm' : '—') + '</td>' +
@@ -7991,7 +7991,7 @@ LIVE_TEMPLATE = """
 
             content.innerHTML = '<div class="detail-grid">' +
                 '<div class="detail-item"><div class="detail-label">Address</div><div class="detail-value mono" style="font-size:' + (isMacOSUUID(d.mac) ? '0.65rem' : '0.85rem') + '; word-break: break-all;">' + obfuscateMAC(d.mac) + '</div></div>' +
-                '<div class="detail-item"><div class="detail-label">Identifier' + (d.identity_mac_count > 1 ? ' <span class="identity-badge" title="' + d.identity_mac_count + ' MAC addresses clustered as one device (rotation)">×' + d.identity_mac_count + '</span>' : '') + '</div><input class="form-input" id="device-identifier" value="' + escapeHtml(d.friendly_name || '') + '" placeholder="No identifier -- set manually" style="font-size: 0.85rem;" onchange="setDeviceName(\\'' + d.mac + '\\', this.value)"></div>' +
+                '<div class="detail-item"><div class="detail-label">Identifier' + (d.identity_mac_count > 1 ? ' <span class="identity-badge" title="' + d.identity_mac_count + ' MAC addresses clustered as one device (rotation)' + (d.identity_link_method ? ' · linked by ' + d.identity_link_method : '') + '">×' + d.identity_mac_count + '</span>' : '') + '</div><input class="form-input" id="device-identifier" value="' + escapeHtml(d.friendly_name || '') + '" placeholder="No identifier -- set manually" style="font-size: 0.85rem;" onchange="setDeviceName(\\'' + d.mac + '\\', this.value)"></div>' +
                 (d.name_conflict_at ? '<div class="detail-item full" style="border-color: var(--accent-red, #dc2626);"><div class="detail-label" style="color: var(--accent-red, #dc2626);">⚠ Possible Spoofing</div><div class="detail-value">This MAC previously advertised a different name. Now seen as: "' + escapeHtml(d.name_conflict_name || '') + '" (at ' + new Date(d.name_conflict_at).toLocaleString() + ')</div></div>' : '') +
                 '<div class="detail-item"><div class="detail-label">Type</div><select class="form-input" id="device-type" onchange="setDeviceType(\\'' + d.mac + '\\', this.value)" style="font-size: 0.8rem;"></select></div>' +
                 '<div class="detail-item"><div class="detail-label">Vendor OUI</div><input class="form-input" id="device-vendor" value="' + escapeHtml(d.vendor || '') + '" placeholder="Unknown -- set manually" style="font-size: 0.85rem;" onchange="setDeviceVendor(\\'' + d.mac + '\\', this.value)"></div>' +

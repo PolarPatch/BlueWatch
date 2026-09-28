@@ -62,6 +62,42 @@ def is_randomized_mac(mac: str) -> bool:
     except (ValueError, IndexError):
         return False
 
+
+def behavioral_fingerprint(
+    service_uuids: Optional[list[str]],
+    manufacturer_data: Optional[dict],
+    service_data: Optional[dict],
+    appearance: Optional[int],
+) -> Optional[str]:
+    """A stable signature from an advertisement's *shape* (which service
+    UUIDs/manufacturer IDs/appearance it carries), independent of MAC or
+    name -- inspired by AntiHunter's randomized-MAC correlation (IE
+    fingerprinting/channel/timing/RSSI). We don't have raw 802.11-style
+    frame access via bleak (no sequence numbers, no channel), so this is a
+    reduced-fidelity version: the advertised field *set* only. Used as a
+    fallback identity-linking signal when a device has no stable name to
+    match rotations by (see upsert_device()).
+
+    Deliberately returns None (no fingerprint, don't even try to link) when
+    the signal is too weak to be distinctive -- a single generic field like
+    "manufacturer 0x004C" alone matches roughly half of all Apple devices
+    in the area, so linking on that alone would merge unrelated phones.
+    Requires at least 2 independent signals before it will identify.
+    """
+    parts = set()
+    for u in (service_uuids or []):
+        parts.add(f"uuid:{u.lower()}")
+    for cid in (manufacturer_data or {}):
+        parts.add(f"mfg:{cid:#06x}" if isinstance(cid, int) else f"mfg:{cid}")
+    for sid in (service_data or {}):
+        parts.add(f"svc:{str(sid).lower()}")
+    if appearance is not None:
+        parts.add(f"appearance:{appearance}")
+    if len(parts) < 2:
+        return None
+    return "|".join(sorted(parts))
+
+
 # Device type constants
 TYPE_PHONE = "phone"
 TYPE_TABLET = "tablet"

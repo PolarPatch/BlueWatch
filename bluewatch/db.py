@@ -12,6 +12,7 @@ from typing import Optional
 from dataclasses import dataclass
 
 from . import rpa
+from . import classifier
 from .config import DB_PATH, HEARTBEAT_URL, HEARTBEAT_INTERVAL, PRUNE_DAYS, PRUNE_MIN_SIGHTINGS
 
 logger = logging.getLogger(__name__)
@@ -63,6 +64,7 @@ class Device:
     notify_depart_expires_at: Optional[datetime] = None
     last_rssi: Optional[int] = None  # RSSI of the most recent sighting (not a persisted column -- joined in per-query)
     identity_id: Optional[int] = None  # Links MAC-rotation siblings sharing an advertised name into one logical device
+    identity_link_method: Optional[str] = None  # 'irk' | 'name' | 'fingerprint' | None (manual merge) -- see migrations comment
     identity_mac_count: Optional[int] = None  # Not persisted -- joined in per-query when identity_id is set
     identity_total_sightings: Optional[int] = None  # Not persisted -- SUM(total_sightings) across the identity's MACs
     identity_first_seen: Optional[datetime] = None  # Not persisted -- MIN(first_seen) across the identity's MACs
@@ -436,6 +438,14 @@ async def init_db() -> None:
             # etc. Only ever set for bt_type='rf' devices.
             ("rf_state", "TEXT"),
             ("rf_state_at", "TIMESTAMP"),
+            # How identity_id was set, so a weaker match can be shown/trusted
+            # differently than a stronger one: 'irk' (cryptographic, from a
+            # taught IRK key -- definitive), 'name' (matching advertised name
+            # across a MAC rotation), 'fingerprint' (matching advertised
+            # service UUIDs/manufacturer IDs/appearance across a rotation,
+            # for nameless devices -- see classifier.behavioral_fingerprint()).
+            # NULL if identity_id was set by hand via the merge UI.
+            ("identity_link_method", "TEXT"),
         ]
 
         for column, column_type in migrations:
@@ -571,6 +581,7 @@ def _parse_device_row(row) -> Device:
         ),
         last_rssi=row["last_rssi"] if "last_rssi" in keys else None,
         identity_id=row["identity_id"] if "identity_id" in keys else None,
+        identity_link_method=row["identity_link_method"] if "identity_link_method" in keys else None,
         identity_mac_count=row["identity_mac_count"] if "identity_mac_count" in keys else None,
         identity_total_sightings=row["identity_total_sightings"] if "identity_total_sightings" in keys else None,
         identity_first_seen=(
@@ -1413,6 +1424,8 @@ async def upsert_device(
             if irk_identity_id is not None and irk_identity_id != existing_identity_id:
                 updates.append("identity_id = ?")
                 params.append(irk_identity_id)
+                updates.append("identity_link_method = ?")
+                params.append("irk")
 
             params.append(mac)
             await db.execute(
@@ -1455,12 +1468,14 @@ async def upsert_device(
                 )
             )
 
+            linked = False
             if irk_identity_id is not None:
-                # Cryptographic IRK match -- definitive, skip the guess below.
+                # Cryptographic IRK match -- definitive, skip the guesses below.
                 await db.execute(
-                    "UPDATE devices SET identity_id = ? WHERE mac = ?",
+                    "UPDATE devices SET identity_id = ?, identity_link_method = 'irk' WHERE mac = ?",
                     (irk_identity_id, mac),
                 )
+                linked = True
             elif friendly_name and _is_randomized_mac(mac):
                 # Auto-attach to an existing identity: a brand-new randomized-MAC
                 # device that advertises a name already clustered under an
@@ -1476,9 +1491,10 @@ async def upsert_device(
                     identity_row = await cursor.fetchone()
                 if identity_row:
                     await db.execute(
-                        "UPDATE devices SET identity_id = ? WHERE mac = ?",
+                        "UPDATE devices SET identity_id = ?, identity_link_method = 'name' WHERE mac = ?",
                         (identity_row["id"], mac),
                     )
+                    linked = True
                 else:
                     # No identity exists for this name yet -- this could
                     # still be the *first* rotation of a device whose
@@ -1502,8 +1518,80 @@ async def upsert_device(
                         )
                         new_identity_id = cursor.lastrowid
                         await db.execute(
-                            "UPDATE devices SET identity_id = ? WHERE mac IN (?, ?)",
+                            "UPDATE devices SET identity_id = ?, identity_link_method = 'name' WHERE mac IN (?, ?)",
                             (new_identity_id, mac, sibling_row["mac"]),
+                        )
+                        linked = True
+
+            if not linked and _is_randomized_mac(mac):
+                # Nameless-device fallback, inspired by AntiHunter's
+                # randomized-MAC behavioral correlation: no name to match a
+                # rotation by, so try the shape of the advertisement itself
+                # (service UUIDs / manufacturer IDs / appearance) instead.
+                # Weaker signal than IRK or name -- see
+                # classifier.behavioral_fingerprint() for why it refuses to
+                # even try on a too-generic fingerprint, and the window/
+                # candidate-count limits below for why this stays cautious
+                # about merging two coincidentally-identical but genuinely
+                # different devices (e.g. two of the same headphone model).
+                fp = classifier.behavioral_fingerprint(
+                    json.loads(uuids_json) if uuids_json else [],
+                    json.loads(mfg_json) if mfg_json else {},
+                    json.loads(svc_data_json) if svc_data_json else {},
+                    appearance,
+                )
+                if fp:
+                    cutoff = (now - timedelta(minutes=20)).isoformat()
+                    grace = (now - timedelta(seconds=30)).isoformat()
+                    async with db.execute(
+                        """
+                        SELECT mac, identity_id FROM devices
+                        WHERE mac != ?
+                          AND last_seen >= ? AND last_seen <= ?
+                        ORDER BY last_seen DESC
+                        LIMIT 50
+                        """,
+                        (mac, cutoff, grace),
+                    ) as cursor:
+                        candidates = await cursor.fetchall()
+                    match = None
+                    for cand in candidates:
+                        if not _is_randomized_mac(cand["mac"]):
+                            continue
+                        async with db.execute(
+                            "SELECT service_uuids, manufacturer_data, service_data, appearance FROM devices WHERE mac = ?",
+                            (cand["mac"],),
+                        ) as cursor:
+                            cand_row = await cursor.fetchone()
+                        cand_fp = classifier.behavioral_fingerprint(
+                            json.loads(cand_row["service_uuids"]) if cand_row["service_uuids"] else [],
+                            json.loads(cand_row["manufacturer_data"]) if cand_row["manufacturer_data"] else {},
+                            json.loads(cand_row["service_data"]) if cand_row["service_data"] else {},
+                            cand_row["appearance"],
+                        )
+                        if cand_fp == fp:
+                            match = cand
+                            break
+                    if match:
+                        if match["identity_id"] is not None:
+                            target_identity_id = match["identity_id"]
+                        else:
+                            # identities.name is NOT NULL and shown in the UI --
+                            # these two devices never advertised a name, so
+                            # label the identity by what we do know rather
+                            # than leave it blank. Deliberately distinct from
+                            # any real advertised name so it can never
+                            # collide with the name-based matching above.
+                            fp_label = f"{insert_vendor} device (fingerprint-linked)" if insert_vendor else "Fingerprint-linked device"
+                            cursor = await db.execute("INSERT INTO identities (name) VALUES (?)", (fp_label,))
+                            target_identity_id = cursor.lastrowid
+                            await db.execute(
+                                "UPDATE devices SET identity_id = ?, identity_link_method = 'fingerprint' WHERE mac = ?",
+                                (target_identity_id, match["mac"]),
+                            )
+                        await db.execute(
+                            "UPDATE devices SET identity_id = ?, identity_link_method = 'fingerprint' WHERE mac = ?",
+                            (target_identity_id, mac),
                         )
 
         # Record sighting
