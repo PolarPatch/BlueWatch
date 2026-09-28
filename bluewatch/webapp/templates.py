@@ -52,7 +52,7 @@ HTML_TEMPLATE = """
            headings and bracket-cornered panels, matched to WDGWars' own
            screens (operator's reference: the Uplink/Home/Chat views). */
         [data-theme="cyberpunk"] {
-            --bg-primary: #050608;
+            --bg-primary: #060410;
             --bg-secondary: #0a0d12;
             --bg-tertiary: #0d1117;
             --bg-hover: #131a24;
@@ -60,18 +60,19 @@ HTML_TEMPLATE = """
             --text-primary: #eaf6fa;
             --text-secondary: #7fa8b8;
             --text-muted: #45606e;
-            --accent-red: #ff3d81;
-            --accent-orange: #ff9d3d;
+            --accent-red: #ff1a8c;
+            --accent-orange: #a78bfa;
             --accent-amber: #ffcb47;
-            --accent-green: #39ff8f;
-            --accent-blue: #22d3ee;
+            --accent-green: #39ff14;
+            --accent-blue: #4f8cff;
             --accent-cyan: #22d3ee;
             --border-color: #16222e;
             --border-active: #22d3ee;
         }
         [data-theme="cyberpunk"] body {
             background-image: radial-gradient(circle at 15% 0%, rgba(34, 211, 238, 0.05), transparent 45%),
-                               radial-gradient(circle at 85% 100%, rgba(255, 61, 129, 0.04), transparent 45%);
+                               radial-gradient(circle at 85% 100%, rgba(255, 26, 140, 0.04), transparent 45%),
+                               repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.012) 0px, rgba(255, 255, 255, 0.012) 1px, transparent 1px, transparent 3px);
         }
         [data-theme="cyberpunk"] .page-heading, [data-theme="cyberpunk"] .panel-header,
         [data-theme="cyberpunk"] .brand-text {
@@ -3867,6 +3868,12 @@ SETTINGS_TEMPLATE = """
         .nav-link:hover, .nav-link.active { color: var(--text-primary); background: var(--bg-tertiary); }
 
         [data-theme="light"] { --bg-primary: #f5f5f5; --bg-secondary: #e8e8e8; --bg-tertiary: #ffffff; --bg-hover: #d8d8d8; --text-primary: #1a1a1a; --text-secondary: #555555; --text-muted: #888888; --accent-red: #2563eb; --accent-green: #16a34a; --border-color: #cccccc; }
+        [data-theme="cyberpunk"] { --bg-primary: #060410; --bg-secondary: #0a0d12; --bg-tertiary: #0d1117; --bg-hover: #131a24; --text-primary: #eaf6fa; --text-secondary: #7fa8b8; --text-muted: #45606e; --accent-red: #ff1a8c; --accent-blue: #4f8cff; --accent-cyan: #22d3ee; --accent-orange: #a78bfa; --accent-green: #39ff14; --border-color: #16222e; }
+        [data-theme="cyberpunk"] .panel { position: relative; border-radius: 4px; }
+        [data-theme="cyberpunk"] .panel::before, [data-theme="cyberpunk"] .panel::after { content: ''; position: absolute; width: 0.55rem; height: 0.55rem; pointer-events: none; }
+        [data-theme="cyberpunk"] .panel::before { top: -1px; left: -1px; border-top: 2px solid var(--accent-blue); border-left: 2px solid var(--accent-blue); }
+        [data-theme="cyberpunk"] .panel::after { bottom: -1px; right: -1px; border-bottom: 2px solid var(--accent-blue); border-right: 2px solid var(--accent-blue); }
+        [data-theme="cyberpunk"] .page-heading { text-shadow: 0 0 10px rgba(34, 211, 238, 0.35); }
 
         .theme-toggle { background: transparent; border: 1px solid var(--border-color); color: var(--text-secondary); font-family: var(--font-mono); font-size: 0.75rem; padding: 0.3rem 0.5rem; cursor: pointer; border-radius: 6px; transition: all 0.1s; }
         .theme-toggle:hover { color: var(--text-primary); border-color: var(--border-active, #999); }
@@ -5311,6 +5318,7 @@ ABOUT_TEMPLATE = """
         .nav-link:hover, .nav-link.active { color: var(--text-primary); background: var(--bg-tertiary); }
 
         [data-theme="light"] { --bg-primary: #f5f5f5; --bg-secondary: #e8e8e8; --bg-tertiary: #ffffff; --bg-hover: #d8d8d8; --text-primary: #1a1a1a; --text-secondary: #555555; --text-muted: #888888; --accent-red: #2563eb; --accent-amber: #d97706; --border-color: #cccccc; }
+        [data-theme="cyberpunk"] { --bg-primary: #060410; --bg-secondary: #0a0d12; --bg-tertiary: #0d1117; --bg-hover: #131a24; --text-primary: #eaf6fa; --text-secondary: #7fa8b8; --text-muted: #45606e; --accent-red: #ff1a8c; --accent-blue: #4f8cff; --accent-cyan: #22d3ee; --accent-amber: #ffcb47; --border-color: #16222e; }
 
         .theme-toggle { background: transparent; border: 1px solid var(--border-color); color: var(--text-secondary); font-family: var(--font-mono); font-size: 0.75rem; padding: 0.3rem 0.5rem; cursor: pointer; border-radius: 6px; transition: all 0.1s; }
         .theme-toggle:hover { color: var(--text-primary); border-color: var(--border-active, #999); }
@@ -5556,7 +5564,7 @@ LIVE_TEMPLATE = """
            headings and bracket-cornered panels, matched to WDGWars' own
            screens (operator's reference: the Uplink/Home/Chat views). */
         [data-theme="cyberpunk"] {
-            --bg-primary: #050608;
+            --bg-primary: #060410;
             --bg-secondary: #0a0d12;
             --bg-tertiary: #0d1117;
             --bg-hover: #131a24;
@@ -5564,18 +5572,19 @@ LIVE_TEMPLATE = """
             --text-primary: #eaf6fa;
             --text-secondary: #7fa8b8;
             --text-muted: #45606e;
-            --accent-red: #ff3d81;
-            --accent-orange: #ff9d3d;
+            --accent-red: #ff1a8c;
+            --accent-orange: #a78bfa;
             --accent-amber: #ffcb47;
-            --accent-green: #39ff8f;
-            --accent-blue: #22d3ee;
+            --accent-green: #39ff14;
+            --accent-blue: #4f8cff;
             --accent-cyan: #22d3ee;
             --border-color: #16222e;
             --border-active: #22d3ee;
         }
         [data-theme="cyberpunk"] body {
             background-image: radial-gradient(circle at 15% 0%, rgba(34, 211, 238, 0.05), transparent 45%),
-                               radial-gradient(circle at 85% 100%, rgba(255, 61, 129, 0.04), transparent 45%);
+                               radial-gradient(circle at 85% 100%, rgba(255, 26, 140, 0.04), transparent 45%),
+                               repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.012) 0px, rgba(255, 255, 255, 0.012) 1px, transparent 1px, transparent 3px);
         }
         [data-theme="cyberpunk"] .page-heading, [data-theme="cyberpunk"] .panel-header,
         [data-theme="cyberpunk"] .brand-text {
@@ -9422,6 +9431,7 @@ LOGIN_TEMPLATE = """
         .error-msg.show { display: block; }
 
         [data-theme="light"] { --bg-primary: #f5f5f5; --bg-secondary: #e8e8e8; --bg-tertiary: #ffffff; --text-primary: #1a1a1a; --text-secondary: #555555; --text-muted: #888888; --accent-red: #2563eb; --border-color: #cccccc; }
+        [data-theme="cyberpunk"] { --bg-primary: #060410; --bg-secondary: #0a0d12; --bg-tertiary: #0d1117; --text-primary: #eaf6fa; --text-secondary: #7fa8b8; --text-muted: #45606e; --accent-red: #ff1a8c; --accent-blue: #4f8cff; --accent-cyan: #22d3ee; --border-color: #16222e; }
 
         .theme-toggle { position: fixed; top: 1rem; right: 1rem; background: transparent; border: 1px solid var(--border-color); color: var(--text-secondary); font-family: var(--font-mono); font-size: 0.75rem; padding: 0.3rem 0.5rem; cursor: pointer; border-radius: 6px; transition: all 0.1s; }
         .theme-toggle:hover { color: var(--text-primary); border-color: var(--border-active, #999); }

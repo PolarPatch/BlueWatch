@@ -28,14 +28,15 @@ RADAR_TEMPLATE = r"""<!DOCTYPE html>
     /* Cyberpunk -- same palette/treatment as the rest of the app, see
        Config > Display and templates.py's own cyberpunk block. */
     [data-theme="cyberpunk"] {
-        --bg-primary: #050608; --bg-panel: #0a0d12; --bg-tertiary: #0d1117; --bg-hover: #131a24;
+        --bg-primary: #060410; --bg-panel: #0a0d12; --bg-tertiary: #0d1117; --bg-hover: #131a24;
         --text-primary: #eaf6fa; --text-secondary: #7fa8b8; --text-muted: #45606e;
-        --border-color: #16222e; --accent-blue: #22d3ee; --accent-green: #39ff8f;
+        --border-color: #16222e; --accent-blue: #4f8cff; --accent-cyan: #22d3ee; --accent-orange: #a78bfa; --accent-green: #39ff14;
         --radar-bg: #030405;
     }
     [data-theme="cyberpunk"] body {
         background-image: radial-gradient(circle at 15% 0%, rgba(34, 211, 238, 0.05), transparent 45%),
-                           radial-gradient(circle at 85% 100%, rgba(255, 61, 129, 0.04), transparent 45%);
+                           radial-gradient(circle at 85% 100%, rgba(255, 26, 140, 0.04), transparent 45%),
+                           repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.012) 0px, rgba(255, 255, 255, 0.012) 1px, transparent 1px, transparent 3px);
     }
     [data-theme="cyberpunk"] .brand-text { text-shadow: 0 0 10px rgba(34, 211, 238, 0.35); }
     * { box-sizing: border-box; margin: 0; padding: 0; }

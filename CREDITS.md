@@ -200,6 +200,19 @@ Pete LLC (MIT License): signal strength as distance from the centre, dots colore
 by device type, a sweeping beam and dimming of devices that are gone. Written from
 scratch for BlueWatch; no Fieldwatch code is included.
 
+## Cyberpunk theme
+
+The optional "cyberpunk" theme (Config > Display) takes its color palette from
+two references the operator provided directly: screenshots of
+[WDGWars](https://wdgwars.pl/) (a wardriving community site, palette only --
+no WDGWars code, markup, or assets used) and the neon color constants in
+[FelonyFelyne/ESP_CDY_Cyberpunk_UI_Styled](https://github.com/FelonyFelyne/ESP_CDY_Cyberpunk_UI_Styled)
+(an ESP32/CYD touchscreen UI library; no LICENSE file found in that repo, so
+only the numeric color *values* from its `Cyber::` palette constants
+(`src/CyberUI.h`) were used -- e.g. its violet-tinted near-black background,
+neon green, and magenta -- not any of its drawing code, widget layout, or
+its cut-corner/glitch-text rendering techniques.)
+
 ## Sub-GHz (433/868 MHz) discovery
 
 `bluewatch/rtl433.py` runs [rtl_433](https://github.com/merbanan/rtl_433)
