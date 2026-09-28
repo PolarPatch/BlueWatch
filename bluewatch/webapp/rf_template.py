@@ -61,7 +61,7 @@ RF_TEMPLATE = r"""<!DOCTYPE html>
     .nav-link:hover { color: var(--text-primary); background: var(--bg-tertiary); }
     .nav-link.active { color: var(--text-primary); background: var(--bg-tertiary); }
     [data-theme="cyberpunk"] .nav-link { border-bottom: 2px solid transparent; }
-    [data-theme="cyberpunk"] .nav-link.active { border-bottom-color: var(--accent-red); }
+    [data-theme="cyberpunk"] .nav-link.active { border-bottom-color: var(--accent-red); border-radius: 6px 6px 0 0; }
     .theme-toggle { background: transparent; border: 1px solid var(--border-color); color: var(--text-secondary); border-radius: 6px; padding: 0.25rem 0.5rem; cursor: pointer; font-family: var(--font-mono); }
 
     .page { padding: 1rem; max-width: 1400px; margin: 0 auto; }
