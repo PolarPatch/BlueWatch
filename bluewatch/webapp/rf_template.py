@@ -26,7 +26,7 @@ RF_TEMPLATE = r"""<!DOCTYPE html>
     [data-theme="cyberpunk"] {
         --bg-primary: #060410; --bg-panel: #0a0d12; --bg-tertiary: #0d1117; --bg-hover: #131a24;
         --text-primary: #eaf6fa; --text-secondary: #7fa8b8; --text-muted: #45606e;
-        --border-color: #16222e; --accent-blue: #4f8cff; --accent-cyan: #22d3ee; --accent-orange: #a78bfa; --accent-green: #39ff14; --accent-amber: #ffcb47;
+        --border-color: #16222e; --accent-blue: #4f8cff; --accent-cyan: #22d3ee; --accent-orange: #a78bfa; --accent-green: #ff1a8c; --accent-amber: #ffcb47;
     }
     [data-theme="cyberpunk"] body {
         background-image: radial-gradient(circle at 15% 0%, rgba(34, 211, 238, 0.05), transparent 45%),
