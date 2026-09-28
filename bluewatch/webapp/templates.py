@@ -4448,9 +4448,15 @@ SETTINGS_TEMPLATE = """
                     <p style="font-size: 0.85rem; line-height: 1.6; color: var(--text-secondary); max-width: 560px; margin: 0 auto 1rem;">
                         BlueWatch passively detects Bluetooth devices (BLE and Classic) in your area and helps you tell them apart from the noise: categorize the devices you already know, and BlueWatch surfaces the moment something new enters range instead of burying it under dozens of familiar devices.
                     </p>
-                    <p style="font-size: 0.85rem; line-height: 1.6; color: var(--text-secondary); max-width: 560px; margin: 0 auto 1.5rem;">
+                    <p style="font-size: 0.85rem; line-height: 1.6; color: var(--text-secondary); max-width: 560px; margin: 0 auto 1rem;">
                         Forked from <a href="https://github.com/dannymcc/bluehood" target="_blank" rel="noopener" style="color: var(--accent-blue);">bluehood</a> by Danny McClelland (MIT licensed), since grown into its own project.
                     </p>
+                    <p style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 0.75rem;">
+                        Go buy a coffee for Danny MMC
+                    </p>
+                    <a href="https://buymeacoffee.com/d3hkz6gwle" target="_blank" rel="noopener" style="display: inline-block; margin-bottom: 1.5rem;">
+                        <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Danny McClelland a coffee" style="height: 42px;">
+                    </a>
                     <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 1.25rem;">
                         Questions or interest? <a href="mailto:p0larpatch@proton.me" style="color: var(--accent-blue);">p0larpatch@proton.me</a>
                     </p>
