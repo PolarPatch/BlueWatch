@@ -200,6 +200,30 @@ Pete LLC (MIT License): signal strength as distance from the centre, dots colore
 by device type, a sweeping beam and dimming of devices that are gone. Written from
 scratch for BlueWatch; no Fieldwatch code is included.
 
+## Sub-GHz (433/868 MHz) discovery
+
+`bluewatch/rtl433.py` runs [rtl_433](https://github.com/merbanan/rtl_433)
+(GPL-2.0) as a subprocess and parses its JSON output -- no rtl_433 code is
+included in or linked into BlueWatch, it is an optional external program
+invoked at runtime, same relationship BlueWatch has with `bluetoothctl`/
+`hcitool`. All actual sub-GHz protocol decoding (weather stations, TPMS,
+remotes, Wireless M-Bus utility meters, and 200+ others) is rtl_433's own
+work; BlueWatch only ingests its output into the shared devices table.
+
+## Behavioral-fingerprint identity linking
+
+The idea of linking a BLE device's rotating randomized MAC address to a
+persistent identity by the *shape* of its advertisement (which service
+UUIDs/manufacturer IDs/fields it carries), rather than by name, was
+identified from [lukeswitz/AntiHunter](https://github.com/lukeswitz/AntiHunter)
+(AGPL-3.0) -- specifically its documented "IE fingerprinting" approach to
+MAC-randomization correlation. Only the concept was used, independently
+reimplemented in `classifier.behavioral_fingerprint()`/`db.upsert_device()`
+as a reduced-fidelity version (BlueWatch has no raw 802.11 frame access via
+`bleak`, so no sequence-number/channel/timing signals -- advertised-field-set
+matching only); no AntiHunter code was read or copied, to stay clear of its
+copyleft/network-disclosure terms.
+
 ## Camera vendors
 
 The camera vendor names in `VENDOR_PATTERNS` (Verkada, Axis, Hikvision, Reolink,
