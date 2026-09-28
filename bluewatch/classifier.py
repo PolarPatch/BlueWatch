@@ -86,6 +86,7 @@ TYPE_MESH = "mesh"
 TYPE_SKIMMER = "skimmer"
 TYPE_DRONE = "drone"
 TYPE_LOCK = "lock"
+TYPE_METER = "meter"
 TYPE_UNKNOWN = "unknown"
 
 # GAP Appearance (advertising AD type 0x19) is a Bluetooth SIG-standardized
@@ -206,6 +207,7 @@ TYPE_ICONS = {
     TYPE_SKIMMER: "[SKM]",
     TYPE_DRONE: "[UAS]",
     TYPE_LOCK: "[LCK]",
+    TYPE_METER: "[MTR]",
     TYPE_UNKNOWN: "[---]",
 }
 
@@ -234,6 +236,7 @@ TYPE_LABELS = {
     TYPE_SKIMMER: "Possible Skimmer",
     TYPE_DRONE: "Drone (Remote ID)",
     TYPE_LOCK: "Smart Lock",
+    TYPE_METER: "Utility Meter",
     TYPE_UNKNOWN: "Unknown",
 }
 
@@ -1147,7 +1150,7 @@ def classify_by_vendor_company_id(manufacturer_data: Optional[dict]) -> Optional
 # Patterns are matched case-insensitively
 # Bump this when the classification rules change: on the next start every
 # stored automatic type is recomputed in the background (manual types are kept).
-CLASSIFIER_VERSION = 3
+CLASSIFIER_VERSION = 4
 
 VENDOR_PATTERNS = [
     # Surveillance and security cameras, matched by the registered vendor name.
@@ -1876,6 +1879,20 @@ def classify_device(
             "honeywell-activlink", "elro-db", "chuango", "cavius",
         )):
             return TYPE_SMART_HOME
+
+        # Wireless M-Bus (868 MHz) -- utility meters (electricity, water,
+        # heat, gas). rtl_433's own decoder reports these generically as
+        # "Wireless-MBus" (see rtl_433 model.c) rather than by brand, since
+        # the manufacturer/customer ID lives inside the encrypted payload,
+        # not the frame header it decodes. Norwegian AMS meters (Kamstrup,
+        # Aidon, Kaifa) use this same OMS/wM-Bus framing on 868 MHz.
+        if "mbus" in name_lower or "m-bus" in name_lower:
+            return TYPE_METER
+        # ERT (Encoder Receiver Transmitter) -- US utility "SCM"/"IDM"
+        # protocols, included for completeness even though not the primary
+        # target here.
+        if any(x in name_lower for x in ("ert-scm", "ert-idm", "consumption message")):
+            return TYPE_METER
 
     # Try Classic BT device class (more reliable than vendor guessing)
     if device_class is not None:

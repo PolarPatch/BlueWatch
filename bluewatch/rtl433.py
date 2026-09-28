@@ -4,9 +4,10 @@ unless the `rtl_433` binary and an RTL-SDR are both present; nothing
 changes for anyone without this hardware.
 
 Why this exists: TPMS sensors, weather stations, doorbells, garage
-remotes and much else that never touches Bluetooth or Wi-Fi still leaks
-information on 433/868 MHz. rtl_433 (https://github.com/merbanan/rtl_433,
-GPL-2.0) already decodes 200+ of these protocols; this module runs it as a
+remotes, utility meters (Wireless M-Bus, electricity/water/heat) and much
+else that never touches Bluetooth or Wi-Fi still leaks information on
+433/868 MHz. rtl_433 (https://github.com/merbanan/rtl_433, GPL-2.0)
+already decodes 200+ of these protocols; this module runs it as a
 subprocess and feeds its JSON output into the same devices table
 Bluetooth and mDNS/LAN devices already share, keyed like LAN devices are
 (no MAC address exists here either) rather than reimplementing any of the
@@ -32,9 +33,16 @@ logger = logging.getLogger(__name__)
 # processes fighting over the one dongle. 433.92 MHz (Europe's the ISM band
 # almost everything -- TPMS, weather stations, remotes -- actually uses) is
 # checked first and more often; 868 MHz gets a share too since some newer
-# sensors/doorbells use it.
+# sensors/doorbells use it, and it's also where Wireless M-Bus (utility
+# meters -- electricity, water, heat) lives, Mode S/T specifically at
+# 868.3M/1000k, same frequency already hopped here.
 RTL433_FREQUENCIES = ["433.92M", "868.3M"]
 RTL433_HOP_SECONDS = 30
+# 1000k (rather than rtl_433's newer, lower "-Y classic" default) so Wireless
+# M-Bus Mode S/T -- which needs 1000k -- decodes alongside everything else;
+# confirmed live that weather stations (Nexus-TH) still decode fine at this
+# rate too, so one samplerate covers both without a second dedicated pass.
+RTL433_SAMPLE_RATE = "1000k"
 
 
 @dataclass
@@ -79,7 +87,7 @@ class Rtl433Scanner:
             logger.info("rtl_433 not installed -- sub-GHz (433/868 MHz) discovery skipped")
             return False
         freqs = frequencies or RTL433_FREQUENCIES
-        args = ["rtl_433", "-F", "json"]
+        args = ["rtl_433", "-F", "json", "-s", RTL433_SAMPLE_RATE]
         for freq in freqs:
             args += ["-f", freq]
         if len(freqs) > 1:
