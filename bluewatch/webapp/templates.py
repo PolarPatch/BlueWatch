@@ -43,7 +43,7 @@ HTML_TEMPLATE = """
 
         /* Low-vision contrast control (issue #2): rather than a separate
            fixed "dim" theme, the Config > Display contrast slider
-           interpolates --bg-*/--text-*/--border-color between each
+           interpolates bg/text/border-color variables between each
            theme's own default values (above/below) and a softer endpoint,
            applied as inline custom properties (see applyContrast() in the
            script block) that override whichever [data-theme] is active. */
@@ -5573,7 +5573,7 @@ LIVE_TEMPLATE = """
 
         /* Low-vision contrast control (issue #2): rather than a separate
            fixed "dim" theme, the Config > Display contrast slider
-           interpolates --bg-*/--text-*/--border-color between each
+           interpolates bg/text/border-color variables between each
            theme's own default values (above/below) and a softer endpoint,
            applied as inline custom properties (see applyContrast() in the
            script block) that override whichever [data-theme] is active. */
