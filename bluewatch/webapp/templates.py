@@ -4107,7 +4107,7 @@ SETTINGS_TEMPLATE = """
                 <div class="panel">
                     <div class="panel-header">BLE Recon Alerts</div>
                     <div class="panel-body">
-                        <div class="form-hint" style="margin-bottom: 0.75rem;">Passive detectors on BLE advertisements already being received -- BlueWatch never transmits anything for these, same as everything else. Inspired by AWOKxDAG's "BLE Spam Watch" and "FOLLOW" tracker alert.</div>
+                        <div class="form-hint" style="margin-bottom: 0.75rem;">Passive detectors on BLE advertisements already being received. Inspired by AWOKxDAG's "BLE Spam Watch" and "FOLLOW" tracker alert.</div>
                         <label class="form-check">
                             <input type="checkbox" id="ble_spam_alert_enabled">
                             <div>
