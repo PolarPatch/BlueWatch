@@ -3854,6 +3854,8 @@ SETTINGS_TEMPLATE = """
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BlueWatch</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&display=swap" rel="stylesheet">
     <style>
         :root {
             --bg-primary: #0d1117;
@@ -3895,12 +3897,44 @@ SETTINGS_TEMPLATE = """
         .theme-toggle { background: transparent; border: 1px solid var(--border-color); color: var(--text-secondary); font-family: var(--font-mono); font-size: 0.75rem; padding: 0.3rem 0.5rem; cursor: pointer; border-radius: 6px; transition: all 0.1s; }
         .theme-toggle:hover { color: var(--text-primary); border-color: var(--border-active, #999); }
 
-        .config-nav { background: var(--bg-secondary); border-bottom: 1px solid var(--border-color); display: flex; justify-content: center; gap: 0; }
-        .config-nav a { color: var(--text-muted); text-decoration: none; font-size: 0.7rem; padding: 0.75rem 1.25rem;  letter-spacing: 0.1em; border-bottom: 2px solid transparent; transition: all 0.15s; }
-        .config-nav a:hover { color: var(--text-secondary); }
-        .config-nav a.active { color: var(--text-primary); border-bottom-color: var(--accent-red); }
+        /* Config hero -- a big glitching title ("CONFIG"), same 3-ghost
+           clip-path technique as WDGWars' own "UPLINK" mark (operator's
+           reference, wdgwars.pl/uplink): three colored copies of the same
+           text sliced in and out on independent rhythms via clip-path, so
+           the tears never land in sync. Reacts to the cursor via --gx/--gy
+           (see the script block); holds still if the visitor prefers
+           reduced motion or has no hover-capable pointer. Uses the app's
+           own accent tokens (not WDGWars' own hex values) so it stays
+           correct across dark/light/cyberpunk instead of only looking
+           right in one theme. */
+        .config-hero { position: relative; padding: clamp(1.5rem, 4vw, 3rem) 1.25rem 1.25rem; border-bottom: 1px solid var(--border-color); overflow: hidden; }
+        .config-hero::after { content: ''; position: absolute; inset: 0; opacity: 0.035; background-image: repeating-linear-gradient(0deg, #fff 0 1px, transparent 1px 2px); pointer-events: none; }
+        .config-kana { font-size: 0.8rem; letter-spacing: 0.5em; margin-bottom: 0.4rem; color: var(--accent-cyan, var(--accent-blue)); opacity: 0.8; }
+        .mark { position: relative; display: inline-block; font-family: 'Orbitron', var(--font-mono); font-weight: 900; font-size: clamp(2.2rem, 8vw, 4.5rem); line-height: 0.9; letter-spacing: 0.03em; color: var(--text-primary); cursor: default; }
+        .mark::before, .mark::after, .mark i { content: attr(data-t); position: absolute; inset: 0; pointer-events: none; mix-blend-mode: screen; font-style: normal; }
+        .mark::before { color: var(--accent-cyan, var(--accent-blue)); transform: translate(calc(var(--gx, 0px) * -1.15), calc(var(--gy, 0px) * -1)); animation: mark-a 2.6s steps(1) infinite; }
+        .mark::after { color: var(--accent-red); transform: translate(calc(var(--gx, 0px) * 1.15), var(--gy, 0px)); animation: mark-b 3.1s steps(1) infinite; }
+        .mark i { color: var(--accent-orange, var(--accent-cyan)); transform: translate(calc(var(--gx, 0px) * .5), calc(var(--gy, 0px) * -1.4)); animation: mark-c 4.3s steps(1) infinite; }
+        @keyframes mark-a { 0%, 14% { clip-path: inset(0 0 100% 0); } 15%, 17% { clip-path: inset(8% 0 74% 0); } 18%, 52% { clip-path: inset(0 0 100% 0); } 53%, 55% { clip-path: inset(46% 0 32% 0); } 56%, 85% { clip-path: inset(0 0 100% 0); } 86%, 89% { clip-path: inset(70% 0 12% 0); } 90%, 100% { clip-path: inset(0 0 100% 0); } }
+        @keyframes mark-b { 0%, 22% { clip-path: inset(100% 0 0 0); } 23%, 26% { clip-path: inset(32% 0 52% 0); } 27%, 61% { clip-path: inset(100% 0 0 0); } 62%, 64% { clip-path: inset(76% 0 8% 0); } 65%, 93% { clip-path: inset(100% 0 0 0); } 94%, 97% { clip-path: inset(12% 0 68% 0); } 98%, 100% { clip-path: inset(100% 0 0 0); } }
+        @keyframes mark-c { 0%, 40% { clip-path: inset(100% 0 0 0); } 41%, 43% { clip-path: inset(58% 0 26% 0); } 44%, 78% { clip-path: inset(100% 0 0 0); } 79%, 81% { clip-path: inset(20% 0 62% 0); } 82%, 100% { clip-path: inset(100% 0 0 0); } }
+        @media (prefers-reduced-motion: reduce) { .mark::before, .mark::after, .mark i { display: none; } }
 
-        .main { max-width: 700px; margin: 0 auto; padding: 2rem 1rem; }
+        /* Left-hand nav (was a horizontal tab strip -- too many tabs for
+           one line once RTL-SDR/Display were added) + right content pane. */
+        .config-shell { display: flex; align-items: flex-start; }
+        .config-nav { flex: none; width: 12rem; display: flex; flex-direction: column; gap: 0.1rem; padding: 1.25rem 0.75rem; border-right: 1px solid var(--border-color); position: sticky; top: 0; align-self: stretch; }
+        .config-nav a { color: var(--text-muted); text-decoration: none; font-size: 0.72rem; padding: 0.55rem 0.75rem; letter-spacing: 0.08em; border-left: 2px solid transparent; border-radius: 0 4px 4px 0; transition: all 0.15s; }
+        .config-nav a:hover { color: var(--text-secondary); background: var(--bg-hover); }
+        .config-nav a.active { color: var(--text-primary); border-left-color: var(--accent-red); background: var(--bg-hover); }
+        @media (max-width: 900px) {
+            .config-shell { flex-direction: column; }
+            .config-nav { width: 100%; flex-direction: row; flex-wrap: wrap; position: static; border-right: none; border-bottom: 1px solid var(--border-color); }
+            .config-nav a { border-left: none; border-bottom: 2px solid transparent; border-radius: 4px 4px 0 0; }
+            .config-nav a.active { border-left-color: transparent; border-bottom-color: var(--accent-red); }
+        }
+
+        .main { flex: 1; min-width: 0; max-width: 700px; margin: 0 auto; padding: 2rem 1.5rem; }
         .page-header { margin-bottom: 2rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border-color); }
         .page-title { font-size: 0.75rem;  letter-spacing: 0.15em; color: var(--text-muted); margin-bottom: 0.5rem; }
         .page-heading { font-size: 1.25rem; font-weight: 700; }
@@ -3957,6 +3991,12 @@ SETTINGS_TEMPLATE = """
         <div><button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Cycle theme: dark / light / cyberpunk">☀</button></div>
     </header>
 
+    <div class="config-hero">
+        <div class="config-kana">コンフィグ</div>
+        <h1 class="mark" id="config-mark" data-t="CONFIG" style="--gx: 0px; --gy: 0px;">CONFIG<i aria-hidden="true"></i></h1>
+    </div>
+
+    <div class="config-shell">
     <nav class="config-nav">
         <a href="#alerts" data-tab="alerts" class="active" onclick="switchTab('alerts')">Alerts</a>
         <a href="#operations" data-tab="operations" onclick="switchTab('operations')">Operations</a>
@@ -4419,6 +4459,7 @@ SETTINGS_TEMPLATE = """
             </div>
         </div>
     </main>
+    </div>
 
     
 
@@ -4492,6 +4533,31 @@ SETTINGS_TEMPLATE = """
             applyTheme(next);
         }
         applyTheme(localStorage.getItem('bluewatch_theme') || 'dark');
+
+        // CONFIG hero glitch -- ghosts lean toward the cursor, same as
+        // WDGWars' own UPLINK mark. Skipped entirely for reduced-motion or
+        // touch-only visitors (mirrors the CSS's own reduced-motion rule).
+        (function() {
+            var mark = document.getElementById('config-mark');
+            if (!mark) return;
+            if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+            if (!window.matchMedia('(hover: hover)').matches) return;
+            var rafId = null;
+            window.addEventListener('pointermove', function(e) {
+                if (rafId) return;
+                rafId = requestAnimationFrame(function() {
+                    rafId = null;
+                    var r = mark.getBoundingClientRect();
+                    var cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+                    var dx = e.clientX - cx, dy = e.clientY - cy;
+                    var d = Math.hypot(dx, dy);
+                    var strength = Math.max(0, 1 - d / 760);
+                    var k = 16 * strength * strength;
+                    mark.style.setProperty('--gx', (dx / (d || 1) * k).toFixed(2) + 'px');
+                    mark.style.setProperty('--gy', (dy / (d || 1) * k * 0.5).toFixed(2) + 'px');
+                });
+            }, { passive: true });
+        })();
 
         function switchTab(tab) {
             document.querySelectorAll('.config-tab').forEach(function(t) { t.style.display = 'none'; });
