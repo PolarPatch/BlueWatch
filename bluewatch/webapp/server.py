@@ -1797,6 +1797,12 @@ class WebServer:
             "prune_days": settings.prune_days,
             "prune_min_sightings": settings.prune_min_sightings,
             "web_port": settings.web_port or "",
+            "ble_spam_alert_enabled": settings.ble_spam_alert_enabled,
+            "ble_spam_threshold": settings.ble_spam_threshold,
+            "ble_spam_window_seconds": settings.ble_spam_window_seconds,
+            "tracker_follow_alert_enabled": settings.tracker_follow_alert_enabled,
+            "tracker_follow_min_sightings": settings.tracker_follow_min_sightings,
+            "tracker_follow_min_minutes": settings.tracker_follow_min_minutes,
         })
 
     async def api_update_settings(self, request: web.Request) -> web.Response:
@@ -1825,6 +1831,12 @@ class WebServer:
                 prune_days=int(data.get("prune_days", 0)),
                 prune_min_sightings=int(data.get("prune_min_sightings", 0)),
                 web_port=web_port,
+                ble_spam_alert_enabled=data.get("ble_spam_alert_enabled", True),
+                ble_spam_threshold=int(data.get("ble_spam_threshold", 40)),
+                ble_spam_window_seconds=int(data.get("ble_spam_window_seconds", 15)),
+                tracker_follow_alert_enabled=data.get("tracker_follow_alert_enabled", True),
+                tracker_follow_min_sightings=int(data.get("tracker_follow_min_sightings", 30)),
+                tracker_follow_min_minutes=int(data.get("tracker_follow_min_minutes", 20)),
             )
             await db.update_settings(settings)
 

@@ -128,6 +128,22 @@ class Settings:
     auth_enabled: bool = False
     auth_username: Optional[str] = None
     auth_password_hash: Optional[str] = None  # bcrypt hash
+    # BLE advertisement-flood ("spam") detection -- a burst of Apple
+    # Continuity/Fast Pair/Swift Pair/Samsung pairing-popup advertisements
+    # system-wide, far above normal background chatter, is the same signal
+    # AWOKxDAG's "BLE Spam Watch" flags (fake pairing-popup spam attacks
+    # against nearby phones). Passive: counts advertisements already being
+    # received, sends nothing.
+    ble_spam_alert_enabled: bool = True
+    ble_spam_threshold: int = 40       # advertisements within the window below
+    ble_spam_window_seconds: int = 15
+    # Tracker persistence ("FOLLOW") alert -- AWOKxDAG's own name for
+    # flagging a Find My/Tile/SmartTag-type device that keeps reappearing
+    # or lingers far longer than a passerby would, distinct from (and
+    # rarer than) the generic type_alert_types immediate alert above.
+    tracker_follow_alert_enabled: bool = True
+    tracker_follow_min_sightings: int = 30
+    tracker_follow_min_minutes: int = 20  # first_seen..last_seen span required
 
 
 SCHEMA = """
@@ -2015,6 +2031,12 @@ async def get_settings() -> Settings:
         auth_enabled=settings_dict.get("auth_enabled", "0") == "1",
         auth_username=settings_dict.get("auth_username"),
         auth_password_hash=settings_dict.get("auth_password_hash"),
+        ble_spam_alert_enabled=settings_dict.get("ble_spam_alert_enabled", "1") == "1",
+        ble_spam_threshold=int(settings_dict.get("ble_spam_threshold", "40")),
+        ble_spam_window_seconds=int(settings_dict.get("ble_spam_window_seconds", "15")),
+        tracker_follow_alert_enabled=settings_dict.get("tracker_follow_alert_enabled", "1") == "1",
+        tracker_follow_min_sightings=int(settings_dict.get("tracker_follow_min_sightings", "30")),
+        tracker_follow_min_minutes=int(settings_dict.get("tracker_follow_min_minutes", "20")),
     )
 
 
@@ -2054,6 +2076,12 @@ async def update_settings(settings: Settings) -> None:
             ("prune_days", str(settings.prune_days)),
             ("prune_min_sightings", str(settings.prune_min_sightings)),
             ("web_port", str(settings.web_port) if settings.web_port else ""),
+            ("ble_spam_alert_enabled", "1" if settings.ble_spam_alert_enabled else "0"),
+            ("ble_spam_threshold", str(settings.ble_spam_threshold)),
+            ("ble_spam_window_seconds", str(settings.ble_spam_window_seconds)),
+            ("tracker_follow_alert_enabled", "1" if settings.tracker_follow_alert_enabled else "0"),
+            ("tracker_follow_min_sightings", str(settings.tracker_follow_min_sightings)),
+            ("tracker_follow_min_minutes", str(settings.tracker_follow_min_minutes)),
         ]
         for key, value in settings_pairs:
             await db.execute(

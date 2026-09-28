@@ -2,12 +2,14 @@
 
 import asyncio
 import logging
+from collections import deque
 from datetime import datetime, timedelta
 from typing import Optional
 
 import aiohttp
 
 from . import db
+from .classifier import TYPE_TRACKER, COMPANY_ID_APPLE, COMPANY_ID_MICROSOFT, COMPANY_ID_SAMSUNG
 from .db import Device, Settings
 
 logger = logging.getLogger(__name__)
@@ -27,6 +29,20 @@ class NotificationManager:
         # the gap since the previous sighting can't be read from it.
         self._prev_seen: dict[str, datetime] = {}
         self._session: Optional[aiohttp.ClientSession] = None
+        # BLE spam/flood detection: timestamps of recent pairing-popup-style
+        # advertisements (Apple Continuity/Fast Pair/Swift Pair/Samsung),
+        # system-wide -- not per-MAC, since a flood attack typically cycles
+        # through many randomized source addresses rather than reusing one.
+        # In-memory only (reset on restart, same as _prev_seen conceptually,
+        # though that one reloads from DB) -- a burst is a live-moment signal,
+        # nothing meaningful to persist about it across a restart.
+        self._pairing_burst: deque[datetime] = deque()
+        self._ble_spam_flood_active = False  # true while over threshold, so we alert once per burst, not every sighting
+        # Tracker "FOLLOW" alert: MACs already alerted for this run, so a
+        # lingering tracker notifies once rather than on every sighting
+        # once past threshold. In-memory only -- see class docstring below
+        # for the accepted tradeoff (may re-alert once after a restart).
+        self._tracker_follow_alerted: set[str] = set()
 
     async def start(self) -> None:
         """Initialize the notification manager."""
@@ -164,6 +180,18 @@ class NotificationManager:
                     tags=["warning", "bluetooth"],
                 )
 
+        # BLE advertisement-flood ("spam") detection -- independent of
+        # categorization/watch state, same reasoning as the type alert
+        # above. See _check_ble_spam_flood()'s own docstring.
+        await self._check_ble_spam_flood(device, now)
+
+        # Tracker persistence ("FOLLOW") alert -- also independent of
+        # categorization, and deliberately checked even for a device the
+        # operator has already silenced/grouped, since a planted tracker
+        # lingering nearby is worth flagging regardless of triage state.
+        if device_type == TYPE_TRACKER:
+            await self._check_tracker_follow(device)
+
         arrive_override = db.notify_mode_active(device.notify_arrive, device.notify_arrive_expires_at)
         if arrive_override is not None:
             if arrive_override:
@@ -248,6 +276,81 @@ class NotificationManager:
 
             # Update last seen time
             self._watched_last_seen[device.mac] = now
+
+    async def _check_ble_spam_flood(self, device: Device, now: datetime) -> None:
+        """Flag a burst of pairing-popup-style BLE advertisements
+        (Apple Continuity, Microsoft Swift Pair, Samsung) system-wide --
+        the same signal AWOKxDAG's "BLE Spam Watch" uses for fake-
+        pairing-popup spam attacks against nearby phones. Passive: this
+        only counts advertisements already being received (BlueWatch
+        never transmits), same as every other check in this file.
+
+        Counted by *advertisement type*, not by MAC, since a flood attack
+        typically cycles through many randomized source addresses rather
+        than reusing one -- counting per-MAC would miss it entirely.
+        Fast Pair (service_data 0xFE2C) isn't included: it's normally a
+        one-shot advertisement while a real earbud case is open, already
+        rare enough that it wouldn't meaningfully add signal here, and
+        would need parsing service_data keys rather than a simple company
+        ID check.
+        """
+        if not self._settings.ble_spam_alert_enabled:
+            return
+        mfg = device.manufacturer_data or {}
+        if not (COMPANY_ID_APPLE in mfg or COMPANY_ID_MICROSOFT in mfg or COMPANY_ID_SAMSUNG in mfg):
+            return
+
+        window = timedelta(seconds=self._settings.ble_spam_window_seconds)
+        self._pairing_burst.append(now)
+        while self._pairing_burst and now - self._pairing_burst[0] > window:
+            self._pairing_burst.popleft()
+
+        count = len(self._pairing_burst)
+        threshold = self._settings.ble_spam_threshold
+        if count >= threshold and not self._ble_spam_flood_active:
+            self._ble_spam_flood_active = True
+            await self._send_notification(
+                title="⚠ Possible BLE advertisement flood",
+                message=f"{count} pairing-style BLE adverts in the last {self._settings.ble_spam_window_seconds}s -- may be a spam/DoS attack against nearby phones, or just an unusually busy moment.",
+                priority=4,
+                tags=["warning", "bluetooth"],
+            )
+        elif count < threshold // 2:
+            # Rearm once the rate has clearly dropped, not the instant it
+            # dips below threshold -- avoids re-alerting on every sighting
+            # while a burst hovers right at the line.
+            self._ble_spam_flood_active = False
+
+    async def _check_tracker_follow(self, device: Device) -> None:
+        """Flag a Find My/Tile/SmartTag-type device (TYPE_TRACKER) that has
+        lingered far longer than a passerby would -- AWOKxDAG's own name
+        ("FOLLOW") for this signal. Deliberately rarer and slower than the
+        generic type_alert_types alert (which fires on every reappearance):
+        this fires once, only after real persistence is established, since
+        that's the actual privacy-relevant case (a planted tracker) rather
+        than a stranger's AirTag passing by once.
+        """
+        if not self._settings.tracker_follow_alert_enabled:
+            return
+        if device.mac in self._tracker_follow_alerted:
+            return
+        if device.total_sightings < self._settings.tracker_follow_min_sightings:
+            return
+        if not device.first_seen or not device.last_seen:
+            return
+        span_minutes = (device.last_seen - device.first_seen).total_seconds() / 60
+        if span_minutes < self._settings.tracker_follow_min_minutes:
+            return
+
+        self._tracker_follow_alerted.add(device.mac)
+        name = device.friendly_name or device.vendor or device.mac
+        span_str = self._format_duration(span_minutes)
+        await self._send_notification(
+            title="⚠ Tracker lingering nearby",
+            message=f"{name} ({device.mac}) has been detected {device.total_sightings} times over {span_str} -- worth checking it isn't a planted tracker.",
+            priority=5,
+            tags=["warning", "bluetooth"],
+        )
 
     async def check_absent_devices(self) -> None:
         """Check for devices that have been absent too long.

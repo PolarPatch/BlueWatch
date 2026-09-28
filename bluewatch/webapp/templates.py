@@ -4104,6 +4104,47 @@ SETTINGS_TEMPLATE = """
                     </div>
                 </div>
 
+                <div class="panel">
+                    <div class="panel-header">BLE Recon Alerts</div>
+                    <div class="panel-body">
+                        <div class="form-hint" style="margin-bottom: 0.75rem;">Passive detectors on BLE advertisements already being received -- BlueWatch never transmits anything for these, same as everything else. Inspired by AWOKxDAG's "BLE Spam Watch" and "FOLLOW" tracker alert.</div>
+                        <label class="form-check">
+                            <input type="checkbox" id="ble_spam_alert_enabled">
+                            <div>
+                                <div class="form-check-label">BLE Advertisement Flood</div>
+                                <div class="form-check-desc">Alert on a burst of Apple/Microsoft/Samsung pairing-popup-style advertisements system-wide -- may indicate a spam/DoS attack against nearby phones</div>
+                            </div>
+                        </label>
+                        <div style="margin: 0.5rem 0 0.75rem 2rem; display: flex; gap: 1rem; flex-wrap: wrap;">
+                            <div class="form-group" style="margin: 0;">
+                                <label class="form-label">Threshold (adverts)</label>
+                                <input type="number" class="form-input" id="ble_spam_threshold" value="40" min="5" max="1000" style="width: 110px;">
+                            </div>
+                            <div class="form-group" style="margin: 0;">
+                                <label class="form-label">Window (seconds)</label>
+                                <input type="number" class="form-input" id="ble_spam_window_seconds" value="15" min="3" max="300" style="width: 110px;">
+                            </div>
+                        </div>
+                        <label class="form-check">
+                            <input type="checkbox" id="tracker_follow_alert_enabled">
+                            <div>
+                                <div class="form-check-label">Tracker Lingering Nearby</div>
+                                <div class="form-check-desc">Alert once a Find My/Tile/SmartTag-type device has been detected repeatedly over a long enough span -- distinct from Type-Based Alerts above, which fire on every reappearance</div>
+                            </div>
+                        </label>
+                        <div style="margin: 0.5rem 0 0 2rem; display: flex; gap: 1rem; flex-wrap: wrap;">
+                            <div class="form-group" style="margin: 0;">
+                                <label class="form-label">Min. Sightings</label>
+                                <input type="number" class="form-input" id="tracker_follow_min_sightings" value="30" min="2" max="10000" style="width: 110px;">
+                            </div>
+                            <div class="form-group" style="margin: 0;">
+                                <label class="form-label">Min. Span (minutes)</label>
+                                <input type="number" class="form-input" id="tracker_follow_min_minutes" value="20" min="1" max="10080" style="width: 110px;">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="btn-row">
                     <button type="submit" class="btn btn-primary">Save Configuration</button>
                     <a href="/" class="btn">Cancel</a>
@@ -4593,6 +4634,12 @@ SETTINGS_TEMPLATE = """
                 document.getElementById('prune_days').value = data.prune_days || 0;
                 document.getElementById('prune_min_sightings').value = data.prune_min_sightings || 0;
                 document.getElementById('web_port').value = data.web_port || '';
+                document.getElementById('ble_spam_alert_enabled').checked = data.ble_spam_alert_enabled;
+                document.getElementById('ble_spam_threshold').value = data.ble_spam_threshold || 40;
+                document.getElementById('ble_spam_window_seconds').value = data.ble_spam_window_seconds || 15;
+                document.getElementById('tracker_follow_alert_enabled').checked = data.tracker_follow_alert_enabled;
+                document.getElementById('tracker_follow_min_sightings').value = data.tracker_follow_min_sightings || 30;
+                document.getElementById('tracker_follow_min_minutes').value = data.tracker_follow_min_minutes || 20;
 
                 const typesResp = await fetch('/api/device-types');
                 const typesData = await typesResp.json();
@@ -4682,6 +4729,12 @@ SETTINGS_TEMPLATE = """
                 prune_days: parseInt(document.getElementById('prune_days').value) || 0,
                 prune_min_sightings: parseInt(document.getElementById('prune_min_sightings').value) || 0,
                 web_port: document.getElementById('web_port').value,
+                ble_spam_alert_enabled: document.getElementById('ble_spam_alert_enabled').checked,
+                ble_spam_threshold: parseInt(document.getElementById('ble_spam_threshold').value) || 40,
+                ble_spam_window_seconds: parseInt(document.getElementById('ble_spam_window_seconds').value) || 15,
+                tracker_follow_alert_enabled: document.getElementById('tracker_follow_alert_enabled').checked,
+                tracker_follow_min_sightings: parseInt(document.getElementById('tracker_follow_min_sightings').value) || 30,
+                tracker_follow_min_minutes: parseInt(document.getElementById('tracker_follow_min_minutes').value) || 20,
             };
         }
 
