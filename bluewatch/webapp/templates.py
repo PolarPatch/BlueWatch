@@ -199,6 +199,10 @@ HTML_TEMPLATE = """
             color: var(--text-primary);
             background: var(--bg-tertiary);
         }
+        [data-theme="cyberpunk"] .nav-link.active {
+            box-shadow: inset 0 -2px 0 var(--accent-cyan);
+            text-shadow: 0 0 8px rgba(34, 211, 238, 0.5);
+        }
 
         .topbar-right {
             display: flex;
@@ -724,6 +728,14 @@ HTML_TEMPLATE = """
         .type-tv { background: #3a1e2e; color: #f472b6; }
         .type-vehicle { background: #3a3a1e; color: #facc15; }
         .type-unknown { background: #2a2a2a; color: #888; }
+        [data-theme="cyberpunk"] .type-phone { background: #0a2233; color: #22d3ee; }
+        [data-theme="cyberpunk"] .type-laptop { background: #0a2e2a; color: #39ff8f; }
+        [data-theme="cyberpunk"] .type-audio { background: #241033; color: #c084fc; }
+        [data-theme="cyberpunk"] .type-watch { background: #0a2e1e; color: #39ff14; }
+        [data-theme="cyberpunk"] .type-smart { background: #2e2308; color: #ffcb47; }
+        [data-theme="cyberpunk"] .type-tv { background: #330a24; color: #ff4fb8; }
+        [data-theme="cyberpunk"] .type-vehicle { background: #241033; color: #a78bfa; }
+        [data-theme="cyberpunk"] .type-unknown { background: #0a2630; color: #22d3ee; border: 1px dashed #16404f; }
 
         .mac-addr {
             font-size: 0.75rem;
@@ -3866,6 +3878,7 @@ SETTINGS_TEMPLATE = """
         .nav { display: flex; gap: 0.25rem; }
         .nav-link { color: var(--text-secondary); text-decoration: none; font-size: 0.75rem; padding: 0.4rem 0.75rem; border-radius: 6px;  letter-spacing: 0.05em; transition: all 0.1s; }
         .nav-link:hover, .nav-link.active { color: var(--text-primary); background: var(--bg-tertiary); }
+        [data-theme="cyberpunk"] .nav-link.active { box-shadow: inset 0 -2px 0 var(--accent-cyan); text-shadow: 0 0 8px rgba(34, 211, 238, 0.5); }
 
         [data-theme="light"] { --bg-primary: #f5f5f5; --bg-secondary: #e8e8e8; --bg-tertiary: #ffffff; --bg-hover: #d8d8d8; --text-primary: #1a1a1a; --text-secondary: #555555; --text-muted: #888888; --accent-red: #2563eb; --accent-green: #16a34a; --border-color: #cccccc; }
         [data-theme="cyberpunk"] { --bg-primary: #060410; --bg-secondary: #0a0d12; --bg-tertiary: #0d1117; --bg-hover: #131a24; --text-primary: #eaf6fa; --text-secondary: #7fa8b8; --text-muted: #45606e; --accent-red: #ff1a8c; --accent-blue: #4f8cff; --accent-cyan: #22d3ee; --accent-orange: #a78bfa; --accent-green: #39ff14; --border-color: #16222e; }
@@ -5316,6 +5329,7 @@ ABOUT_TEMPLATE = """
         .nav { display: flex; gap: 0.25rem; }
         .nav-link { color: var(--text-secondary); text-decoration: none; font-size: 0.75rem; padding: 0.4rem 0.75rem; border-radius: 6px;  letter-spacing: 0.05em; transition: all 0.1s; }
         .nav-link:hover, .nav-link.active { color: var(--text-primary); background: var(--bg-tertiary); }
+        [data-theme="cyberpunk"] .nav-link.active { box-shadow: inset 0 -2px 0 var(--accent-cyan); text-shadow: 0 0 8px rgba(34, 211, 238, 0.5); }
 
         [data-theme="light"] { --bg-primary: #f5f5f5; --bg-secondary: #e8e8e8; --bg-tertiary: #ffffff; --bg-hover: #d8d8d8; --text-primary: #1a1a1a; --text-secondary: #555555; --text-muted: #888888; --accent-red: #2563eb; --accent-amber: #d97706; --border-color: #cccccc; }
         [data-theme="cyberpunk"] { --bg-primary: #060410; --bg-secondary: #0a0d12; --bg-tertiary: #0d1117; --bg-hover: #131a24; --text-primary: #eaf6fa; --text-secondary: #7fa8b8; --text-muted: #45606e; --accent-red: #ff1a8c; --accent-blue: #4f8cff; --accent-cyan: #22d3ee; --accent-amber: #ffcb47; --border-color: #16222e; }
@@ -5710,6 +5724,10 @@ LIVE_TEMPLATE = """
         .nav-link:hover, .nav-link.active {
             color: var(--text-primary);
             background: var(--bg-tertiary);
+        }
+        [data-theme="cyberpunk"] .nav-link.active {
+            box-shadow: inset 0 -2px 0 var(--accent-cyan);
+            text-shadow: 0 0 8px rgba(34, 211, 238, 0.5);
         }
 
         .topbar-right {
@@ -6243,6 +6261,14 @@ LIVE_TEMPLATE = """
         .type-tv { background: #3a1e2e; color: #f472b6; }
         .type-vehicle { background: #3a3a1e; color: #facc15; }
         .type-unknown { background: #2a2a2a; color: #888; }
+        [data-theme="cyberpunk"] .type-phone { background: #0a2233; color: #22d3ee; }
+        [data-theme="cyberpunk"] .type-laptop { background: #0a2e2a; color: #39ff8f; }
+        [data-theme="cyberpunk"] .type-audio { background: #241033; color: #c084fc; }
+        [data-theme="cyberpunk"] .type-watch { background: #0a2e1e; color: #39ff14; }
+        [data-theme="cyberpunk"] .type-smart { background: #2e2308; color: #ffcb47; }
+        [data-theme="cyberpunk"] .type-tv { background: #330a24; color: #ff4fb8; }
+        [data-theme="cyberpunk"] .type-vehicle { background: #241033; color: #a78bfa; }
+        [data-theme="cyberpunk"] .type-unknown { background: #0a2630; color: #22d3ee; border: 1px dashed #16404f; }
 
         .mac-addr {
             font-size: 0.75rem;

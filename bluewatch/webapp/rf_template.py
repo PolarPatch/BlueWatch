@@ -60,6 +60,7 @@ RF_TEMPLATE = r"""<!DOCTYPE html>
     .nav-link { color: var(--text-secondary); text-decoration: none; padding: 0.35rem 0.7rem; border-radius: 6px; font-size: 0.75rem; }
     .nav-link:hover { color: var(--text-primary); background: var(--bg-tertiary); }
     .nav-link.active { color: var(--text-primary); background: var(--bg-tertiary); }
+    [data-theme="cyberpunk"] .nav-link.active { box-shadow: inset 0 -2px 0 var(--accent-cyan); text-shadow: 0 0 8px rgba(34, 211, 238, 0.5); }
     .theme-toggle { background: transparent; border: 1px solid var(--border-color); color: var(--text-secondary); border-radius: 6px; padding: 0.25rem 0.5rem; cursor: pointer; font-family: var(--font-mono); }
 
     .page { padding: 1rem; max-width: 1400px; margin: 0 auto; }
