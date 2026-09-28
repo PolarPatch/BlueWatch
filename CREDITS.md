@@ -213,6 +213,19 @@ only the numeric color *values* from its `Cyber::` palette constants
 neon green, and magenta -- not any of its drawing code, widget layout, or
 its cut-corner/glitch-text rendering techniques.)
 
+## Config hero (glitch title)
+
+The "CONFIG" glitch title at the top of the Config page recreates the
+title effect from [WDGWarsGo](https://wdgwars.pl/)'s own "UPLINK" page
+(`wdgwars.pl/uplink`), from an HTML/CSS copy the operator saved and shared
+directly: three color-ghosted copies of the same text sliced in and out on
+independent `clip-path` rhythms, reacting to cursor proximity. The technique
+and animation timing are reproduced closely; the actual colors were swapped
+for BlueWatch's own theme tokens (so it renders correctly in dark/light/
+cyberpunk, not just WDGWars' own palette), and the Japanese label follows
+WDGWars' own pattern of a katakana transliteration next to the English mark
+("コンフィグ" / "Config", alongside their "アップリンク" / "Uplink").
+
 ## Sub-GHz (433/868 MHz) discovery
 
 `bluewatch/rtl433.py` runs [rtl_433](https://github.com/merbanan/rtl_433)
