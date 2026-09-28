@@ -48,29 +48,61 @@ HTML_TEMPLATE = """
            applied as inline custom properties (see applyContrast() in the
            script block) that override whichever [data-theme] is active. */
 
-        /* Cyberpunk theme -- neon-on-near-black, glow accents, same layout.
-           Palette pulled from WDGWars' Uplink screen (operator's reference). */
+        /* Cyberpunk theme -- near-pure-black with thin neon strokes, glow
+           headings and bracket-cornered panels, matched to WDGWars' own
+           screens (operator's reference: the Uplink/Home/Chat views). */
         [data-theme="cyberpunk"] {
-            --bg-primary: #05070d;
-            --bg-secondary: #0b0f18;
-            --bg-tertiary: #111827;
-            --bg-hover: #182234;
-            --bg-panel: #0b0f18;
-            --text-primary: #d7f9ff;
-            --text-secondary: #7fb8c9;
-            --text-muted: #4d6a78;
-            --accent-red: #ff4d8d;
-            --accent-orange: #ff8a3d;
-            --accent-amber: #ffd166;
-            --accent-green: #39ff9e;
-            --accent-blue: #22e5ff;
-            --accent-cyan: #22e5ff;
-            --border-color: #1b2a3a;
-            --border-active: #22e5ff;
+            --bg-primary: #050608;
+            --bg-secondary: #0a0d12;
+            --bg-tertiary: #0d1117;
+            --bg-hover: #131a24;
+            --bg-panel: #0a0d12;
+            --text-primary: #eaf6fa;
+            --text-secondary: #7fa8b8;
+            --text-muted: #45606e;
+            --accent-red: #ff3d81;
+            --accent-orange: #ff9d3d;
+            --accent-amber: #ffcb47;
+            --accent-green: #39ff8f;
+            --accent-blue: #22d3ee;
+            --accent-cyan: #22d3ee;
+            --border-color: #16222e;
+            --border-active: #22d3ee;
         }
         [data-theme="cyberpunk"] body {
-            background-image: radial-gradient(circle at 15% 0%, rgba(34, 229, 255, 0.06), transparent 45%),
-                               radial-gradient(circle at 85% 100%, rgba(255, 77, 141, 0.05), transparent 45%);
+            background-image: radial-gradient(circle at 15% 0%, rgba(34, 211, 238, 0.05), transparent 45%),
+                               radial-gradient(circle at 85% 100%, rgba(255, 61, 129, 0.04), transparent 45%);
+        }
+        [data-theme="cyberpunk"] .page-heading, [data-theme="cyberpunk"] .panel-header,
+        [data-theme="cyberpunk"] .brand-text {
+            text-shadow: 0 0 10px rgba(34, 211, 238, 0.35);
+        }
+        /* Bracket-cornered panels -- the small L-shaped corner marks visible
+           on every card in WDGWars' UI, done as four pseudo-element corners
+           rather than an image so it scales with the panel. */
+        [data-theme="cyberpunk"] .panel {
+            position: relative;
+            border-radius: 4px;
+            background: var(--bg-panel);
+        }
+        [data-theme="cyberpunk"] .panel::before, [data-theme="cyberpunk"] .panel::after,
+        [data-theme="cyberpunk"] .panel > .panel-header::before {
+            content: '';
+            position: absolute;
+            width: 0.6rem;
+            height: 0.6rem;
+            border-color: var(--accent-blue);
+            pointer-events: none;
+        }
+        [data-theme="cyberpunk"] .panel::before {
+            top: -1px; left: -1px;
+            border-top: 2px solid var(--accent-blue);
+            border-left: 2px solid var(--accent-blue);
+        }
+        [data-theme="cyberpunk"] .panel::after {
+            bottom: -1px; right: -1px;
+            border-bottom: 2px solid var(--accent-blue);
+            border-right: 2px solid var(--accent-blue);
         }
 
         [data-theme="light"] .type-phone { background: #dbeafe; color: #1d4ed8; }
@@ -5520,29 +5552,61 @@ LIVE_TEMPLATE = """
            applied as inline custom properties (see applyContrast() in the
            script block) that override whichever [data-theme] is active. */
 
-        /* Cyberpunk theme -- neon-on-near-black, glow accents, same layout.
-           Palette pulled from WDGWars' Uplink screen (operator's reference). */
+        /* Cyberpunk theme -- near-pure-black with thin neon strokes, glow
+           headings and bracket-cornered panels, matched to WDGWars' own
+           screens (operator's reference: the Uplink/Home/Chat views). */
         [data-theme="cyberpunk"] {
-            --bg-primary: #05070d;
-            --bg-secondary: #0b0f18;
-            --bg-tertiary: #111827;
-            --bg-hover: #182234;
-            --bg-panel: #0b0f18;
-            --text-primary: #d7f9ff;
-            --text-secondary: #7fb8c9;
-            --text-muted: #4d6a78;
-            --accent-red: #ff4d8d;
-            --accent-orange: #ff8a3d;
-            --accent-amber: #ffd166;
-            --accent-green: #39ff9e;
-            --accent-blue: #22e5ff;
-            --accent-cyan: #22e5ff;
-            --border-color: #1b2a3a;
-            --border-active: #22e5ff;
+            --bg-primary: #050608;
+            --bg-secondary: #0a0d12;
+            --bg-tertiary: #0d1117;
+            --bg-hover: #131a24;
+            --bg-panel: #0a0d12;
+            --text-primary: #eaf6fa;
+            --text-secondary: #7fa8b8;
+            --text-muted: #45606e;
+            --accent-red: #ff3d81;
+            --accent-orange: #ff9d3d;
+            --accent-amber: #ffcb47;
+            --accent-green: #39ff8f;
+            --accent-blue: #22d3ee;
+            --accent-cyan: #22d3ee;
+            --border-color: #16222e;
+            --border-active: #22d3ee;
         }
         [data-theme="cyberpunk"] body {
-            background-image: radial-gradient(circle at 15% 0%, rgba(34, 229, 255, 0.06), transparent 45%),
-                               radial-gradient(circle at 85% 100%, rgba(255, 77, 141, 0.05), transparent 45%);
+            background-image: radial-gradient(circle at 15% 0%, rgba(34, 211, 238, 0.05), transparent 45%),
+                               radial-gradient(circle at 85% 100%, rgba(255, 61, 129, 0.04), transparent 45%);
+        }
+        [data-theme="cyberpunk"] .page-heading, [data-theme="cyberpunk"] .panel-header,
+        [data-theme="cyberpunk"] .brand-text {
+            text-shadow: 0 0 10px rgba(34, 211, 238, 0.35);
+        }
+        /* Bracket-cornered panels -- the small L-shaped corner marks visible
+           on every card in WDGWars' UI, done as four pseudo-element corners
+           rather than an image so it scales with the panel. */
+        [data-theme="cyberpunk"] .panel {
+            position: relative;
+            border-radius: 4px;
+            background: var(--bg-panel);
+        }
+        [data-theme="cyberpunk"] .panel::before, [data-theme="cyberpunk"] .panel::after,
+        [data-theme="cyberpunk"] .panel > .panel-header::before {
+            content: '';
+            position: absolute;
+            width: 0.6rem;
+            height: 0.6rem;
+            border-color: var(--accent-blue);
+            pointer-events: none;
+        }
+        [data-theme="cyberpunk"] .panel::before {
+            top: -1px; left: -1px;
+            border-top: 2px solid var(--accent-blue);
+            border-left: 2px solid var(--accent-blue);
+        }
+        [data-theme="cyberpunk"] .panel::after {
+            bottom: -1px; right: -1px;
+            border-bottom: 2px solid var(--accent-blue);
+            border-right: 2px solid var(--accent-blue);
         }
 
         [data-theme="light"] .type-phone { background: #dbeafe; color: #1d4ed8; }

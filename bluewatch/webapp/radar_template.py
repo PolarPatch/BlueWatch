@@ -25,6 +25,19 @@ RADAR_TEMPLATE = r"""<!DOCTYPE html>
         --text-primary: #1a1a1a; --text-secondary: #555555; --text-muted: #888888; --border-color: #d0d0d0;
         --radar-bg: #ebebeb;
     }
+    /* Cyberpunk -- same palette/treatment as the rest of the app, see
+       Config > Display and templates.py's own cyberpunk block. */
+    [data-theme="cyberpunk"] {
+        --bg-primary: #050608; --bg-panel: #0a0d12; --bg-tertiary: #0d1117; --bg-hover: #131a24;
+        --text-primary: #eaf6fa; --text-secondary: #7fa8b8; --text-muted: #45606e;
+        --border-color: #16222e; --accent-blue: #22d3ee; --accent-green: #39ff8f;
+        --radar-bg: #030405;
+    }
+    [data-theme="cyberpunk"] body {
+        background-image: radial-gradient(circle at 15% 0%, rgba(34, 211, 238, 0.05), transparent 45%),
+                           radial-gradient(circle at 85% 100%, rgba(255, 61, 129, 0.04), transparent 45%);
+    }
+    [data-theme="cyberpunk"] .brand-text { text-shadow: 0 0 10px rgba(34, 211, 238, 0.35); }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: var(--font-mono); background: var(--radar-bg); color: var(--text-primary); font-size: 13px; line-height: 1.5; min-height: 100vh; }
     .topbar { display: flex; align-items: center; justify-content: space-between; padding: 0.6rem 1rem; background: var(--bg-panel); border-bottom: 1px solid var(--border-color); }
@@ -91,7 +104,7 @@ RADAR_TEMPLATE = r"""<!DOCTYPE html>
             <a href="/settings" class="nav-link">Config</a>
         </nav>
     </div>
-    <button class="theme-toggle" id="theme-toggle" title="Toggle light/dark mode">&#9728;</button>
+    <button class="theme-toggle" id="theme-toggle" title="Cycle theme: dark / light / cyberpunk">&#9728;</button>
 </header>
 
 <main class="radar-page">
@@ -137,7 +150,7 @@ RADAR_TEMPLATE = r"""<!DOCTYPE html>
     // ----- theme -----
     function applyTheme(t) {
         document.documentElement.setAttribute('data-theme', t);
-        document.getElementById('theme-toggle').textContent = t === 'light' ? '☽' : '☀';
+        document.getElementById('theme-toggle').textContent = t === 'light' ? '☽' : (t === 'cyberpunk' ? '⚡' : '☀');
         readTheme();
     }
     let theme = {};
@@ -147,7 +160,9 @@ RADAR_TEMPLATE = r"""<!DOCTYPE html>
         theme = { panel: v('--bg-panel'), ring: v('--border-color'), text: v('--text-secondary'), textStrong: v('--text-primary'), muted: v('--text-muted') };
     }
     document.getElementById('theme-toggle').onclick = () => {
-        const next = (document.documentElement.getAttribute('data-theme') === 'light') ? 'dark' : 'light';
+        const order = ['dark', 'light', 'cyberpunk'];
+        const current = document.documentElement.getAttribute('data-theme') || 'dark';
+        const next = order[(order.indexOf(current) + 1) % order.length];
         try { localStorage.setItem('bluewatch_theme', next); } catch (e) {}
         applyTheme(next);
     };

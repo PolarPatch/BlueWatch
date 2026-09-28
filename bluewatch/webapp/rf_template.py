@@ -21,6 +21,30 @@ RF_TEMPLATE = r"""<!DOCTYPE html>
         --bg-primary: #f5f5f5; --bg-panel: #ffffff; --bg-tertiary: #ececec; --bg-hover: #dedede;
         --text-primary: #1a1a1a; --text-secondary: #555555; --text-muted: #888888; --border-color: #d0d0d0;
     }
+    /* Cyberpunk -- same palette/treatment as the rest of the app, see
+       Config > Display and templates.py's own cyberpunk block. */
+    [data-theme="cyberpunk"] {
+        --bg-primary: #050608; --bg-panel: #0a0d12; --bg-tertiary: #0d1117; --bg-hover: #131a24;
+        --text-primary: #eaf6fa; --text-secondary: #7fa8b8; --text-muted: #45606e;
+        --border-color: #16222e; --accent-blue: #22d3ee; --accent-green: #39ff8f; --accent-amber: #ffcb47;
+    }
+    [data-theme="cyberpunk"] body {
+        background-image: radial-gradient(circle at 15% 0%, rgba(34, 211, 238, 0.05), transparent 45%),
+                           radial-gradient(circle at 85% 100%, rgba(255, 61, 129, 0.04), transparent 45%);
+    }
+    [data-theme="cyberpunk"] .head h1, [data-theme="cyberpunk"] .brand-text {
+        text-shadow: 0 0 10px rgba(34, 211, 238, 0.35);
+    }
+    [data-theme="cyberpunk"] table {
+        position: relative;
+        border-radius: 4px;
+    }
+    [data-theme="cyberpunk"] table::before, [data-theme="cyberpunk"] table::after {
+        content: ''; position: absolute; width: 0.6rem; height: 0.6rem; pointer-events: none;
+    }
+    [data-theme="cyberpunk"] table::before { top: -1px; left: -1px; border-top: 2px solid var(--accent-blue); border-left: 2px solid var(--accent-blue); }
+    [data-theme="cyberpunk"] table::after { bottom: -1px; right: -1px; border-bottom: 2px solid var(--accent-blue); border-right: 2px solid var(--accent-blue); }
+
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: var(--font-mono); background: var(--bg-primary); color: var(--text-primary); font-size: 13px; line-height: 1.5; min-height: 100vh; }
     .topbar { display: flex; align-items: center; justify-content: space-between; padding: 0.6rem 1rem; background: var(--bg-panel); border-bottom: 1px solid var(--border-color); }
@@ -30,6 +54,7 @@ RF_TEMPLATE = r"""<!DOCTYPE html>
     .brand-text { font-weight: 700; font-size: 0.9rem; letter-spacing: 0.05em; color: var(--accent-blue); }
     .brand-text span { color: #ffffff; }
     [data-theme="light"] .brand-text span { color: var(--text-primary); }
+    [data-theme="cyberpunk"] .brand-text span { color: var(--text-primary); }
     .nav { display: flex; gap: 0.25rem; }
     .nav-link { color: var(--text-secondary); text-decoration: none; padding: 0.35rem 0.7rem; border-radius: 6px; font-size: 0.75rem; }
     .nav-link:hover { color: var(--text-primary); background: var(--bg-tertiary); }
@@ -47,6 +72,12 @@ RF_TEMPLATE = r"""<!DOCTYPE html>
     .btn.on { color: var(--accent-amber); border-color: var(--accent-amber); }
     .count { color: var(--text-secondary); font-size: 0.8rem; }
     .count b { color: var(--text-primary); font-variant-numeric: tabular-nums; }
+
+    .model-filter { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; margin-bottom: 0.75rem; }
+    .model-filter .label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-right: 0.2rem; }
+    .model-chip { background: var(--bg-tertiary); border: 1px solid var(--border-color); color: var(--text-secondary); border-radius: 999px; padding: 0.15rem 0.6rem; font-size: 0.7rem; cursor: pointer; user-select: none; }
+    .model-chip.hidden-model { color: var(--text-muted); text-decoration: line-through; opacity: 0.6; border-style: dashed; }
+    .model-chip .n { color: var(--text-muted); margin-left: 0.3rem; }
 
     table { width: 100%; border-collapse: collapse; background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden; }
     thead th { text-align: left; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); padding: 0.5rem 0.7rem; border-bottom: 1px solid var(--border-color); background: var(--bg-tertiary); position: sticky; top: 0; }
@@ -79,7 +110,7 @@ RF_TEMPLATE = r"""<!DOCTYPE html>
             <a href="/settings" class="nav-link">Config</a>
         </nav>
     </div>
-    <button class="theme-toggle" id="theme-toggle" title="Toggle light/dark mode">&#9728;</button>
+    <button class="theme-toggle" id="theme-toggle" title="Cycle theme: dark / light / cyberpunk">&#9728;</button>
 </header>
 
 <div class="page">
@@ -89,11 +120,12 @@ RF_TEMPLATE = r"""<!DOCTYPE html>
             <p class="note">Raw, un-deduplicated feed of everything rtl_433 decodes on 433/868 MHz -- separate from the device list. Diagnostic only: use it to see what turns up and decide what's worth building proper handling for.</p>
         </div>
         <div class="controls">
-            <span class="count"><b id="count">0</b> events</span>
+            <span class="count"><b id="count">0</b> shown <span id="count-total" style="color: var(--text-muted);"></span></span>
             <button class="btn on" id="pause-btn" onclick="togglePause()">Pause</button>
             <button class="btn" onclick="loadLog(true)">Refresh now</button>
         </div>
     </div>
+    <div class="model-filter" id="model-filter"><span class="label">Models (click to hide)</span></div>
     <div class="table-wrap">
         <table>
             <thead>
@@ -106,18 +138,41 @@ RF_TEMPLATE = r"""<!DOCTYPE html>
 
 <script>
     (function() {
-        var saved = localStorage.getItem('theme');
+        var saved = localStorage.getItem('bluewatch_theme');
         if (saved) document.documentElement.setAttribute('data-theme', saved);
     })();
     document.getElementById('theme-toggle').onclick = function() {
-        var cur = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
-        document.documentElement.setAttribute('data-theme', cur);
-        try { localStorage.setItem('theme', cur); } catch (e) {}
+        var order = ['dark', 'light', 'cyberpunk'];
+        var cur = document.documentElement.getAttribute('data-theme') || 'dark';
+        var next = order[(order.indexOf(cur) + 1) % order.length];
+        document.documentElement.setAttribute('data-theme', next);
+        try { localStorage.setItem('bluewatch_theme', next); } catch (e) {}
     };
 
     var paused = false;
     var lastMaxId = 0;
     var META_KEYS = {time:1, model:1, id:1, mic:1, protocol:1};
+
+    // Hide-by-model filter (e.g. drop a common weather station like
+    // Nexus-TH once you've seen enough of it) -- remembered per browser,
+    // same as the theme choice. Chips are rebuilt from whatever models are
+    // actually present each refresh, so new models just show up.
+    var hiddenModels = {};
+    try {
+        var storedHidden = JSON.parse(localStorage.getItem('bluewatch_rf_hidden_models') || '[]');
+        storedHidden.forEach(function(m) { hiddenModels[m] = true; });
+    } catch (e) {}
+
+    function saveHiddenModels() {
+        try { localStorage.setItem('bluewatch_rf_hidden_models', JSON.stringify(Object.keys(hiddenModels))); } catch (e) {}
+    }
+
+    function toggleModel(model) {
+        if (hiddenModels[model]) delete hiddenModels[model];
+        else hiddenModels[model] = true;
+        saveHiddenModels();
+        renderFromCache();
+    }
 
     function escapeHtml(s) {
         return String(s).replace(/[&<>"']/g, function(c) {
@@ -143,29 +198,56 @@ RF_TEMPLATE = r"""<!DOCTYPE html>
         b.classList.toggle('on', !paused);
     }
 
+    var lastEvents = [];
+
+    function renderFromCache() {
+        var events = lastEvents;
+        var counts = {};
+        events.forEach(function(e) { var m = e.model || '?'; counts[m] = (counts[m] || 0) + 1; });
+        var models = Object.keys(counts).sort();
+        var filterEl = document.getElementById('model-filter');
+        var html = '<span class="label">Models (click to hide)</span>';
+        models.forEach(function(m) {
+            html += '<span class="model-chip' + (hiddenModels[m] ? ' hidden-model' : '') + '" onclick="toggleModel(' + JSON.stringify(m) + ')">' +
+                escapeHtml(m) + '<span class="n">' + counts[m] + '</span></span>';
+        });
+        filterEl.innerHTML = html;
+
+        var visible = events.filter(function(e) { return !hiddenModels[e.model || '?']; });
+        document.getElementById('count').textContent = visible.length;
+        var totalEl = document.getElementById('count-total');
+        totalEl.textContent = visible.length !== events.length ? ('of ' + events.length) : '';
+
+        var tbody = document.getElementById('rows');
+        if (!events.length) {
+            tbody.innerHTML = '<tr><td colspan="5" class="empty">No sub-GHz events yet -- waiting for rtl_433 / RTL-SDR.</td></tr>';
+            return;
+        }
+        if (!visible.length) {
+            tbody.innerHTML = '<tr><td colspan="5" class="empty">All models currently hidden -- click a chip above to bring them back.</td></tr>';
+            return;
+        }
+        var rowsHtml = '';
+        for (var i = 0; i < visible.length; i++) {
+            var e = visible[i];
+            var isNew = e.id > lastMaxId && lastMaxId > 0;
+            rowsHtml += '<tr' + (isNew ? ' class="is-new"' : '') + '>' +
+                '<td class="t-time">' + escapeHtml(e.timestamp || '') + '</td>' +
+                '<td class="t-model">' + escapeHtml(e.model || '?') + '</td>' +
+                '<td class="t-key">' + escapeHtml(e.device_key || '') + '</td>' +
+                '<td class="t-rssi">' + (e.rssi != null ? Number(e.rssi).toFixed(1) : '-') + '</td>' +
+                '<td class="t-raw">' + fmtFields(e.raw || {}) + '</td>' +
+                '</tr>';
+        }
+        tbody.innerHTML = rowsHtml;
+    }
+
     function loadLog(force) {
         if (paused && !force) return;
         fetch('/api/rf-log?limit=300').then(function(r) { return r.json(); }).then(function(events) {
-            document.getElementById('count').textContent = events.length;
-            var tbody = document.getElementById('rows');
-            if (!events.length) {
-                tbody.innerHTML = '<tr><td colspan="5" class="empty">No sub-GHz events yet -- waiting for rtl_433 / RTL-SDR.</td></tr>';
-                return;
-            }
-            var maxId = events[0].id;
-            var html = '';
-            for (var i = 0; i < events.length; i++) {
-                var e = events[i];
-                var isNew = e.id > lastMaxId && lastMaxId > 0;
-                html += '<tr' + (isNew ? ' class="is-new"' : '') + '>' +
-                    '<td class="t-time">' + escapeHtml(e.timestamp || '') + '</td>' +
-                    '<td class="t-model">' + escapeHtml(e.model || '?') + '</td>' +
-                    '<td class="t-key">' + escapeHtml(e.device_key || '') + '</td>' +
-                    '<td class="t-rssi">' + (e.rssi != null ? Number(e.rssi).toFixed(1) : '-') + '</td>' +
-                    '<td class="t-raw">' + fmtFields(e.raw || {}) + '</td>' +
-                    '</tr>';
-            }
-            tbody.innerHTML = html;
+            var maxId = events.length ? events[0].id : lastMaxId;
+            lastEvents = events;
+            renderFromCache();
             lastMaxId = maxId;
         }).catch(function() {});
     }
