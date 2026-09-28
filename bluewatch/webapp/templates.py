@@ -1313,8 +1313,8 @@ HTML_TEMPLATE = """
                 soft: {'--bg-primary': '#e4e4e4', '--bg-secondary': '#d9d9d9', '--bg-tertiary': '#eaeaea', '--bg-hover': '#cfcfcf', '--text-primary': '#3a3a3a', '--text-secondary': '#5f5f5f', '--border-color': '#bbbbbb'},
             },
             cyberpunk: {
-                full: {'--bg-primary': '#05070d', '--bg-secondary': '#0b0f18', '--bg-tertiary': '#111827', '--bg-hover': '#182234', '--text-primary': '#d7f9ff', '--text-secondary': '#7fb8c9', '--border-color': '#1b2a3a'},
-                soft: {'--bg-primary': '#12151f', '--bg-secondary': '#181c28', '--bg-tertiary': '#1e2333', '--bg-hover': '#242a3a', '--text-primary': '#b9dee6', '--text-secondary': '#6f95a3', '--border-color': '#2a3548'},
+                full: {'--bg-primary': '#060410', '--bg-secondary': '#0a0d12', '--bg-tertiary': '#0d1117', '--bg-hover': '#131a24', '--text-primary': '#eaf6fa', '--text-secondary': '#7fa8b8', '--border-color': '#16222e'},
+                soft: {'--bg-primary': '#1a1626', '--bg-secondary': '#221c30', '--bg-tertiary': '#282136', '--bg-hover': '#332b42', '--text-primary': '#c9d8de', '--text-secondary': '#7f96a0', '--border-color': '#3a3248'},
             },
         };
 
@@ -4441,8 +4441,8 @@ SETTINGS_TEMPLATE = """
                 soft: {'--bg-primary': '#e4e4e4', '--bg-secondary': '#d9d9d9', '--bg-tertiary': '#eaeaea', '--bg-hover': '#cfcfcf', '--text-primary': '#3a3a3a', '--text-secondary': '#5f5f5f', '--border-color': '#bbbbbb'},
             },
             cyberpunk: {
-                full: {'--bg-primary': '#05070d', '--bg-secondary': '#0b0f18', '--bg-tertiary': '#111827', '--bg-hover': '#182234', '--text-primary': '#d7f9ff', '--text-secondary': '#7fb8c9', '--border-color': '#1b2a3a'},
-                soft: {'--bg-primary': '#12151f', '--bg-secondary': '#181c28', '--bg-tertiary': '#1e2333', '--bg-hover': '#242a3a', '--text-primary': '#b9dee6', '--text-secondary': '#6f95a3', '--border-color': '#2a3548'},
+                full: {'--bg-primary': '#060410', '--bg-secondary': '#0a0d12', '--bg-tertiary': '#0d1117', '--bg-hover': '#131a24', '--text-primary': '#eaf6fa', '--text-secondary': '#7fa8b8', '--border-color': '#16222e'},
+                soft: {'--bg-primary': '#1a1626', '--bg-secondary': '#221c30', '--bg-tertiary': '#282136', '--bg-hover': '#332b42', '--text-primary': '#c9d8de', '--text-secondary': '#7f96a0', '--border-color': '#3a3248'},
             },
         };
 
@@ -5475,8 +5475,8 @@ ABOUT_TEMPLATE = """
                 soft: {'--bg-primary': '#e4e4e4', '--bg-secondary': '#d9d9d9', '--bg-tertiary': '#eaeaea', '--bg-hover': '#cfcfcf', '--text-primary': '#3a3a3a', '--text-secondary': '#5f5f5f', '--border-color': '#bbbbbb'},
             },
             cyberpunk: {
-                full: {'--bg-primary': '#05070d', '--bg-secondary': '#0b0f18', '--bg-tertiary': '#111827', '--bg-hover': '#182234', '--text-primary': '#d7f9ff', '--text-secondary': '#7fb8c9', '--border-color': '#1b2a3a'},
-                soft: {'--bg-primary': '#12151f', '--bg-secondary': '#181c28', '--bg-tertiary': '#1e2333', '--bg-hover': '#242a3a', '--text-primary': '#b9dee6', '--text-secondary': '#6f95a3', '--border-color': '#2a3548'},
+                full: {'--bg-primary': '#060410', '--bg-secondary': '#0a0d12', '--bg-tertiary': '#0d1117', '--bg-hover': '#131a24', '--text-primary': '#eaf6fa', '--text-secondary': '#7fa8b8', '--border-color': '#16222e'},
+                soft: {'--bg-primary': '#1a1626', '--bg-secondary': '#221c30', '--bg-tertiary': '#282136', '--bg-hover': '#332b42', '--text-primary': '#c9d8de', '--text-secondary': '#7f96a0', '--border-color': '#3a3248'},
             },
         };
 
@@ -6865,8 +6865,8 @@ LIVE_TEMPLATE = """
                 soft: {'--bg-primary': '#e4e4e4', '--bg-secondary': '#d9d9d9', '--bg-tertiary': '#eaeaea', '--bg-hover': '#cfcfcf', '--text-primary': '#3a3a3a', '--text-secondary': '#5f5f5f', '--border-color': '#bbbbbb'},
             },
             cyberpunk: {
-                full: {'--bg-primary': '#05070d', '--bg-secondary': '#0b0f18', '--bg-tertiary': '#111827', '--bg-hover': '#182234', '--text-primary': '#d7f9ff', '--text-secondary': '#7fb8c9', '--border-color': '#1b2a3a'},
-                soft: {'--bg-primary': '#12151f', '--bg-secondary': '#181c28', '--bg-tertiary': '#1e2333', '--bg-hover': '#242a3a', '--text-primary': '#b9dee6', '--text-secondary': '#6f95a3', '--border-color': '#2a3548'},
+                full: {'--bg-primary': '#060410', '--bg-secondary': '#0a0d12', '--bg-tertiary': '#0d1117', '--bg-hover': '#131a24', '--text-primary': '#eaf6fa', '--text-secondary': '#7fa8b8', '--border-color': '#16222e'},
+                soft: {'--bg-primary': '#1a1626', '--bg-secondary': '#221c30', '--bg-tertiary': '#282136', '--bg-hover': '#332b42', '--text-primary': '#c9d8de', '--text-secondary': '#7f96a0', '--border-color': '#3a3248'},
             },
         };
 
@@ -9510,8 +9510,8 @@ LOGIN_TEMPLATE = """
                 soft: {'--bg-primary': '#e4e4e4', '--bg-secondary': '#d9d9d9', '--bg-tertiary': '#eaeaea', '--bg-hover': '#cfcfcf', '--text-primary': '#3a3a3a', '--text-secondary': '#5f5f5f', '--border-color': '#bbbbbb'},
             },
             cyberpunk: {
-                full: {'--bg-primary': '#05070d', '--bg-secondary': '#0b0f18', '--bg-tertiary': '#111827', '--bg-hover': '#182234', '--text-primary': '#d7f9ff', '--text-secondary': '#7fb8c9', '--border-color': '#1b2a3a'},
-                soft: {'--bg-primary': '#12151f', '--bg-secondary': '#181c28', '--bg-tertiary': '#1e2333', '--bg-hover': '#242a3a', '--text-primary': '#b9dee6', '--text-secondary': '#6f95a3', '--border-color': '#2a3548'},
+                full: {'--bg-primary': '#060410', '--bg-secondary': '#0a0d12', '--bg-tertiary': '#0d1117', '--bg-hover': '#131a24', '--text-primary': '#eaf6fa', '--text-secondary': '#7fa8b8', '--border-color': '#16222e'},
+                soft: {'--bg-primary': '#1a1626', '--bg-secondary': '#221c30', '--bg-tertiary': '#282136', '--bg-hover': '#332b42', '--text-primary': '#c9d8de', '--text-secondary': '#7f96a0', '--border-color': '#3a3248'},
             },
         };
 
