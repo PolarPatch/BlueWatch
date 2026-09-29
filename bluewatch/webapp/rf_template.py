@@ -82,20 +82,32 @@ RF_TEMPLATE = r"""<!DOCTYPE html>
     .model-chip.hidden-model { color: var(--text-muted); text-decoration: line-through; opacity: 0.6; border-style: dashed; }
     .model-chip .n { color: var(--text-muted); margin-left: 0.3rem; }
 
-    .priority-box { background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 8px; padding: 0.6rem 0.75rem; margin-bottom: 0.75rem; }
-    .priority-box.empty-state { display: none; }
-    .priority-head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; }
-    .priority-head .star { color: #f5c518; font-size: 0.85rem; }
-    .priority-head .title { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
-    .priority-head .hint { font-size: 0.68rem; color: var(--text-muted); }
-    .priority-clear { margin-left: auto; background: none; border: 1px solid var(--border-color); color: var(--text-secondary); border-radius: 6px; padding: 0.15rem 0.5rem; font-size: 0.68rem; cursor: pointer; font-family: var(--font-mono); }
-    .priority-list { display: flex; flex-wrap: wrap; gap: 0.5rem; }
-    .priority-card { display: flex; align-items: center; gap: 0.5rem; background: var(--bg-tertiary); border: 1px solid var(--accent-amber); border-radius: 6px; padding: 0.35rem 0.5rem; font-size: 0.72rem; }
-    .priority-card .tag { background: var(--accent-amber); color: #1a1200; font-weight: 700; font-size: 0.62rem; padding: 0.05rem 0.35rem; border-radius: 4px; letter-spacing: 0.03em; }
-    .priority-card .key { font-weight: 600; }
-    .priority-card .age { color: var(--text-muted); }
-    .priority-card .dismiss { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 0.85rem; line-height: 1; padding: 0 0.15rem; }
-    .priority-card .dismiss:hover { color: var(--text-primary); }
+    /* Same "Filters | Priority" two-column layout and class names as the
+       dashboard's own stat-pair, so the two pages read as one product. */
+    .stat-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem; align-items: stretch; }
+    @media (max-width: 900px) { .stat-pair { grid-template-columns: 1fr; } }
+    .stat-card { background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 10px; padding: 0.5rem 0.6rem; }
+    .stat-box { padding: 0.7rem 1rem; min-width: 0; }
+    .stat-cap { font-size: 0.55rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; }
+    .filters-box, .priority-card { display: flex; flex-direction: column; }
+    .filters-head { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; margin-bottom: 0.55rem; }
+    .filters-title, .priority-title { margin: 0; }
+    .filter-count { font-size: 0.72rem; color: var(--text-secondary); }
+    .filter-count b { color: var(--text-primary); font-variant-numeric: tabular-nums; }
+    .filter-checks { display: flex; flex-wrap: wrap; gap: 0.4rem 1.25rem; margin-bottom: 0.55rem; }
+    .filter-check { display: flex; align-items: center; gap: 0.4rem; font-size: 0.75rem; color: var(--text-secondary); cursor: pointer; }
+    .filter-sliders { display: grid; grid-template-columns: max-content 1fr 4.5rem; gap: 0.45rem 0.75rem; align-items: center; }
+    .filter-sliders .stat-cap { margin: 0; }
+    .filter-sliders input[type="range"] { width: 100%; min-width: 0; }
+    .slider-value { font-size: 0.75rem; color: var(--text-primary); text-align: right; white-space: nowrap; }
+    .priority-head { display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.55rem; flex-wrap: wrap; }
+    .priority-hint { font-size: 0.65rem; color: var(--text-muted); }
+    .priority-list { display: flex; flex-wrap: wrap; gap: 0.5rem; align-content: flex-start; max-height: 9rem; overflow-y: auto; }
+    .priority-clear { margin-left: auto; background: transparent; border: none; color: var(--text-muted); font-size: 0.65rem; cursor: pointer; text-decoration: underline; }
+    .priority-clear:hover { color: var(--text-primary); }
+    .priority-dismiss { position: absolute; top: 2px; right: 3px; width: 1.1rem; height: 1.1rem; padding: 0; line-height: 1; border: none; border-radius: 50%; background: transparent; color: var(--text-muted); font-size: 0.95rem; cursor: pointer; }
+    .priority-dismiss:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .priority-tag { background: var(--accent-amber); color: #1a1200; font-weight: 700; font-size: 0.62rem; padding: 0.05rem 0.35rem; border-radius: 4px; letter-spacing: 0.03em; }
 
     table { width: 100%; border-collapse: collapse; background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden; }
     thead th { text-align: left; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); padding: 0.5rem 0.7rem; border-bottom: 1px solid var(--border-color); background: var(--bg-tertiary); position: sticky; top: 0; }
@@ -139,20 +151,40 @@ RF_TEMPLATE = r"""<!DOCTYPE html>
         </div>
         <div class="controls">
             <span class="count"><b id="count">0</b> shown <span id="count-total" style="color: var(--text-muted);"></span></span>
-            <button class="btn" id="hide-weather-btn" onclick="toggleWeatherStations()">Hide weather stations</button>
             <button class="btn on" id="pause-btn" onclick="togglePause()">Pause</button>
             <button class="btn" onclick="loadLog(true)">Refresh now</button>
         </div>
     </div>
-    <div class="priority-box empty-state" id="priority-box">
-        <div class="priority-head">
-            <span class="star">&#9733;</span>
-            <span class="title">TPMS</span>
-            <span class="hint">Tyre-pressure sensors seen recently &mdash; stay until dismissed</span>
-            <button type="button" class="priority-clear" id="priority-clear-all" onclick="dismissAllTpms()" hidden>Dismiss all</button>
+
+    <div class="stat-pair">
+        <div class="stat-card stat-box filters-box">
+            <div class="filters-head">
+                <span class="stat-cap filters-title">Filters</span>
+                <span class="filter-count">All events <b id="count-events-all">0</b></span>
+            </div>
+            <div class="filter-checks">
+                <label class="filter-check" title="Hides weather-station models (Nexus-TH, LaCrosse, Bresser, Auriol, Fine Offset, etc.)">
+                    <input type="checkbox" id="hide-weather-toggle" onchange="toggleWeatherStations()">
+                    Hide weather stations
+                </label>
+            </div>
+            <div class="filter-sliders">
+                <span class="stat-cap">RSSI &ge;</span>
+                <input type="range" id="rssi-threshold" min="-100" max="0" value="-100" step="1" oninput="onRssiThresholdChange()">
+                <span id="rssi-threshold-value" class="slider-value">-100 dBm</span>
+            </div>
         </div>
-        <div class="priority-list" id="priority-list"></div>
+        <div class="stat-card stat-box priority-card" id="priority-box">
+            <div class="priority-head">
+                <span style="color: #f5c518; font-size: 0.9rem;">&#9733;</span>
+                <span class="stat-cap priority-title">TPMS</span>
+                <span class="priority-hint">Tyre-pressure sensors seen recently &mdash; stay until dismissed</span>
+                <button type="button" class="priority-clear" id="priority-clear-all" onclick="dismissAllTpms()" hidden>Dismiss all</button>
+            </div>
+            <div class="priority-list" id="priority-list"></div>
+        </div>
     </div>
+
     <div class="model-filter" id="model-filter"><span class="label">Models (click to hide)</span></div>
     <div class="table-wrap">
         <table>
@@ -218,16 +250,21 @@ RF_TEMPLATE = r"""<!DOCTYPE html>
     }
 
     function toggleWeatherStations() {
+        var checked = document.getElementById('hide-weather-toggle').checked;
         var models = {};
         lastEvents.forEach(function(e) { models[e.model || '?'] = true; });
-        var weatherModels = Object.keys(models).filter(isWeatherModel);
-        var allHidden = weatherModels.length > 0 && weatherModels.every(function(m) { return hiddenModels[m]; });
-        weatherModels.forEach(function(m) {
-            if (allHidden) delete hiddenModels[m];
-            else hiddenModels[m] = true;
+        Object.keys(models).filter(isWeatherModel).forEach(function(m) {
+            if (checked) hiddenModels[m] = true;
+            else delete hiddenModels[m];
         });
-        document.getElementById('hide-weather-btn').classList.toggle('on', !allHidden);
         saveHiddenModels();
+        renderFromCache();
+    }
+
+    var rssiFloor = -100;
+    function onRssiThresholdChange() {
+        rssiFloor = parseInt(document.getElementById('rssi-threshold').value, 10);
+        document.getElementById('rssi-threshold-value').textContent = rssiFloor + ' dBm';
         renderFromCache();
     }
 
@@ -255,7 +292,6 @@ RF_TEMPLATE = r"""<!DOCTYPE html>
     }
 
     function renderPriorityBox() {
-        var box = document.getElementById('priority-box');
         var list = document.getElementById('priority-list');
         var clearBtn = document.getElementById('priority-clear-all');
         var latestByKey = {};
@@ -268,24 +304,38 @@ RF_TEMPLATE = r"""<!DOCTYPE html>
         var cards = Object.keys(latestByKey).map(function(k) { return latestByKey[k]; })
             .sort(function(a, b) { return b.id - a.id; });
 
+        clearBtn.hidden = cards.length < 2;
         if (!cards.length) {
-            box.classList.add('empty-state');
-            clearBtn.hidden = true;
-            list.innerHTML = '';
+            list.innerHTML = '<span style="font-size: 0.72rem; color: var(--text-muted);">None right now</span>';
             return;
         }
-        box.classList.remove('empty-state');
-        clearBtn.hidden = false;
         list.innerHTML = cards.map(function(e) {
             var key = e.device_key || e.model;
-            return '<span class="priority-card">' +
-                '<span class="tag">TPMS</span>' +
-                '<span class="key">' + escapeHtml(e.model || '?') + '</span>' +
-                '<span class="age">' + escapeHtml(e.timestamp || '') + '</span>' +
-                '<button type="button" class="dismiss" title="Dismiss" onclick="dismissTpms(' + JSON.stringify(key) + ')">&times;</button>' +
-                '</span>';
+            return '<div style="position:relative; display:flex; align-items:center; gap:0.4rem; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 6px; padding: 0.3rem 1.6rem 0.3rem 0.6rem; font-size: 0.75rem;">' +
+                '<span class="priority-tag">TPMS</span>' +
+                '<span>' + escapeHtml(e.model || '?') + '</span>' +
+                '<span style="color: var(--text-muted); font-size: 0.68rem;">' + escapeHtml(e.timestamp || '') + '</span>' +
+                '<button type="button" class="priority-dismiss" title="Dismiss" data-key="' + escapeHtml(key) + '">&times;</button>' +
+                '</div>';
         }).join('');
     }
+
+    // device_key/model come from RF-decoded data (not fully trusted --
+    // a crafted transmission could in principle contain quote/angle-bracket
+    // characters), so the dismiss button carries its key via a data
+    // attribute (HTML-escaped above) rather than a string-built inline
+    // onclick handler, and this single delegated listener reads it back.
+    document.getElementById('priority-list').addEventListener('click', function(e) {
+        var btn = e.target.closest('.priority-dismiss');
+        if (btn) dismissTpms(btn.dataset.key);
+    });
+
+    // Same data-attribute + delegated-listener pattern for the model
+    // chips -- model names are also RF-decoded, not trusted input.
+    document.getElementById('model-filter').addEventListener('click', function(e) {
+        var chip = e.target.closest('.model-chip');
+        if (chip && chip.dataset.model !== undefined) toggleModel(chip.dataset.model);
+    });
 
     function escapeHtml(s) {
         return String(s).replace(/[&<>"']/g, function(c) {
@@ -322,12 +372,22 @@ RF_TEMPLATE = r"""<!DOCTYPE html>
         var filterEl = document.getElementById('model-filter');
         var html = '<span class="label">Models (click to hide)</span>';
         models.forEach(function(m) {
-            html += '<span class="model-chip' + (hiddenModels[m] ? ' hidden-model' : '') + '" onclick="toggleModel(' + JSON.stringify(m) + ')">' +
+            html += '<span class="model-chip' + (hiddenModels[m] ? ' hidden-model' : '') + '" data-model="' + escapeHtml(m) + '">' +
                 escapeHtml(m) + '<span class="n">' + counts[m] + '</span></span>';
         });
         filterEl.innerHTML = html;
 
-        var visible = events.filter(function(e) { return !hiddenModels[e.model || '?']; });
+        var weatherModelsNow = models.filter(isWeatherModel);
+        document.getElementById('hide-weather-toggle').checked =
+            weatherModelsNow.length > 0 && weatherModelsNow.every(function(m) { return hiddenModels[m]; });
+
+        document.getElementById('count-events-all').textContent = events.length;
+
+        var visible = events.filter(function(e) {
+            if (hiddenModels[e.model || '?']) return false;
+            if (e.rssi != null && e.rssi < rssiFloor) return false;
+            return true;
+        });
         document.getElementById('count').textContent = visible.length;
         var totalEl = document.getElementById('count-total');
         totalEl.textContent = visible.length !== events.length ? ('of ' + events.length) : '';
@@ -338,7 +398,7 @@ RF_TEMPLATE = r"""<!DOCTYPE html>
             return;
         }
         if (!visible.length) {
-            tbody.innerHTML = '<tr><td colspan="5" class="empty">All models currently hidden -- click a chip above to bring them back.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="5" class="empty">Nothing matches the current filters -- click a chip above or lower the RSSI floor.</td></tr>';
             return;
         }
         var rowsHtml = '';
