@@ -4416,7 +4416,7 @@ SETTINGS_TEMPLATE = """
             <div class="panel">
                 <div class="panel-header">Contrast</div>
                 <div class="panel-body">
-                    <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 1rem;">Requested in <a href="https://github.com/PolarPatch/BlueWatch/issues/2" target="_blank" rel="noopener" style="color: var(--accent-blue);">issue #2</a> for low-vision users who find plain dark/light too harsh either direction. Softens background/text/border colors within whichever theme is selected above -- 100 is the theme's normal look, lower values reduce the contrast between background and text.</p>
+                    <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 1rem;">Feature request, Contrast. Softens background/text/border within the selected theme -- 100 is normal, lower reduces contrast.</p>
                     <div style="display: flex; align-items: center; gap: 0.75rem; max-width: 26rem;">
                         <span style="font-size: 0.7rem; color: var(--text-muted);">Soft</span>
                         <input type="range" id="contrast-slider" min="0" max="100" value="100" style="flex: 1;" oninput="onContrastInput(this.value)" onchange="saveContrast(this.value)">
