@@ -3907,8 +3907,13 @@ SETTINGS_TEMPLATE = """
            own accent tokens (not WDGWars' own hex values) so it stays
            correct across dark/light/cyberpunk instead of only looking
            right in one theme. */
-        .config-hero { position: relative; padding: clamp(1.5rem, 4vw, 3rem) 1.25rem 1.25rem; border-bottom: 1px solid var(--border-color); overflow: hidden; }
+        /* Hero is a 3-column row: title, nav (wrapped to ~2 lines, about as
+           wide as the CONFIG mark itself), and a reserved empty column on
+           the right for whatever lands there next. */
+        .config-hero { position: relative; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 1rem 2rem; padding: clamp(1.5rem, 4vw, 3rem) 1.25rem 1.25rem; border-bottom: 1px solid var(--border-color); overflow: hidden; }
         .config-hero::after { content: ''; position: absolute; inset: 0; opacity: 0.035; background-image: repeating-linear-gradient(0deg, #fff 0 1px, transparent 1px 2px); pointer-events: none; }
+        .hero-title { flex: none; }
+        .hero-empty { flex: 1; min-width: 6rem; }
         .config-kana { font-size: 0.8rem; letter-spacing: 0.5em; margin-bottom: 0.4rem; color: var(--accent-cyan, var(--accent-blue)); opacity: 0.8; }
         .mark { position: relative; display: inline-block; font-family: 'Orbitron', var(--font-mono); font-weight: 900; font-size: clamp(2.2rem, 8vw, 4.5rem); line-height: 0.9; letter-spacing: 0.03em; color: var(--text-primary); cursor: default; }
         .mark::before, .mark::after, .mark i { content: attr(data-t); position: absolute; inset: 0; pointer-events: none; mix-blend-mode: screen; font-style: normal; }
@@ -3920,21 +3925,21 @@ SETTINGS_TEMPLATE = """
         @keyframes mark-c { 0%, 40% { clip-path: inset(100% 0 0 0); } 41%, 43% { clip-path: inset(58% 0 26% 0); } 44%, 78% { clip-path: inset(100% 0 0 0); } 79%, 81% { clip-path: inset(20% 0 62% 0); } 82%, 100% { clip-path: inset(100% 0 0 0); } }
         @media (prefers-reduced-motion: reduce) { .mark::before, .mark::after, .mark i { display: none; } }
 
-        /* Left-hand nav (was a horizontal tab strip -- too many tabs for
-           one line once RTL-SDR/Display were added) + right content pane. */
-        .config-shell { display: flex; align-items: flex-start; }
-        .config-nav { flex: none; width: 12rem; display: flex; flex-direction: column; gap: 0.1rem; padding: 1.25rem 0.75rem; border-right: 1px solid var(--border-color); position: sticky; top: 0; align-self: stretch; }
-        .config-nav a { color: var(--text-muted); text-decoration: none; font-size: 0.72rem; padding: 0.55rem 0.75rem; letter-spacing: 0.08em; border-left: 2px solid transparent; border-radius: 0 4px 4px 0; transition: all 0.15s; }
-        .config-nav a:hover { color: var(--text-secondary); background: var(--bg-hover); }
-        .config-nav a.active { color: var(--text-primary); border-left-color: var(--accent-red); background: var(--bg-hover); }
-        @media (max-width: 900px) {
-            .config-shell { flex-direction: column; }
-            .config-nav { width: 100%; flex-direction: row; flex-wrap: wrap; position: static; border-right: none; border-bottom: 1px solid var(--border-color); }
-            .config-nav a { border-left: none; border-bottom: 2px solid transparent; border-radius: 4px 4px 0 0; }
-            .config-nav a.active { border-left-color: transparent; border-bottom-color: var(--accent-red); }
+        /* Nav lives in the hero now (see .config-hero above), wrapped to
+           roughly the CONFIG mark's own width rather than a full-width
+           strip -- was a left sidebar, then a horizontal strip below the
+           title; both moved here per operator feedback. */
+        .config-nav { flex: 0 1 auto; display: flex; flex-wrap: wrap; align-content: flex-start; gap: 0.25rem 1rem; max-width: 20rem; padding-bottom: 0.2rem; }
+        .config-nav a { color: var(--text-muted); text-decoration: none; font-size: 0.72rem; padding: 0.2rem 0; letter-spacing: 0.08em; border-bottom: 2px solid transparent; transition: all 0.15s; }
+        .config-nav a:hover { color: var(--text-secondary); }
+        .config-nav a.active { color: var(--text-primary); border-bottom-color: var(--accent-red); }
+        @media (max-width: 700px) {
+            .config-hero { flex-direction: column; align-items: flex-start; }
+            .config-nav { max-width: none; }
+            .hero-empty { display: none; }
         }
 
-        .main { flex: 1; min-width: 0; max-width: 700px; margin: 0 auto; padding: 2rem 1.5rem; }
+        .main { max-width: 700px; margin: 0 auto; padding: 2rem 1.5rem; }
         .page-header { margin-bottom: 2rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border-color); }
         .page-title { font-size: 0.75rem;  letter-spacing: 0.15em; color: var(--text-muted); margin-bottom: 0.5rem; }
         .page-heading { font-size: 1.25rem; font-weight: 700; }
@@ -3992,25 +3997,26 @@ SETTINGS_TEMPLATE = """
     </header>
 
     <div class="config-hero">
-        <div class="config-kana">コンフィグ</div>
-        <h1 class="mark" id="config-mark" data-t="CONFIG" style="--gx: 0px; --gy: 0px;">CONFIG<i aria-hidden="true"></i></h1>
+        <div class="hero-title">
+            <div class="config-kana">コンフィグ</div>
+            <h1 class="mark" id="config-mark" data-t="CONFIG" style="--gx: 0px; --gy: 0px;">CONFIG<i aria-hidden="true"></i></h1>
+        </div>
+        <nav class="config-nav">
+            <a href="#alerts" data-tab="alerts" class="active" onclick="switchTab('alerts')">Alerts</a>
+            <a href="#operations" data-tab="operations" onclick="switchTab('operations')">Operations</a>
+            <a href="#groups" data-tab="groups" onclick="switchTab('groups')">Groups</a>
+            <a href="#classes" data-tab="classes" onclick="switchTab('classes')">Classes</a>
+            <a href="#security" data-tab="security" onclick="switchTab('security')">Security</a>
+            <a href="#wigle" data-tab="wigle" onclick="switchTab('wigle')">WiGLE</a>
+            <a href="#fastpair" data-tab="fastpair" onclick="switchTab('fastpair')">Fast Pair</a>
+            <a href="#esp32" data-tab="esp32" onclick="switchTab('esp32')">ESP32 Scanner</a>
+            <a href="#rtl433" data-tab="rtl433" onclick="switchTab('rtl433')">RTL-SDR</a>
+            <a href="#display" data-tab="display" onclick="switchTab('display')">Display</a>
+            <a href="#export" data-tab="export" onclick="switchTab('export')">Export</a>
+            <a href="#about" data-tab="about" onclick="switchTab('about')">About</a>
+        </nav>
+        <div class="hero-empty"></div>
     </div>
-
-    <div class="config-shell">
-    <nav class="config-nav">
-        <a href="#alerts" data-tab="alerts" class="active" onclick="switchTab('alerts')">Alerts</a>
-        <a href="#operations" data-tab="operations" onclick="switchTab('operations')">Operations</a>
-        <a href="#groups" data-tab="groups" onclick="switchTab('groups')">Groups</a>
-        <a href="#classes" data-tab="classes" onclick="switchTab('classes')">Classes</a>
-        <a href="#security" data-tab="security" onclick="switchTab('security')">Security</a>
-        <a href="#wigle" data-tab="wigle" onclick="switchTab('wigle')">WiGLE</a>
-        <a href="#fastpair" data-tab="fastpair" onclick="switchTab('fastpair')">Fast Pair</a>
-        <a href="#esp32" data-tab="esp32" onclick="switchTab('esp32')">ESP32 Scanner</a>
-        <a href="#rtl433" data-tab="rtl433" onclick="switchTab('rtl433')">RTL-SDR</a>
-        <a href="#display" data-tab="display" onclick="switchTab('display')">Display</a>
-        <a href="#export" data-tab="export" onclick="switchTab('export')">Export</a>
-        <a href="#about" data-tab="about" onclick="switchTab('about')">About</a>
-    </nav>
 
     <main class="main">
         <div id="status-msg" class="status-msg"></div>
@@ -4506,9 +4512,8 @@ SETTINGS_TEMPLATE = """
             </div>
         </div>
     </main>
-    </div>
 
-    
+
 
     <script>
         // Demo mode (?demo=1 before the #tab, or the bluewatch_demo_mode flag), as on the other
