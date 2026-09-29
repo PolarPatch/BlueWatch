@@ -3929,7 +3929,7 @@ SETTINGS_TEMPLATE = """
            roughly the CONFIG mark's own width rather than a full-width
            strip -- was a left sidebar, then a horizontal strip below the
            title; both moved here per operator feedback. */
-        .config-nav { flex: 0 1 auto; display: flex; flex-wrap: wrap; align-content: flex-start; gap: 0.25rem 1rem; max-width: 20rem; padding-bottom: 0.2rem; }
+        .config-nav { flex: 0 1 auto; display: flex; flex-wrap: wrap; align-content: flex-start; gap: 0.25rem 1rem; max-width: 40rem; padding-bottom: 0.2rem; }
         .config-nav a { color: var(--text-muted); text-decoration: none; font-size: 0.72rem; padding: 0.2rem 0; letter-spacing: 0.08em; border-bottom: 2px solid transparent; transition: all 0.15s; }
         .config-nav a:hover { color: var(--text-secondary); }
         .config-nav a.active { color: var(--text-primary); border-bottom-color: var(--accent-red); }
