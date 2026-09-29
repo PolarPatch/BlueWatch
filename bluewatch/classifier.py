@@ -301,6 +301,20 @@ FLIPPER_MAC_OUI = "0C:FA:22"
 # not in the IEEE MA-L registry at all, which fits a pre-assignment
 # firmware-chosen prefix rather than a registered one.
 FLIPPER_MAC_OUI_LEGACY = "80:E1:26"
+# Flock Safety ALPR (automatic license-plate reader) camera BLE radio --
+# IEEE OUI, cross-referenced against Fieldwatch's own Catalog 82 (v1.1.15,
+# 28 Sep 2026, MIT licensed): "Extra attention is IEEE B4:1E:52 and
+# Flock / FLCK / Flock-* / Condor / Falcon / Sparrow names only." Their
+# notes also mention dropping a previously-used UGSI OUI (E0:4F:43) because
+# it caused false positives on Ring- SSIDs -- that OUI is deliberately not
+# included here for the same reason.
+FLOCK_MAC_OUI = "B4:1E:52"
+# Bird-codename product lines Flock Safety names its own hardware after --
+# generic English words on their own (a real false-positive risk shared
+# with Fieldwatch's own catalog, noted here rather than silently accepted),
+# kept only because Fieldwatch's curated catalog lists them as validated
+# against real units.
+FLOCK_NAME_PATTERNS = ("flock", "flck", "condor", "falcon", "sparrow")
 # Swapfiets e-bike lock (source: blesploit device-library)
 COMPANY_ID_SWAPFIETS = 0x020F
 # Smart-lock company IDs -- each names a lock maker specifically enough to
@@ -965,6 +979,64 @@ def decode_drone_remote_id(service_data):
     return result
 
 
+# DULT (Detecting Unwanted Location Trackers) -- the IETF-standardized,
+# cross-vendor BLE advertisement any conformant tracker (Chipolo, Pebblebee,
+# and others building against the same spec, alongside Apple/Google/Samsung's
+# own networks) broadcasts while in "separated" (away-from-owner) mode.
+# Source: draft-ietf-dult-accessory-protocol-00 (IETF DULT working group,
+# 2024-11-03), Table 1 ("Location-Enabled Payload Format") and Table 3
+# ("Near-Owner Bit"), fetched and verified directly against the spec text
+# before implementing -- flagged via Fieldwatch's own Catalog 84 (v1.1.15,
+# 28 Sep 2026, MIT licensed: "DULT tracker on BLE service data FCB2 ...
+# Decode Network ID and near-owner vs separated. No Extra attention.
+# Chipolo / Pebblebee names may dual-label. A bare FCB2 UUID list does not
+# match" -- i.e. the service UUID must carry actual service-data bytes, not
+# just appear in the advertised service_uuids list with no payload).
+DULT_SERVICE_DATA_UUID_PREFIX = "0000fcb2"
+
+
+def _dult_payload(service_data: Optional[dict]) -> Optional[bytes]:
+    if not service_data:
+        return None
+    for key, value in service_data.items():
+        if key.lower().replace("-", "").startswith(DULT_SERVICE_DATA_UUID_PREFIX):
+            return value
+    return None
+
+
+def is_dult_tracker(service_data) -> bool:
+    """True if this advertisement carries a DULT location-enabled payload
+    with real data -- per the spec, the Network ID (byte 0) and near-owner
+    status (byte 1) are both REQUIRED fields, so anything shorter than 2
+    bytes isn't a real DULT advertisement (matches Fieldwatch's own "a bare
+    FCB2 UUID list does not match" note)."""
+    payload = _dult_payload(service_data)
+    return payload is not None and len(payload) >= 2
+
+
+def decode_dult_state(service_data) -> Optional[dict]:
+    """Decode a DULT advertisement's live state -- overwritten every
+    sighting, same treatment as apple_activity/samsung_status/drone_state,
+    since near-owner vs. separated is transient (the accessory's own
+    assessment of whether it's with its owner right now), not a fixed
+    device property.
+
+    network_id identifies which finding network the accessory belongs to
+    (Apple Find My, Google's network, Samsung SmartThings Find, Tile,
+    Chipolo, etc.) via a 1-byte registered value -- the IETF draft itself
+    doesn't publish the id->name table ("Section Finding Network Registry
+    has been removed" per the spec text), so this is surfaced as a raw
+    number rather than guessed at.
+    """
+    payload = _dult_payload(service_data)
+    if not payload or len(payload) < 2:
+        return None
+    return {
+        "network_id": payload[0],
+        "near_owner": bool(payload[1] & 0x01),
+    }
+
+
 # A few more Apple Continuity message types (see nccgroup/Sniffle's
 # advdata/msd_apple.py for the full reference table) that map cleanly
 # to a device type without ambiguity. AirPlay Target/Source (0x09/0x0A)
@@ -1186,7 +1258,7 @@ def classify_by_vendor_company_id(manufacturer_data: Optional[dict]) -> Optional
 # Patterns are matched case-insensitively
 # Bump this when the classification rules change: on the next start every
 # stored automatic type is recomputed in the background (manual types are kept).
-CLASSIFIER_VERSION = 4
+CLASSIFIER_VERSION = 5
 
 VENDOR_PATTERNS = [
     # Surveillance and security cameras, matched by the registered vendor name.
@@ -1676,6 +1748,12 @@ def classify_device(
     if service_data and is_drone_remote_id(service_data):
         return TYPE_DRONE
 
+    # DULT (service_data UUID 0xFCB2) -- see decode_dult_state()'s docstring.
+    # Same tier as Remote ID above: a purpose-built broadcast, no realistic
+    # false-positive risk once actual payload bytes are required.
+    if service_data and is_dult_tracker(service_data):
+        return TYPE_TRACKER
+
     # Tesla's key-fob/phone-key name pattern is checked first -- it would
     # otherwise get shadowed by the generic iBeacon manufacturer-data
     # classification below, since Tesla's BLE key broadcasts in iBeacon
@@ -1757,6 +1835,11 @@ def classify_device(
         mac_norm = mac.upper().replace("-", ":")
         if mac_norm.startswith(FLIPPER_MAC_OUI) or mac_norm.startswith(FLIPPER_MAC_OUI_LEGACY):
             return TYPE_FLIPPER
+        if mac_norm.startswith(FLOCK_MAC_OUI):
+            return TYPE_CAMERA
+
+    if name and any(p in name.lower() for p in FLOCK_NAME_PATTERNS):
+        return TYPE_CAMERA
 
     # Manufacturer-data fingerprints (AirTag/Find My, Flipper Zero, Meta
     # glasses) are the most specific signal available -- check first.

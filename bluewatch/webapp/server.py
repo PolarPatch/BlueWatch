@@ -752,6 +752,8 @@ class WebServer:
                 "drone_state_at": (device.drone_state_at.isoformat()) if device.drone_state_at else None,
                 "rf_state": device.rf_state,
                 "rf_state_at": (device.rf_state_at.isoformat()) if device.rf_state_at else None,
+                "dult_state": device.dult_state,
+                "dult_state_at": (device.dult_state_at.isoformat()) if device.dult_state_at else None,
             },
             "type_label": get_type_label(device_type),
             "uuid_names": get_uuid_names(device.service_uuids),

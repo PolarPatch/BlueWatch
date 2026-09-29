@@ -2089,6 +2089,20 @@ HTML_TEMPLATE = """
             return '<div class="detail-item full"><div class="detail-label">Sub-GHz reading (live)</div><div class="detail-value" style="font-size:0.8rem;">' + parts.join(' · ') + '</div></div>';
         }
 
+        // DULT (Detecting Unwanted Location Trackers) -- network_id is a
+        // raw registered number (the IETF spec doesn't publish the id->name
+        // table), near_owner is the accessory's own live self-assessment.
+        function dultStateHtml(d) {
+            if (!d.dult_state || !d.dult_state_at) return '';
+            const ageMs = Date.now() - new Date(d.dult_state_at).getTime();
+            if (ageMs > 30 * 60 * 1000) return '';
+            const s = d.dult_state;
+            const status = s.near_owner
+                ? '<span style="color: var(--accent-green, #3fb950);">near owner</span>'
+                : '<span style="color: var(--accent-red, #f85149);">separated</span>';
+            return '<div class="detail-item full"><div class="detail-label">DULT tracker (live)</div><div class="detail-value" style="font-size:0.8rem;">' + status + ' · network ID ' + escapeHtml(s.network_id) + '</div></div>';
+        }
+
         function showNewCategory() {
             document.getElementById('new-cat-link').hidden = true;
             const input = document.getElementById('new-category-name');
@@ -2881,6 +2895,7 @@ HTML_TEMPLATE = """
                 fastpairBatteryHtml(d) +
                 droneStateHtml(d) +
                 rfStateHtml(d) +
+                dultStateHtml(d) +
                 '<div class="detail-item"' + (d.identity_mac_count > 1 && d.identity_first_seen ? ' title="Earliest sighting across all ' + d.identity_mac_count + ' rotated addresses clustered under this identity"' : '') + '><div class="detail-label">First seen</div><div class="detail-value mono">' + (d.identity_mac_count > 1 && d.identity_first_seen ? new Date(d.identity_first_seen).toLocaleString() : (d.first_seen ? new Date(d.first_seen).toLocaleString() : '—')) + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">Last seen</div><div class="detail-value mono">' + (d.last_seen ? new Date(d.last_seen).toLocaleString() : '—') + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">Activity Pattern</div><div class="detail-value">' + (data.pattern || 'Insufficient data') + '</div></div>' +
@@ -7905,6 +7920,20 @@ LIVE_TEMPLATE = """
             return '<div class="detail-item full"><div class="detail-label">Sub-GHz reading (live)</div><div class="detail-value" style="font-size:0.8rem;">' + parts.join(' · ') + '</div></div>';
         }
 
+        // DULT (Detecting Unwanted Location Trackers) -- network_id is a
+        // raw registered number (the IETF spec doesn't publish the id->name
+        // table), near_owner is the accessory's own live self-assessment.
+        function dultStateHtml(d) {
+            if (!d.dult_state || !d.dult_state_at) return '';
+            const ageMs = Date.now() - new Date(d.dult_state_at).getTime();
+            if (ageMs > 30 * 60 * 1000) return '';
+            const s = d.dult_state;
+            const status = s.near_owner
+                ? '<span style="color: var(--accent-green, #3fb950);">near owner</span>'
+                : '<span style="color: var(--accent-red, #f85149);">separated</span>';
+            return '<div class="detail-item full"><div class="detail-label">DULT tracker (live)</div><div class="detail-value" style="font-size:0.8rem;">' + status + ' · network ID ' + escapeHtml(s.network_id) + '</div></div>';
+        }
+
         function showNewCategory() {
             document.getElementById('new-cat-link').hidden = true;
             const input = document.getElementById('new-category-name');
@@ -8593,6 +8622,7 @@ LIVE_TEMPLATE = """
                 fastpairBatteryHtml(d) +
                 droneStateHtml(d) +
                 rfStateHtml(d) +
+                dultStateHtml(d) +
                 '<div class="detail-item"' + (d.identity_mac_count > 1 && d.identity_first_seen ? ' title="Earliest sighting across all ' + d.identity_mac_count + ' rotated addresses clustered under this identity"' : '') + '><div class="detail-label">First seen</div><div class="detail-value mono">' + (d.identity_mac_count > 1 && d.identity_first_seen ? new Date(d.identity_first_seen).toLocaleString() : (d.first_seen ? new Date(d.first_seen).toLocaleString() : '—')) + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">Last seen</div><div class="detail-value mono">' + (d.last_seen ? new Date(d.last_seen).toLocaleString() : '—') + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">Activity Pattern</div><div class="detail-value">' + (data.pattern || 'Insufficient data') + '</div></div>' +

@@ -51,6 +51,8 @@ class Device:
     drone_state_at: Optional[datetime] = None  # When drone_state was last updated
     rf_state: Optional[dict] = None  # Latest decoded sub-GHz (rtl_433) sensor reading -- temperature/humidity/battery/etc, only for bt_type='rf' -- overwritten every sighting
     rf_state_at: Optional[datetime] = None  # When rf_state was last updated
+    dult_state: Optional[dict] = None  # Latest decoded DULT (Detecting Unwanted Location Trackers) snapshot -- network_id/near_owner -- overwritten every sighting
+    dult_state_at: Optional[datetime] = None  # When dult_state was last updated
     group_id: Optional[int] = None  # Device group (category or subcategory)
     notes: Optional[str] = None  # Operator notes
     new_device_notified: bool = True  # Whether new-device notification has been sent
@@ -454,6 +456,11 @@ async def init_db() -> None:
             # etc. Only ever set for bt_type='rf' devices.
             ("rf_state", "TEXT"),
             ("rf_state_at", "TIMESTAMP"),
+            # Same overwritten-every-sighting treatment, for decoded DULT
+            # (Detecting Unwanted Location Trackers) state -- network_id and
+            # near-owner/separated (classifier.decode_dult_state).
+            ("dult_state", "TEXT"),
+            ("dult_state_at", "TIMESTAMP"),
             # How identity_id was set, so a weaker match can be shown/trusted
             # differently than a stronger one: 'irk' (cryptographic, from a
             # taught IRK key -- definitive), 'name' (matching advertised name
@@ -563,6 +570,13 @@ def _parse_device_row(row) -> Device:
         except (json.JSONDecodeError, TypeError):
             pass
 
+    dult_state = None
+    if "dult_state" in keys and row["dult_state"]:
+        try:
+            dult_state = json.loads(row["dult_state"])
+        except (json.JSONDecodeError, TypeError):
+            pass
+
     return Device(
         mac=row["mac"],
         vendor=row["vendor"],
@@ -628,6 +642,11 @@ def _parse_device_row(row) -> Device:
         rf_state_at=(
             datetime.fromisoformat(row["rf_state_at"])
             if "rf_state_at" in keys and row["rf_state_at"] else None
+        ),
+        dult_state=dult_state,
+        dult_state_at=(
+            datetime.fromisoformat(row["dult_state_at"])
+            if "dult_state_at" in keys and row["dult_state_at"] else None
         ),
     )
 
@@ -1193,7 +1212,7 @@ async def upsert_device(
 
     Returns tuple of (device, is_new) where is_new indicates first sighting.
     """
-    from .classifier import identify_apple_model, decode_apple_activity, decode_samsung_status, identify_apple_unknown_label, decode_drone_remote_id
+    from .classifier import identify_apple_model, decode_apple_activity, decode_samsung_status, identify_apple_unknown_label, decode_drone_remote_id, decode_dult_state
     from .fastpair_models import identify_fastpair_device, decode_fastpair_battery
     from . import company_identifiers
 
@@ -1263,6 +1282,9 @@ async def upsert_device(
 
     drone_state = decode_drone_remote_id(service_data) if service_data else None
     drone_state_json = json.dumps(drone_state) if drone_state else None
+
+    dult_state = decode_dult_state(service_data) if service_data else None
+    dult_state_json = json.dumps(dult_state) if dult_state else None
     rf_state_json = json.dumps(rf_state) if rf_state else None
 
     # A cryptographic IRK match (if any key is configured and resolves this
@@ -1434,6 +1456,12 @@ async def upsert_device(
                 updates.append("rf_state_at = ?")
                 params.append(now.isoformat())
 
+            if dult_state_json is not None:
+                updates.append("dult_state = ?")
+                params.append(dult_state_json)
+                updates.append("dult_state_at = ?")
+                params.append(now.isoformat())
+
             # An IRK match always wins over whatever identity_id (if any)
             # the device already had -- it's a proof, not a guess.
             existing_identity_id = existing["identity_id"] if "identity_id" in existing.keys() else None
@@ -1470,8 +1498,8 @@ async def upsert_device(
             # Insert new device
             await db.execute(
                 """
-                INSERT INTO devices (mac, vendor, friendly_name, first_seen, last_seen, total_sightings, service_uuids, bt_type, device_class, manufacturer_data, service_data, appearance, new_device_notified, apple_activity, apple_activity_at, samsung_status, samsung_status_at, fastpair_battery, fastpair_battery_at, drone_state, drone_state_at, rf_state, rf_state_at)
-                VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO devices (mac, vendor, friendly_name, first_seen, last_seen, total_sightings, service_uuids, bt_type, device_class, manufacturer_data, service_data, appearance, new_device_notified, apple_activity, apple_activity_at, samsung_status, samsung_status_at, fastpair_battery, fastpair_battery_at, drone_state, drone_state_at, rf_state, rf_state_at, dult_state, dult_state_at)
+                VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     mac, insert_vendor, friendly_name, now.isoformat(), now.isoformat(), uuids_json, bt_type,
@@ -1481,6 +1509,7 @@ async def upsert_device(
                     fastpair_battery_json, now.isoformat() if fastpair_battery_json else None,
                     drone_state_json, now.isoformat() if drone_state_json else None,
                     rf_state_json, now.isoformat() if rf_state_json else None,
+                    dult_state_json, now.isoformat() if dult_state_json else None,
                 )
             )
 
