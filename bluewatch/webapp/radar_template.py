@@ -90,6 +90,21 @@ RADAR_TEMPLATE = r"""<!DOCTYPE html>
     .feed .ev.alert .kind { color: #f85149; }
     .feed .empty { color: var(--text-muted); padding: 0.15rem 0.2rem; }
     .legend i { display: inline-block; width: 0.6rem; height: 0.6rem; border-radius: 50%; margin-right: 0.35rem; vertical-align: baseline; }
+
+    /* Fullscreen mode: canvas only, everything else hidden -- a small
+       floating exit button replaces the (now-hidden) header/controls,
+       since Esc alone isn't discoverable on a touch display. */
+    body.radar-fullscreen .topbar,
+    body.radar-fullscreen .radar-head,
+    body.radar-fullscreen .radar-foot,
+    body.radar-fullscreen .legend,
+    body.radar-fullscreen .feed-title,
+    body.radar-fullscreen .feed { display: none; }
+    body.radar-fullscreen .radar-page { max-width: none; padding: 0; margin: 0; }
+    body.radar-fullscreen .radar-wrap { height: 100vh; }
+    body.radar-fullscreen #radar { height: 100vh; }
+    .fs-exit { display: none; position: fixed; top: 0.75rem; right: 0.75rem; z-index: 5; }
+    body.radar-fullscreen .fs-exit { display: block; }
 </style>
 </head>
 <body>
@@ -130,12 +145,14 @@ RADAR_TEMPLATE = r"""<!DOCTYPE html>
             <button class="btn" id="btn-zoom-out" title="Zoom out">&minus;</button>
             <button class="btn" id="btn-zoom-in" title="Zoom in">+</button>
             <button class="btn" id="btn-reset" title="Reset zoom">Reset</button>
+            <button class="btn" id="btn-fullscreen" title="Fullscreen: radar only, no text">&#10021; Fullscreen</button>
         </div>
     </div>
 
     <div class="radar-wrap">
         <canvas id="radar"></canvas>
         <div class="info" id="info" hidden></div>
+        <button class="btn fs-exit" id="btn-fs-exit" title="Exit fullscreen (Esc)">&times; Exit</button>
     </div>
     <div class="radar-foot" id="foot">Loading&hellip;</div>
     <div class="legend" id="legend"></div>
@@ -290,7 +307,9 @@ RADAR_TEMPLATE = r"""<!DOCTYPE html>
         const wrap = canvas.parentElement;
         dpr = window.devicePixelRatio || 1;
         W = wrap.clientWidth;
-        H = Math.max(480, Math.min(window.innerHeight - 250, 820));
+        H = document.body.classList.contains('radar-fullscreen')
+            ? window.innerHeight
+            : Math.max(480, Math.min(window.innerHeight - 250, 820));
         canvas.width = Math.round(W * dpr);
         canvas.height = Math.round(H * dpr);
         canvas.style.height = H + 'px';
@@ -575,6 +594,31 @@ RADAR_TEMPLATE = r"""<!DOCTYPE html>
     document.getElementById('window').onchange = ev => { windowSec = parseInt(ev.target.value, 10); resetBaseline(); load(); };
     document.getElementById('hide-unknown').onchange = updateSummary;
     document.getElementById('hide-random').onchange = updateSummary;
+
+    // ----- fullscreen: real Fullscreen API (hides browser chrome too) +
+    // a body class that hides everything but the canvas. Synced to the
+    // fullscreenchange event so pressing Esc (leaving fullscreen the
+    // normal way) also restores the header/controls, not just our own
+    // exit button.
+    function setRadarFullscreen(on) {
+        document.body.classList.toggle('radar-fullscreen', on);
+        resize();
+    }
+    function enterFullscreen() {
+        const el = document.documentElement;
+        const req = el.requestFullscreen || el.webkitRequestFullscreen;
+        if (req) req.call(el).catch(() => {});
+        setRadarFullscreen(true);
+    }
+    function exitFullscreen() {
+        const exit = document.exitFullscreen || document.webkitExitFullscreen;
+        if ((document.fullscreenElement || document.webkitFullscreenElement) && exit) exit.call(document).catch(() => {});
+        setRadarFullscreen(false);
+    }
+    document.getElementById('btn-fullscreen').onclick = enterFullscreen;
+    document.getElementById('btn-fs-exit').onclick = exitFullscreen;
+    document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement) setRadarFullscreen(false); });
+    document.addEventListener('webkitfullscreenchange', () => { if (!document.webkitFullscreenElement) setRadarFullscreen(false); });
 
     resize();
     load();
