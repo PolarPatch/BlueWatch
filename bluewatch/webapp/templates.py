@@ -3755,7 +3755,10 @@ SETTINGS_TEMPLATE = """
         .theme-toggle { background: transparent; border: 1px solid var(--border-color); color: var(--text-secondary); font-family: var(--font-mono); font-size: 0.75rem; padding: 0.3rem 0.5rem; cursor: pointer; border-radius: 6px; transition: all 0.1s; }
         .theme-toggle:hover { color: var(--text-primary); border-color: var(--border-active, #999); }
 
-        .config-nav { background: var(--bg-secondary); border-bottom: 1px solid var(--border-color); display: flex; justify-content: center; gap: 0; }
+        .config-nav { background: var(--bg-secondary); border-bottom: 1px solid var(--border-color); display: flex; flex-wrap: wrap; justify-content: center; gap: 0; }
+        #external-ble-status { display: grid; grid-template-columns: minmax(110px, 1fr) minmax(0, 2fr); gap: 0; margin-top: 1.5rem; font-size: 0.8rem; letter-spacing: 0; }
+        #external-ble-status dt, #external-ble-status dd { margin: 0; padding: 0.7rem 0; border-bottom: 1px solid var(--border-color); overflow-wrap: anywhere; }
+        #external-ble-status dt { color: var(--text-muted); text-transform: capitalize; }
         .config-nav a { color: var(--text-muted); text-decoration: none; font-size: 0.7rem; padding: 0.75rem 1.25rem;  letter-spacing: 0.1em; border-bottom: 2px solid transparent; transition: all 0.15s; }
         .config-nav a:hover { color: var(--text-secondary); }
         .config-nav a.active { color: var(--text-primary); border-bottom-color: var(--accent-red); }
@@ -3826,6 +3829,7 @@ SETTINGS_TEMPLATE = """
         <a href="#fastpair" data-tab="fastpair" onclick="switchTab('fastpair')">Fast Pair</a>
         <a href="#esp32" data-tab="esp32" onclick="switchTab('esp32')">ESP32 Scanner</a>
         <a href="#rtl433" data-tab="rtl433" onclick="switchTab('rtl433')">RTL-SDR</a>
+        <a href="#external-ble" data-tab="external-ble" onclick="switchTab('external-ble')">External BLE</a>
         <a href="#export" data-tab="export" onclick="switchTab('export')">Export</a>
         <a href="#about" data-tab="about" onclick="switchTab('about')">About</a>
     </nav>
@@ -4171,6 +4175,25 @@ SETTINGS_TEMPLATE = """
             </div>
         </div>
 
+        <!-- External BLE Tab -->
+        <div class="config-tab" id="tab-external-ble">
+            <div class="page-header">
+                <div class="page-title">System Configuration</div>
+                <h1 class="page-heading">External BLE</h1>
+            </div>
+            <div class="panel">
+                <div class="panel-header">Observation Receiver</div>
+                <div class="panel-body">
+                    <label class="form-check" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                        <input type="checkbox" id="external-ble-enabled" onchange="saveExternalBleEnabled()">
+                        <span>Accept authenticated observations from external scanners</span>
+                    </label>
+                    <div class="form-hint" style="margin-top: 0.75rem;">Set <code>BLUEWATCH_INGEST_TOKEN</code> to a random value of at least 32 characters before enabling a sender.</div>
+                </div>
+            </div>
+            <dl id="external-ble-status"></dl>
+        </div>
+
         <!-- Export Tab -->
         <div class="config-tab" id="tab-export">
             <div class="page-header">
@@ -4263,6 +4286,20 @@ SETTINGS_TEMPLATE = """
         applyTheme(localStorage.getItem('bluewatch_theme') || 'dark');
 
         function switchTab(tab) {
+            if (tab === 'external-ble') {
+                fetch('/api/external-ble/status').then(r => r.json()).then(data => {
+                    document.getElementById('external-ble-enabled').checked = !!data.enabled;
+                    const target = document.getElementById('external-ble-status');
+                    target.replaceChildren();
+                    Object.entries(data).forEach(([key, value]) => {
+                        const label = document.createElement('dt');
+                        label.textContent = key.replaceAll('_', ' ');
+                        const detail = document.createElement('dd');
+                        detail.textContent = key === 'last_batch' && value ? new Date(value).toLocaleString() : Array.isArray(value) ? value.join(', ') : String(value ?? 'Never');
+                        target.append(label, detail);
+                    });
+                });
+            }
             document.querySelectorAll('.config-tab').forEach(function(t) { t.style.display = 'none'; });
             document.querySelectorAll('.config-nav a').forEach(function(a) { a.classList.remove('active'); });
             var tabEl = document.getElementById('tab-' + tab);
@@ -4270,6 +4307,27 @@ SETTINGS_TEMPLATE = """
             var navEl = document.querySelector('[data-tab="' + tab + '"]');
             if (navEl) navEl.classList.add('active');
             history.replaceState(null, '', '#' + tab);
+        }
+
+        async function saveExternalBleEnabled() {
+            const checkbox = document.getElementById('external-ble-enabled');
+            const enabled = checkbox.checked;
+            checkbox.disabled = true;
+            try {
+                const response = await fetch('/api/external-ble/enabled', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ enabled: enabled })
+                });
+                if (!response.ok) throw new Error('save failed');
+                showStatus(enabled ? 'External BLE receiver enabled' : 'External BLE receiver disabled', 'success');
+                switchTab('external-ble');
+            } catch (error) {
+                checkbox.checked = !enabled;
+                showStatus('Error saving external BLE receiver setting', 'error');
+            } finally {
+                checkbox.disabled = false;
+            }
         }
 
         async function loadSettings() {
@@ -5008,7 +5066,7 @@ SETTINGS_TEMPLATE = """
 
         // Tab routing: read hash on load, default to alerts
         var hash = window.location.hash.replace('#', '') || 'alerts';
-        switchTab(['alerts', 'operations', 'groups', 'classes', 'security', 'wigle', 'fastpair', 'esp32', 'export', 'about'].indexOf(hash) !== -1 ? hash : 'alerts');
+        switchTab(['alerts', 'operations', 'groups', 'classes', 'security', 'wigle', 'fastpair', 'esp32', 'rtl433', 'external-ble', 'export', 'about'].indexOf(hash) !== -1 ? hash : 'alerts');
 
         loadSettings();
         loadAuthStatus();

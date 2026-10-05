@@ -23,6 +23,7 @@ services:
     #   - BLUEWATCH_HEARTBEAT_URL=https://hc-ping.com/your-uuid  # Heartbeat check-in URL
     #   - BLUEWATCH_HEARTBEAT_INTERVAL=300                        # Heartbeat interval in seconds
     #   - BLUEWATCH_PRUNE_DAYS=90                                 # Auto-delete sightings older than N days
+    #   - BLUEWATCH_INGEST_TOKEN=replace-with-at-least-32-random-characters
 
     # Web dashboard available at http://localhost:8080
 

@@ -147,6 +147,7 @@ CREATE TABLE IF NOT EXISTS sightings (
     mac TEXT NOT NULL,
     timestamp TIMESTAMP NOT NULL,
     rssi INTEGER,
+    source TEXT,
     FOREIGN KEY (mac) REFERENCES devices(mac)
 );
 
@@ -161,6 +162,16 @@ CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
     value TEXT
 );
+
+CREATE TABLE IF NOT EXISTS external_ble_receipts (
+    key TEXT PRIMARY KEY,
+    source TEXT NOT NULL,
+    address TEXT NOT NULL,
+    observed_at TEXT NOT NULL,
+    received_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS external_ble_received
+    ON external_ble_receipts(received_at);
 
 -- Type alerts (Config > Alerts type list, e.g. drone/flipper/camera) that stay
 -- on the dashboard until someone dismisses them, even after the device is gone.
@@ -393,6 +404,13 @@ async def init_db() -> None:
         await _enable_wal(db)
         await _check_and_repair_integrity(db)
         await db.executescript(SCHEMA)
+
+        sighting_columns = {
+            row[1]
+            for row in await (await db.execute("PRAGMA table_info(sightings)")).fetchall()
+        }
+        if "source" not in sighting_columns:
+            await db.execute("ALTER TABLE sightings ADD COLUMN source TEXT")
 
         # Migrations for devices table columns
         migrations = [
@@ -1172,7 +1190,10 @@ async def upsert_device(
     service_data: Optional[dict] = None,
     appearance: Optional[int] = None,
     rf_state: Optional[dict] = None,
-) -> tuple[Device, bool]:
+    observed_at: Optional[datetime] = None,
+    ingest_key: Optional[str] = None,
+    ingest_source: Optional[str] = None,
+) -> tuple[Optional[Device], bool]:
     """Insert or update a device and record a sighting.
 
     Returns tuple of (device, is_new) where is_new indicates first sighting.
@@ -1181,7 +1202,7 @@ async def upsert_device(
     from .fastpair_models import identify_fastpair_device, decode_fastpair_battery
     from . import company_identifiers
 
-    now = datetime.now()
+    now = observed_at or datetime.now()
     uuids_json = json.dumps(service_uuids) if service_uuids else None
     mfg_json = (
         json.dumps({str(k): v.hex() for k, v in manufacturer_data.items()})
@@ -1259,6 +1280,26 @@ async def upsert_device(
 
     async with _connect() as db:
         db.row_factory = aiosqlite.Row
+        if ingest_key:
+            await db.execute("BEGIN IMMEDIATE")
+            cursor = await db.execute(
+                "INSERT OR IGNORE INTO external_ble_receipts "
+                "(key, source, address, observed_at, received_at) VALUES (?, ?, ?, ?, ?)",
+                (
+                    ingest_key,
+                    ingest_source,
+                    mac,
+                    now.isoformat(),
+                    datetime.now().isoformat(),
+                ),
+            )
+            if cursor.rowcount == 0:
+                await db.rollback()
+                return None, False
+            await db.execute(
+                "DELETE FROM external_ble_receipts WHERE received_at < ?",
+                ((datetime.now() - timedelta(hours=1)).isoformat(),),
+            )
         # Check if device exists
         async with db.execute("SELECT * FROM devices WHERE mac = ?", (mac,)) as cursor:
             existing = await cursor.fetchone()
@@ -1267,7 +1308,7 @@ async def upsert_device(
 
         if existing:
             # Build update based on what we have
-            updates = ["last_seen = ?", "total_sightings = total_sightings + 1"]
+            updates = ["last_seen = MAX(last_seen, ?)", "total_sightings = total_sightings + 1"]
             params = [now.isoformat()]
 
             # Update friendly_name if we have one and device doesn't
@@ -1596,8 +1637,8 @@ async def upsert_device(
 
         # Record sighting
         await db.execute(
-            "INSERT INTO sightings (mac, timestamp, rssi) VALUES (?, ?, ?)",
-            (mac, now.isoformat(), rssi)
+            "INSERT INTO sightings (mac, timestamp, rssi, source) VALUES (?, ?, ?, ?)",
+            (mac, now.isoformat(), rssi, ingest_source)
         )
         await db.execute(
             "INSERT OR IGNORE INTO hourly_seen (hour, mac) VALUES (?, ?)",
@@ -2460,6 +2501,28 @@ async def set_fastpair_settings(enabled: bool) -> None:
     async with _connect() as db:
         await db.execute(
             "INSERT OR REPLACE INTO settings (key, value) VALUES ('fastpair_enabled', ?)",
+            ("1" if enabled else "0",),
+        )
+        await db.commit()
+
+
+async def get_external_ble_ingest_enabled() -> bool:
+    """Return whether the external observation receiver accepts batches."""
+    async with _connect() as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT value FROM settings WHERE key = 'external_ble_ingest_enabled'"
+        ) as cursor:
+            row = await cursor.fetchone()
+    return row is None or row["value"] == "1"
+
+
+async def set_external_ble_ingest_enabled(enabled: bool) -> None:
+    """Persist the external observation receiver kill switch."""
+    async with _connect() as db:
+        await db.execute(
+            "INSERT OR REPLACE INTO settings (key, value) "
+            "VALUES ('external_ble_ingest_enabled', ?)",
             ("1" if enabled else "0",),
         )
         await db.commit()
