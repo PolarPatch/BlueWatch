@@ -200,6 +200,16 @@ The web dashboard will be available at **http://localhost:8080**
 | `BLUEWATCH_HEARTBEAT_INTERVAL` | `300` | Seconds between heartbeat check-ins |
 | `BLUEWATCH_PRUNE_DAYS` | `0` (disabled) | Auto-delete sightings older than N days to free storage |
 | `BLUEWATCH_PRUNE_MIN_SIGHTINGS` | `0` (disabled) | When >0, prune whole stale devices (older than `BLUEWATCH_PRUNE_DAYS` and with fewer than N total sightings) instead of only trimming old sighting rows; watched devices are never pruned |
+| `BLUEWATCH_INGEST_TOKEN` | disabled | Dedicated bearer token for the external BLE observation receiver. Use at least 32 random characters. |
+
+### External BLE observations
+
+BlueWatch can accept passive observations from a separate scanner or bridge at
+`POST /api/v1/observations/ble`. Set `BLUEWATCH_INGEST_TOKEN`, then enable or
+disable the receiver under **Config > External BLE**. The receiver is bounded,
+validates observation timestamps, preserves scanner source and radio time, and
+deduplicates retries. The legacy `/api/ingest/ble` route remains available for
+initial bridge migrations.
 
 ### Bluetooth Adapter Requirements
 

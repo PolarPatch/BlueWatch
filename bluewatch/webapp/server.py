@@ -34,6 +34,9 @@ ASSETS_DIR = Path(__file__).resolve().parent.parent / "assets"
 # initial-setup flow works; the handler itself enforces that credentials can
 # only be *changed* by an already-authenticated user.
 PUBLIC_PATHS = frozenset({
+    "/api/v1/observations/ble",
+    "/api/v1/observations/ble/capabilities",
+    "/api/ingest/ble",
     "/login",
     "/api/auth/login",
     "/api/auth/logout",
@@ -143,6 +146,23 @@ class WebServer:
         self._setup_routes()
 
     def _setup_routes(self):
+        from ..ingest import ExternalBleIngestion
+
+        self._external_ble_ingestion = ExternalBleIngestion(self)
+        self.app.router.add_post(
+            "/api/v1/observations/ble", self._external_ble_ingestion.ingest
+        )
+        self.app.router.add_get(
+            "/api/v1/observations/ble/capabilities",
+            self._external_ble_ingestion.capabilities,
+        )
+        self.app.router.add_post("/api/ingest/ble", self._external_ble_ingestion.ingest)
+        self.app.router.add_get(
+            "/api/external-ble/status", self._external_ble_ingestion.status
+        )
+        self.app.router.add_post(
+            "/api/external-ble/enabled", self._external_ble_ingestion.set_enabled
+        )
         self.app.router.add_get("/", self.live_page)
         self.app.router.add_get("/login", self.login_page)
         self.app.router.add_get("/settings", self.settings_page)
