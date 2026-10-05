@@ -864,7 +864,10 @@ async def get_devices_page(
     )
 
     base_query = "FROM devices d LEFT JOIN device_groups g ON g.id = d.group_id"
-    order_clause = f" ORDER BY {sort_expr} {direction}, d.mac ASC"
+    if sort_column == "rssi":
+        order_clause = f" ORDER BY ({sort_expr}) IS NULL ASC, {sort_expr} {direction}, d.mac ASC"
+    else:
+        order_clause = f" ORDER BY {sort_expr} {direction}, d.mac ASC"
 
     async with _connect() as db:
         db.row_factory = aiosqlite.Row
@@ -916,7 +919,10 @@ async def get_devices_export(
     )
 
     base_query = "FROM devices d LEFT JOIN device_groups g ON g.id = d.group_id"
-    order_clause = f" ORDER BY {sort_expr} {direction}, d.mac ASC"
+    if sort_column == "rssi":
+        order_clause = f" ORDER BY ({sort_expr}) IS NULL ASC, {sort_expr} {direction}, d.mac ASC"
+    else:
+        order_clause = f" ORDER BY {sort_expr} {direction}, d.mac ASC"
 
     async with _connect() as db:
         db.row_factory = aiosqlite.Row
