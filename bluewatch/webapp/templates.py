@@ -1036,7 +1036,7 @@ HTML_TEMPLATE = """
         }
 
         .rssi-chart svg { width: 100%; height: 100%; }
-        .rssi-line { fill: none; stroke: #ffffff; stroke-width: 1.5; }
+        .rssi-line { fill: none; stroke: var(--text-primary); stroke-width: 1.5; }
         .rssi-area { fill: url(#rssiGradient); }
         .rssi-label { font-size: 0.55rem; fill: var(--text-muted); }
 
@@ -3514,12 +3514,12 @@ HTML_TEMPLATE = """
 
             container.innerHTML = '<svg viewBox="0 0 ' + width + ' ' + height + '" preserveAspectRatio="none">' +
                 '<defs><linearGradient id="rssiGradient" x1="0%" y1="0%" x2="0%" y2="100%">' +
-                '<stop offset="0%" style="stop-color: #ffffff; stop-opacity: 0.25"/>' +
-                '<stop offset="100%" style="stop-color: #ffffff; stop-opacity: 0.03"/>' +
+                '<stop offset="0%" style="stop-color: var(--text-primary); stop-opacity: 0.25"/>' +
+                '<stop offset="100%" style="stop-color: var(--text-primary); stop-opacity: 0.03"/>' +
                 '</linearGradient></defs>' +
                 grid +
                 '<path class="rssi-area" d="' + areaPath + '"/>' +
-                '<path class="rssi-line" d="' + linePath + '" style="stroke: #ffffff;"/>' +
+                '<path class="rssi-line" d="' + linePath + '"/>' +
                 '<text class="rssi-label" x="' + padding.left + '" y="' + (height - 2) + '">' + formatTime(firstTime) + '</text>' +
                 '<text class="rssi-label" x="' + (width - padding.right) + '" y="' + (height - 2) + '" text-anchor="end">' + formatTime(lastTime) + '</text>' +
                 '</svg>';
@@ -3677,7 +3677,7 @@ HTML_TEMPLATE = """
                 return padding.top + (1 - (clamped - minRssi) / (maxRssi - minRssi)) * (height - padding.top - padding.bottom);
             };
             const lastRssi = sightings[sightings.length - 1].rssi;
-            const lineColor = "#ffffff";  // matches the reference card exactly -- no quality-color coding
+            const lineColor = "var(--text-primary)";
             const linePath = sightings.map((s, i) => (i === 0 ? "M" : "L") + xScale(i) + "," + yScale(s.rssi)).join(" ");
             const areaPath = linePath + " L" + xScale(sightings.length - 1) + "," + (height - padding.bottom) + " L" + padding.left + "," + (height - padding.bottom) + " Z";
 
@@ -6739,7 +6739,7 @@ LIVE_TEMPLATE = """
         }
 
         .rssi-chart svg { width: 100%; height: 100%; }
-        .rssi-line { fill: none; stroke: #ffffff; stroke-width: 1.5; }
+        .rssi-line { fill: none; stroke: var(--text-primary); stroke-width: 1.5; }
         .rssi-area { fill: url(#rssiGradient); }
         .rssi-label { font-size: 0.55rem; fill: var(--text-muted); }
 
@@ -9261,12 +9261,12 @@ LIVE_TEMPLATE = """
 
             container.innerHTML = '<svg viewBox="0 0 ' + width + ' ' + height + '" preserveAspectRatio="none">' +
                 '<defs><linearGradient id="rssiGradient" x1="0%" y1="0%" x2="0%" y2="100%">' +
-                '<stop offset="0%" style="stop-color: #ffffff; stop-opacity: 0.25"/>' +
-                '<stop offset="100%" style="stop-color: #ffffff; stop-opacity: 0.03"/>' +
+                '<stop offset="0%" style="stop-color: var(--text-primary); stop-opacity: 0.25"/>' +
+                '<stop offset="100%" style="stop-color: var(--text-primary); stop-opacity: 0.03"/>' +
                 '</linearGradient></defs>' +
                 grid +
                 '<path class="rssi-area" d="' + areaPath + '"/>' +
-                '<path class="rssi-line" d="' + linePath + '" style="stroke: #ffffff;"/>' +
+                '<path class="rssi-line" d="' + linePath + '"/>' +
                 '<text class="rssi-label" x="' + padding.left + '" y="' + (height - 2) + '">' + formatTime(firstTime) + '</text>' +
                 '<text class="rssi-label" x="' + (width - padding.right) + '" y="' + (height - 2) + '" text-anchor="end">' + formatTime(lastTime) + '</text>' +
                 '</svg>';
@@ -9424,7 +9424,7 @@ LIVE_TEMPLATE = """
                 return padding.top + (1 - (clamped - minRssi) / (maxRssi - minRssi)) * (height - padding.top - padding.bottom);
             };
             const lastRssi = sightings[sightings.length - 1].rssi;
-            const lineColor = "#ffffff";  // matches the reference card exactly -- no quality-color coding
+            const lineColor = "var(--text-primary)";
             const linePath = sightings.map((s, i) => (i === 0 ? "M" : "L") + xScale(i) + "," + yScale(s.rssi)).join(" ");
             const areaPath = linePath + " L" + xScale(sightings.length - 1) + "," + (height - padding.bottom) + " L" + padding.left + "," + (height - padding.bottom) + " Z";
 
