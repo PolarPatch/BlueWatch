@@ -1212,7 +1212,7 @@ HTML_TEMPLATE = """
                             <th class="sortable" data-sort="mac">Address<span class="sort-indicator"></span></th>
                             <th class="sortable" data-sort="identifier">Identifier<span class="sort-indicator"></span></th>
                             <th class="sortable" data-sort="vendor">Vendor<span class="sort-indicator"></span></th>
-                            <th>RSSI</th>
+                            <th class="sortable" data-sort="rssi">RSSI<span class="sort-indicator"></span></th>
                             <th class="sortable" data-sort="sightings">Sightings<span class="sort-indicator"></span></th>
                             <th class="sortable" data-sort="last_seen">Last seen<span class="sort-indicator"></span></th>
                             <th class="sortable" data-sort="group">Group<span class="sort-indicator"></span></th>
@@ -2482,6 +2482,8 @@ HTML_TEMPLATE = """
                     return (device.friendly_name || '').toLowerCase();
                 case 'sightings':
                     return Number.isFinite(device.total_sightings) ? device.total_sightings : -1;
+                case 'rssi':
+                    return Number.isFinite(device.last_rssi) ? device.last_rssi : null;
                 case 'last_seen':
                     // Raw timestamp (ms since epoch) so normal asc/desc sorting is
                     // intuitive: desc = highest timestamp = most recent first.
@@ -2500,6 +2502,9 @@ HTML_TEMPLATE = """
             sorted.sort((a, b) => {
                 const aVal = getSortValue(a, sortState.column);
                 const bVal = getSortValue(b, sortState.column);
+                if (aVal === null && bVal === null) return 0;
+                if (aVal === null) return 1;
+                if (bVal === null) return -1;
                 if (aVal < bVal) return -1 * direction;
                 if (aVal > bVal) return 1 * direction;
                 return 0;
@@ -6925,7 +6930,7 @@ LIVE_TEMPLATE = """
                             <th class="sortable" data-sort="mac">Address<span class="sort-indicator"></span></th>
                             <th class="sortable" data-sort="identifier">Identifier<span class="sort-indicator"></span></th>
                             <th class="sortable" data-sort="vendor">Vendor<span class="sort-indicator"></span></th>
-                            <th>RSSI</th>
+                            <th class="sortable" data-sort="rssi">RSSI<span class="sort-indicator"></span></th>
                             <th class="sortable" data-sort="sightings">Sightings<span class="sort-indicator"></span></th>
                             <th class="sortable" data-sort="last_seen">Last seen<span class="sort-indicator"></span></th>
                             <th class="sortable" data-sort="group">Group<span class="sort-indicator"></span></th>
@@ -8327,6 +8332,8 @@ LIVE_TEMPLATE = """
                     return (device.friendly_name || '').toLowerCase();
                 case 'sightings':
                     return Number.isFinite(device.total_sightings) ? device.total_sightings : -1;
+                case 'rssi':
+                    return Number.isFinite(device.last_rssi) ? device.last_rssi : null;
                 case 'last_seen':
                     // Raw timestamp (ms since epoch) so normal asc/desc sorting is
                     // intuitive: desc = highest timestamp = most recent first.
@@ -8345,6 +8352,9 @@ LIVE_TEMPLATE = """
             sorted.sort((a, b) => {
                 const aVal = getSortValue(a, sortState.column);
                 const bVal = getSortValue(b, sortState.column);
+                if (aVal === null && bVal === null) return 0;
+                if (aVal === null) return 1;
+                if (bVal === null) return -1;
                 if (aVal < bVal) return -1 * direction;
                 if (aVal > bVal) return 1 * direction;
                 return 0;
