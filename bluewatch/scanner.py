@@ -189,6 +189,10 @@ _ZERO_BLE_STREAK_LIMIT = 30
 # far earlier than the 5 min full recovery above. At most once per cooldown.
 _ZERO_BLE_RESET_AT = 3
 _CONTROLLER_RESET_COOLDOWN = 600
+# A continuous Bleak scanner retains the last advertisement for every address
+# it has seen. Only publish recent entries so departed devices are not written
+# repeatedly with frozen RSSI and an advancing last-seen timestamp.
+_BLE_SNAPSHOT_MAX_AGE = 30.0
 # The classic (BR/EDR) inquiry needs the shared adapter exclusively, so each
 # one stops and restarts the continuous LE scan. On small UART controllers
 # (e.g. Raspberry Pi 3) doing that every cycle (60-80 times an hour) wedged
@@ -647,6 +651,7 @@ class BluetoothScanner:
             if self.adapter:
                 kwargs["adapter"] = self.adapter
             scanner = BleakScanner(**kwargs)
+            self._live_ble.clear()
             try:
                 await scanner.start()
             except Exception as e:
@@ -671,10 +676,13 @@ class BluetoothScanner:
                 logger.debug(f"Error stopping continuous BLE scan: {e}")
 
     async def _snapshot_ble_devices(self) -> list[ScannedDevice]:
-        """Convert the continuous scanner's accumulated advertisements
-        into the same ScannedDevice shape a one-shot scan_ble() returns."""
+        """Convert recently received advertisements to scanned devices."""
         devices: list[ScannedDevice] = []
-        for entry in list(self._live_ble.values()):
+        now = time.monotonic()
+        for address, entry in list(self._live_ble.items()):
+            if now - entry["seen_at"] > _BLE_SNAPSHOT_MAX_AGE:
+                self._live_ble.pop(address, None)
+                continue
             device = entry["device"]
             adv_data = entry["adv"]
             mac = device.address
