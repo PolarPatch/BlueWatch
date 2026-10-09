@@ -9,10 +9,45 @@ from typing import Optional
 import aiohttp
 
 from . import db
-from .classifier import TYPE_TRACKER, COMPANY_ID_APPLE, COMPANY_ID_MICROSOFT, COMPANY_ID_SAMSUNG
+from .classifier import (
+    TYPE_TRACKER, COMPANY_ID_APPLE, COMPANY_ID_MICROSOFT, COMPANY_ID_SAMSUNG,
+    _walk_apple_tlvs, _short_uuid,
+)
 from .db import Device, Settings
 
 logger = logging.getLogger(__name__)
+
+# Payloads that make a phone show a pairing popup -- what BLE spam tools
+# (Flipper "BLE spam", ESP32 AppleJuice and similar) broadcast:
+# Apple Proximity Pairing (0x07) and Nearby Action (0x0F), Microsoft Swift
+# Pair (Beacon ID 0x03), Samsung EasySetup buds/watch popups, and Google
+# Fast Pair (service 0xFE2C). Ordinary Apple traffic (Nearby Info 0x10,
+# Find My 0x12, AirPlay 0x09, ...) is not a popup and is not counted.
+_APPLE_POPUP_TYPES = frozenset({0x07, 0x0F})
+_MS_SWIFT_PAIR_BEACON_ID = 0x03
+_SAMSUNG_POPUP_PREFIXES = (
+    bytes.fromhex("42098102141503210109"),  # EasySetup buds
+    bytes.fromhex("010002000101ff000043"),  # EasySetup watch
+)
+_FAST_PAIR_SHORT_UUID = 0xFE2C
+
+
+def _is_pairing_popup_advert(device: Device) -> bool:
+    mfg = device.manufacturer_data or {}
+    apple = mfg.get(COMPANY_ID_APPLE)
+    if apple and any(t in _APPLE_POPUP_TYPES for t, _ in _walk_apple_tlvs(apple)):
+        return True
+    ms = mfg.get(COMPANY_ID_MICROSOFT)
+    if ms and ms[:1] == bytes([_MS_SWIFT_PAIR_BEACON_ID]):
+        return True
+    samsung = mfg.get(COMPANY_ID_SAMSUNG)
+    if samsung and samsung.startswith(_SAMSUNG_POPUP_PREFIXES):
+        return True
+    return any(_short_uuid(u) == _FAST_PAIR_SHORT_UUID for u in (device.service_data or {}))
+
+
+# Minimum gap between two notifications of the same noisy kind.
+NOISY_ALERT_COOLDOWN = timedelta(minutes=30)
 
 # ntfy.sh base URL
 NTFY_BASE_URL = "https://ntfy.sh"
@@ -36,13 +71,18 @@ class NotificationManager:
         # In-memory only (reset on restart, same as _prev_seen conceptually,
         # though that one reloads from DB) -- a burst is a live-moment signal,
         # nothing meaningful to persist about it across a restart.
-        self._pairing_burst: deque[datetime] = deque()
+        self._pairing_burst: deque[tuple[datetime, str]] = deque()
         self._ble_spam_flood_active = False  # true while over threshold, so we alert once per burst, not every sighting
         # Tracker "FOLLOW" alert: MACs already alerted for this run, so a
         # lingering tracker notifies once rather than on every sighting
         # once past threshold. In-memory only -- see class docstring below
         # for the accepted tradeoff (may re-alert once after a restart).
         self._tracker_follow_alerted: set[str] = set()
+        # Rate limit for the noisy alert kinds (flood, tracker lingering):
+        # key -> time of the last notification actually sent, and how many
+        # were held back since then (reported in the next one that goes out).
+        self._cooldown_last_sent: dict[str, datetime] = {}
+        self._cooldown_suppressed: dict[str, int] = {}
 
     async def start(self) -> None:
         """Initialize the notification manager."""
@@ -77,13 +117,30 @@ class NotificationManager:
         message: str,
         priority: int = 3,
         tags: Optional[list[str]] = None,
+        cooldown_key: Optional[str] = None,
     ) -> bool:
         """Send a notification via ntfy.sh.
 
         Priority levels: 1=min, 2=low, 3=default, 4=high, 5=urgent
+
+        With a cooldown_key, at most one notification per key goes out per
+        NOISY_ALERT_COOLDOWN; the rest are counted and mentioned in the next
+        one, so a busy area can't flood the phone.
         """
         if not self._settings or not self._settings.ntfy_enabled:
             return False
+
+        if cooldown_key:
+            now = datetime.now()
+            last = self._cooldown_last_sent.get(cooldown_key)
+            if last and now - last < NOISY_ALERT_COOLDOWN:
+                self._cooldown_suppressed[cooldown_key] = self._cooldown_suppressed.get(cooldown_key, 0) + 1
+                logger.info(f"Notification held back (cooldown): {title}")
+                return False
+            held = self._cooldown_suppressed.pop(cooldown_key, 0)
+            if held:
+                message += f"\n(+{held} more like this in the last {int(NOISY_ALERT_COOLDOWN.total_seconds() // 60)} min, not sent)"
+            self._cooldown_last_sent[cooldown_key] = now
 
         if not self._settings.ntfy_topic:
             logger.warning("Notifications enabled but no topic configured")
@@ -296,24 +353,30 @@ class NotificationManager:
         """
         if not self._settings.ble_spam_alert_enabled:
             return
-        mfg = device.manufacturer_data or {}
-        if not (COMPANY_ID_APPLE in mfg or COMPANY_ID_MICROSOFT in mfg or COMPANY_ID_SAMSUNG in mfg):
+        # Only actual pairing-popup payloads count, and each address once per
+        # window. (No randomized-address filter: spam tools often use BLE
+        # random static addresses, which only sometimes have the
+        # locally-administered bit that is_randomized_mac() checks.) Counting every Apple sighting
+        # fired this alert about every 2 minutes in a normal busy area
+        # (300+ iPhones/AirTags in 5 minutes, zero popup adverts), 2026-10-09.
+        if not _is_pairing_popup_advert(device):
             return
 
         window = timedelta(seconds=self._settings.ble_spam_window_seconds)
-        self._pairing_burst.append(now)
-        while self._pairing_burst and now - self._pairing_burst[0] > window:
+        self._pairing_burst.append((now, device.mac))
+        while self._pairing_burst and now - self._pairing_burst[0][0] > window:
             self._pairing_burst.popleft()
 
-        count = len(self._pairing_burst)
+        count = len({mac for _, mac in self._pairing_burst})
         threshold = self._settings.ble_spam_threshold
         if count >= threshold and not self._ble_spam_flood_active:
             self._ble_spam_flood_active = True
             await self._send_notification(
                 title="⚠ Possible BLE advertisement flood",
-                message=f"{count} pairing-style BLE adverts in the last {self._settings.ble_spam_window_seconds}s -- may be a spam/DoS attack against nearby phones, or just an unusually busy moment.",
+                message=f"{count} addresses sending pairing-popup adverts in the last {self._settings.ble_spam_window_seconds}s -- may be a spam/DoS attack against nearby phones, or just an unusually busy moment.",
                 priority=4,
                 tags=["warning", "bluetooth"],
+                cooldown_key="ble_flood",
             )
         elif count < threshold // 2:
             # Rearm once the rate has clearly dropped, not the instant it
@@ -334,6 +397,10 @@ class NotificationManager:
             return
         if device.mac in self._tracker_follow_alerted:
             return
+        # A tracker the operator has already filed in a category (their own,
+        # a neighbour's) is known, so it doesn't need a lingering alert.
+        if device.group_id is not None:
+            return
         if device.total_sightings < self._settings.tracker_follow_min_sightings:
             return
         if not device.first_seen or not device.last_seen:
@@ -350,6 +417,7 @@ class NotificationManager:
             message=f"{name} ({device.mac}) has been detected {device.total_sightings} times over {span_str} -- worth checking it isn't a planted tracker.",
             priority=5,
             tags=["warning", "bluetooth"],
+            cooldown_key="tracker_follow",
         )
 
     async def check_absent_devices(self) -> None:
