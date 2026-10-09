@@ -2038,6 +2038,7 @@ HTML_TEMPLATE = """
             const s = d.drone_state;
             const parts = [];
             if (s.uas_id) parts.push('UAS ID ' + escapeHtml(s.uas_id) + (s.ua_type ? ' (' + escapeHtml(s.ua_type) + ')' : ''));
+            if (s.maker) parts.push(escapeHtml(s.maker));
             if (s.latitude !== undefined && s.longitude !== undefined) {
                 let pos = 'Position ' + s.latitude + ', ' + s.longitude;
                 if (s.altitude_m !== undefined) pos += ' @ ' + s.altitude_m + 'm';
@@ -7869,6 +7870,7 @@ LIVE_TEMPLATE = """
             const s = d.drone_state;
             const parts = [];
             if (s.uas_id) parts.push('UAS ID ' + escapeHtml(s.uas_id) + (s.ua_type ? ' (' + escapeHtml(s.ua_type) + ')' : ''));
+            if (s.maker) parts.push(escapeHtml(s.maker));
             if (s.latitude !== undefined && s.longitude !== undefined) {
                 let pos = 'Position ' + s.latitude + ', ' + s.longitude;
                 if (s.altitude_m !== undefined) pos += ' @ ' + s.altitude_m + 'm';

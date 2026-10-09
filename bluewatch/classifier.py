@@ -32,6 +32,13 @@ _TESLA_IBEACON_UUID_HEX = TESLA_IBEACON_UUID.replace("-", "")
 ARUBA_IBEACON_UUID = "4152554e-f99b-4a3b-86d0-947070693a78"
 _ARUBA_IBEACON_UUID_HEX = ARUBA_IBEACON_UUID.replace("-", "")
 
+# Atrius (Acuity) shopping-cart tags -- a plain iBeacon with a fixed
+# proximity UUID. Still TYPE_BEACON; this only names it. The advertisement
+# does not say which store. Source: OffGridPete/Fieldwatch Catalog 89
+# (v1.1.19, MIT licensed).
+ATRIUS_IBEACON_UUID = "5993a94c-7d97-4df7-9abf-e493bfd5d000"
+_ATRIUS_IBEACON_UUID_HEX = ATRIUS_IBEACON_UUID.replace("-", "")
+
 # Aruba AP local names follow "AP-" + 12 hex chars (source: same manifest).
 _ARUBA_NAME_RE = re.compile(r'^AP-[0-9a-f]{12}$', re.IGNORECASE)
 
@@ -825,6 +832,9 @@ def decode_samsung_status(manufacturer_data: Optional[dict]) -> Optional[dict]:
 COMPANY_ID_DJI = 0x08AA
 DJI_DRONE_MODEL_IDS = frozenset({112, 126})  # Mavic 3, Neo 2
 DJI_CAMERA_MODEL_IDS = frozenset({6, 16, 18, 20, 21, 23, 24, 25, 32, 33, 34})  # Osmo Action/Pocket/360/Nano line
+# DJI Power portable power stations share the DJI company ID -- not an
+# aircraft (Fieldwatch Catalog 91, v1.1.19: model 4500 = Power 2000).
+DJI_POWER_MODEL_IDS = frozenset({4500})
 
 
 def classify_dji_manufacturer_data(payload: bytes) -> Optional[str]:
@@ -840,8 +850,20 @@ def classify_dji_manufacturer_data(payload: bytes) -> Optional[str]:
         return TYPE_DRONE
     if model_id in DJI_CAMERA_MODEL_IDS:
         return TYPE_CAMERA
+    if model_id in DJI_POWER_MODEL_IDS:
+        return TYPE_SMART_HOME
     return None
 
+
+# Lowercase name prefixes for drones/controllers with no better signal:
+# Ryze Tello and Tello Talent (RMTT), Potensic, Holy Stone, Hubsan,
+# Yuneec, SwellPro, Bitcraze Crazyflie. Source: OffGridPete/Fieldwatch
+# Catalog 90 (v1.1.18, MIT licensed). Tello/RMTT need the dash that the
+# real "TELLO-XXXXXX" names carry, so words like "Tellows" don't match.
+DRONE_NAME_PREFIXES = (
+    "tello-", "rmtt-", "potensic", "holystone", "holy stone", "hubsan",
+    "yuneec", "swellpro", "crazyflie",
+)
 
 DRONE_REMOTE_ID_SERVICE_DATA_UUID = "0000fffa-0000-1000-8000-00805f9b34fb"
 DRONE_REMOTE_ID_AD_APP_CODE = 0x0D
@@ -862,6 +884,16 @@ _DRONE_UA_TYPE_LABELS = {
     0xA: "airship",
     0xF: "other",
 }
+
+# ANSI/CTA-2063-A serial numbers start with a 4-char manufacturer code
+# plus a length char, so the prefix names the maker. Only meaningful when
+# the Basic ID's ID type is 1 (serial number). Source: OffGridPete/
+# Fieldwatch Catalog 92 (v1.1.20, MIT licensed).
+_DRONE_ID_TYPE_SERIAL = 1
+_DRONE_SERIAL_MAKERS = (
+    ("1748C", "Autel"),
+    ("1668B", "Skydio"),
+)
 
 _DRONE_STATUS_LABELS = {
     0x0: "undeclared",
@@ -929,6 +961,11 @@ def decode_drone_remote_id(service_data):
         result["uas_id"] = uas_id
         result["ua_type"] = _DRONE_UA_TYPE_LABELS.get(ua_type, f"unknown (0x{ua_type:x})")
         result["id_type"] = id_type
+        if id_type == _DRONE_ID_TYPE_SERIAL:
+            for prefix, maker in _DRONE_SERIAL_MAKERS:
+                if uas_id.upper().startswith(prefix):
+                    result["maker"] = maker
+                    break
 
     elif msg_type == _DRONE_MSG_TYPE_LOCATION and len(message) >= 19:
         status = (message[1] >> 4) & 0x0F
@@ -1191,6 +1228,22 @@ _APPLE_KNOWN_MESSAGE_TYPES = {
     0x0C,  # Handoff
     0x0F,  # Nearby Action
 }
+
+
+def identify_ibeacon_label(manufacturer_data: Optional[dict]) -> Optional[str]:
+    """Name for an iBeacon whose fixed proximity UUID is known to belong
+    to a specific product (currently only Atrius cart tags). Used as a
+    friendly_name fallback; the device type stays TYPE_BEACON."""
+    if not manufacturer_data:
+        return None
+    payload = manufacturer_data.get(COMPANY_ID_APPLE)
+    if not payload:
+        return None
+    for apple_type, body in _walk_apple_tlvs(payload):
+        if apple_type == APPLE_IBEACON_TYPE_BYTE and len(body) >= 16:
+            if body[0:16].hex() == _ATRIUS_IBEACON_UUID_HEX:
+                return "Atrius cart tag"
+    return None
 
 
 def identify_apple_unknown_label(manufacturer_data: Optional[dict]) -> Optional[str]:
@@ -1827,6 +1880,13 @@ def classify_device(
         if "rayneo" in name_l and 0x0BC6 in manufacturer_data:
             return TYPE_GLASSES
 
+    # Ray-Ban Meta Display glasses can advertise without Meta's company ID
+    # in the same packet, so the name alone is enough here (a specific
+    # product string, not a generic word). Source: OffGridPete/Fieldwatch
+    # Catalog 92 (v1.1.20, MIT licensed).
+    if name and name.lower().startswith("meta rb display"):
+        return TYPE_GLASSES
+
     # Flipper Devices' own MAC-OUI -- an independent signal from the
     # company-ID check inside classify_by_manufacturer_data() below (some
     # firmware/advert modes carry a fixed vendor MAC with no manufacturer-
@@ -1912,6 +1972,18 @@ def classify_device(
                 or name.startswith("Hover") or name.startswith("HOVERAir")
                 or name.startswith("ANAFI") or name.startswith("Bebop")):
             return TYPE_DRONE
+
+        # More hobby/consumer drone makers by name prefix, plus Parrot's
+        # Skycontroller remote. Name-only, so a renamed drone is missed.
+        # Source: OffGridPete/Fieldwatch Catalog 90 (v1.1.18, MIT licensed).
+        if name_lower.startswith(DRONE_NAME_PREFIXES) or "skycontroller" in name_lower:
+            return TYPE_DRONE
+
+        # DJI Power portable power station by name, for adverts without the
+        # DJI model-ID field (see DJI_POWER_MODEL_IDS). Source: Fieldwatch
+        # Catalog 91 (v1.1.19, MIT licensed).
+        if name_lower.startswith("power2000"):
+            return TYPE_SMART_HOME
 
         # Plejd (Swedish smart-home switches/dimmers/relays) -- every
         # device in a Plejd BLE mesh advertises this exact generic name

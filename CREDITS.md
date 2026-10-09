@@ -151,6 +151,18 @@ independently cross-verified against the Bluetooth SIG's own registry
 before being trusted -- all ten resolved to an exact, specific vendor
 match with no shared-chipset ambiguity.
 
+A third Fieldwatch pass (catalogs 85-92, v1.1.16-v1.1.21, diffed from
+`dist/fieldwatch-signatures-v2.json`) added the following to
+`bluewatch/classifier.py`:
+- Drone name prefixes for Tello/RMTT, Potensic, Holy Stone, Hubsan, Yuneec,
+  SwellPro, Crazyflie and Parrot Skycontroller -> `TYPE_DRONE`.
+- DJI Power 2000 (DJI model ID 4500 or a `Power2000` name) ->
+  `TYPE_SMART_HOME`, so it is not counted as a drone.
+- The Ray-Ban Meta Display name -> `TYPE_GLASSES`.
+- The Atrius cart-tag iBeacon UUID, used as a name label only.
+- Remote ID maker from the serial-number prefix: `1748C` is Autel and
+  `1668B` is Skydio.
+
 Additional smart-glasses company IDs (`TYPE_GLASSES` in
 `classify_by_manufacturer_data()`/`classify_device()`,
 `bluewatch/classifier.py`: Luxottica Group and Snapchat Inc added bare

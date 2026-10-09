@@ -1212,7 +1212,7 @@ async def upsert_device(
 
     Returns tuple of (device, is_new) where is_new indicates first sighting.
     """
-    from .classifier import identify_apple_model, decode_apple_activity, decode_samsung_status, identify_apple_unknown_label, decode_drone_remote_id, decode_dult_state
+    from .classifier import identify_apple_model, decode_apple_activity, decode_samsung_status, identify_apple_unknown_label, identify_ibeacon_label, decode_drone_remote_id, decode_dult_state
     from .fastpair_models import identify_fastpair_device, decode_fastpair_battery
     from . import company_identifiers
 
@@ -1259,6 +1259,8 @@ async def upsert_device(
     # message type(s) we don't decode into a name/model above -- still
     # worth surfacing as "Apple device (type 0xNN)" rather than leaving
     # the device nameless (see identify_apple_unknown_label's docstring).
+    if not friendly_name and manufacturer_data:
+        friendly_name = identify_ibeacon_label(manufacturer_data)
     if not friendly_name and manufacturer_data:
         unknown_label = identify_apple_unknown_label(manufacturer_data)
         if unknown_label:
