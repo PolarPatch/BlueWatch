@@ -16,7 +16,7 @@ from typing import Optional
 
 from aiohttp import web
 
-from .. import archive, db, rpa
+from .. import archive, db, ears, rpa, __version__
 from ..classifier import classify_device, get_type_icon, get_type_label, get_all_types, is_randomized_mac, is_macos_uuid, is_mdns_key, get_uuid_names, surveillance_evidence
 from ..patterns import generate_hourly_heatmap, generate_daily_heatmap
 from .radar_template import RADAR_TEMPLATE
@@ -40,6 +40,10 @@ PUBLIC_PATHS = frozenset({
     "/api/auth/status",
     "/api/auth/setup",
 })
+
+# Remote-ear endpoints (ears.py). Reachable without a dashboard session, but
+# every request must carry a valid ear token -- see _ear_from_request.
+EARS_PUBLIC_PREFIX = "/api/ears/v1/"
 
 # Import for type hints (will be None at runtime if not used)
 try:
@@ -140,6 +144,8 @@ class WebServer:
         self._batch_scan_state: dict = {"running": False}
         self._batch_scan_cancel = False
         self._sse_clients: set[web.StreamResponse] = set()
+        self._ear_cache: dict[str, tuple[float, Optional[dict]]] = {}  # token hash -> (expires, ear)
+        self._ears_busy: set[int] = set()
         self._setup_routes()
 
     def _setup_routes(self):
@@ -225,6 +231,13 @@ class WebServer:
         self.app.router.add_post("/api/fastpair-settings", self.api_set_fastpair_settings)
         self.app.router.add_get("/api/esp32-scanner-settings", self.api_get_esp32_scanner_settings)
         self.app.router.add_post("/api/esp32-scanner-settings", self.api_set_esp32_scanner_settings)
+        self.app.router.add_get("/api/ears/v1/hello", self.api_ear_hello)
+        self.app.router.add_post("/api/ears/v1/heard", self.api_ear_heard)
+        self.app.router.add_get("/api/ears", self.api_list_ears)
+        self.app.router.add_post("/api/ears", self.api_create_ear)
+        self.app.router.add_put("/api/ears/{ear_id}", self.api_update_ear)
+        self.app.router.add_delete("/api/ears/{ear_id}", self.api_delete_ear)
+        self.app.router.add_get("/api/device/{mac}/ears", self.api_device_ears)
         self.app.router.add_get("/api/rtl433-settings", self.api_get_rtl433_settings)
         self.app.router.add_post("/api/rtl433-settings", self.api_set_rtl433_settings)
         # Authentication
@@ -261,6 +274,10 @@ class WebServer:
     async def _auth_middleware(self, request: web.Request, handler):
         """Default-deny: every route requires a valid session unless listed in PUBLIC_PATHS."""
         if request.path in PUBLIC_PATHS:
+            return await handler(request)
+        if request.path.startswith(EARS_PUBLIC_PREFIX):
+            # Remote ears authenticate with their own bearer token (checked
+            # in the handler), never with a dashboard session.
             return await handler(request)
         if not await self._check_auth(request):
             if request.path.startswith("/api/"):
@@ -2124,6 +2141,142 @@ class WebServer:
             return web.json_response({"status": "ok"})
         except Exception as e:
             return web.json_response({"error": str(e)}, status=400)
+
+    # --- Remote ears (ears.py) -------------------------------------------
+
+    async def _ear_from_request(self, request: web.Request) -> tuple[Optional[dict], Optional[web.Response]]:
+        token = ears.bearer_token(request.headers.get("Authorization"))
+        if token is None:
+            return None, web.json_response({"error": "missing or malformed ear token"}, status=401)
+        token_hash = ears.hash_token(token)
+        now = asyncio.get_event_loop().time()
+        cached = self._ear_cache.get(token_hash)
+        if cached and cached[0] > now:
+            ear = cached[1]
+        else:
+            ear = await db.get_ear_by_token_hash(token_hash)
+            if len(self._ear_cache) > 256:
+                self._ear_cache.clear()
+            self._ear_cache[token_hash] = (now + 30, ear)
+        if ear is None:
+            return None, web.json_response({"error": "unknown ear token"}, status=401)
+        if not ear["enabled"]:
+            return None, web.json_response({"error": "this ear is paused in BlueWatch"}, status=403)
+        return ear, None
+
+    async def api_ear_hello(self, request: web.Request) -> web.Response:
+        """Lets an ear check its token and learn the limits before sending."""
+        ear, error = await self._ear_from_request(request)
+        if error:
+            return error
+        return web.json_response({
+            "bluewatch": __version__,
+            "protocol": ears.PROTOCOL_VERSION,
+            "ear": {"id": ear["id"], "name": ear["name"]},
+            "server_time": datetime.now().timestamp(),
+            "limits": {
+                "max_body_bytes": ears.MAX_BODY_BYTES,
+                "max_heard_per_batch": ears.MAX_HEARD_PER_BATCH,
+                "max_age_seconds": ears.MAX_AGE_SECONDS,
+                "suggested_interval_seconds": 5,
+            },
+        })
+
+    async def api_ear_heard(self, request: web.Request) -> web.Response:
+        """Accept one batch of passively heard advertisements from an ear."""
+        ear, error = await self._ear_from_request(request)
+        if error:
+            return error
+        if request.content_length is None or request.content_length > ears.MAX_BODY_BYTES:
+            return web.json_response({"error": f"body must have a length of at most {ears.MAX_BODY_BYTES} bytes"}, status=413)
+        if ear["id"] in self._ears_busy:
+            return web.json_response({"error": "previous batch still being processed"}, status=429,
+                                     headers={"Retry-After": "2"})
+        self._ears_busy.add(ear["id"])
+        try:
+            try:
+                body = json.loads(await request.read())
+            except (ValueError, UnicodeDecodeError):
+                return web.json_response({"error": "body is not valid JSON"}, status=400)
+            heard, skipped, problem = ears.parse_batch(body)
+            if problem:
+                return web.json_response({"error": problem}, status=400)
+            ears.HUB.take(ear["id"], heard)
+            software = body.get("software") if isinstance(body.get("software"), str) else None
+            await db.note_ear_contact(ear["id"], request.remote, software[:64] if software else None, len(heard))
+            return web.json_response({"taken": len(heard), "skipped": skipped,
+                                      "server_time": datetime.now().timestamp()})
+        finally:
+            self._ears_busy.discard(ear["id"])
+
+    async def api_list_ears(self, request: web.Request) -> web.Response:
+        rows = await db.list_ears()
+        for row in rows:
+            row["enabled"] = bool(row["enabled"])
+            row["status"] = ears.HUB.ear_status(row["id"])
+        return web.json_response({"ears": rows, "protocol": ears.PROTOCOL_VERSION})
+
+    async def api_create_ear(self, request: web.Request) -> web.Response:
+        try:
+            data = await request.json()
+        except Exception:
+            data = {}
+        name = " ".join(str(data.get("name") or "").split())[:40]
+        if not name:
+            return web.json_response({"error": "Give the ear a name"}, status=400)
+        token = ears.new_token()
+        ear_id = await db.create_ear(name, ears.hash_token(token), token[-4:])
+        # The token is only ever returned here; BlueWatch keeps just its hash.
+        return web.json_response({"id": ear_id, "name": name, "token": token})
+
+    async def api_update_ear(self, request: web.Request) -> web.Response:
+        try:
+            ear_id = int(request.match_info["ear_id"])
+            data = await request.json()
+        except Exception:
+            return web.json_response({"error": "bad request"}, status=400)
+        name = data.get("name")
+        if name is not None:
+            name = " ".join(str(name).split())[:40] or None
+        enabled = data.get("enabled")
+        ok = await db.update_ear(ear_id, name=name, enabled=None if enabled is None else bool(enabled))
+        self._ear_cache.clear()
+        return web.json_response({"status": "ok"} if ok else {"error": "not found"}, status=200 if ok else 404)
+
+    async def api_delete_ear(self, request: web.Request) -> web.Response:
+        try:
+            ear_id = int(request.match_info["ear_id"])
+        except ValueError:
+            return web.json_response({"error": "bad request"}, status=400)
+        ok = await db.delete_ear(ear_id)
+        self._ear_cache.clear()
+        ears.HUB.forget_ear(ear_id)
+        return web.json_response({"status": "ok"} if ok else {"error": "not found"}, status=200 if ok else 404)
+
+    async def api_device_ears(self, request: web.Request) -> web.Response:
+        """Who hears this device: the built-in radio and every remote ear,
+        live (last 10 minutes) plus the stored per-listener history."""
+        mac = request.match_info["mac"].upper()
+        names = {row["id"]: row["name"] for row in await db.list_ears()}
+        live = []
+        if self._scanner is not None:
+            local = self._scanner.get_live_rssi(mac)
+            if local is not None and local["seconds_ago"] <= 600:
+                live.append({"ear": "BlueWatch", "listener": "this unit", "local": True,
+                             "rssi": local["rssi"], "seconds_ago": round(local["seconds_ago"], 1)})
+        for row in ears.HUB.live_for(mac):
+            live.append({"ear": names.get(row["ear_id"], "ear"), "listener": row["listener"],
+                         "local": False, "rssi": row["rssi"], "seconds_ago": row["seconds_ago"]})
+        recent = [r for r in live if r["seconds_ago"] <= 60]
+        nearest = max(recent, key=lambda r: r["rssi"]) if len(recent) > 1 else None
+        history = await db.get_ear_heard_for_device(mac)
+        return web.json_response({
+            "mac": mac,
+            "has_ears": bool(names),
+            "live": live,
+            "nearest": nearest,
+            "history": history,
+        })
 
     async def api_get_rtl433_settings(self, request: web.Request) -> web.Response:
         """Whether optional sub-GHz (433/868 MHz) discovery via rtl_433 and

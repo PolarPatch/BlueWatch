@@ -288,3 +288,14 @@ Clues are graded low, medium or high by how specific and corroborated they
 are. OUIs only count on non-randomized addresses. The values and the grading
 idea were reimplemented in Python, and no code was copied. The underlying
 field research is credited in AWOKxDAG's `docs/camera-signatures.md`.
+
+## Remote ears
+
+The idea of feeding BlueWatch with observations from Home Assistant's
+Bluetooth proxies came from [@kinshasha](https://github.com/kinshasha), in
+BlueWatch pull request #6 and the
+[bluewatch-ble-bridge](https://github.com/kinshasha/bluewatch-ble-bridge)
+project (MIT). The receiver (`bluewatch/ears.py`), the `bluewatch-ear` agent
+and the BlueWatch Ears Home Assistant integration are BlueWatch's own
+implementation, with a different wire format and per-ear tokens. No code was
+copied.

@@ -247,6 +247,35 @@ CREATE TABLE IF NOT EXISTS custom_types (
     label TEXT NOT NULL
 );
 
+-- Remote ears (see ears.py): extra passive listeners that post what they
+-- hear. Only a SHA-256 of each ear's token is stored; the token itself is
+-- shown once when the ear is added.
+CREATE TABLE IF NOT EXISTS ears (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    token_hash TEXT NOT NULL UNIQUE,
+    token_hint TEXT,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL,
+    last_contact TEXT,
+    last_address TEXT,
+    software TEXT,
+    heard_total INTEGER NOT NULL DEFAULT 0
+);
+
+-- Which ear/listener has heard which device: when, how loud, how often.
+CREATE TABLE IF NOT EXISTS ear_heard (
+    mac TEXT NOT NULL,
+    ear_id INTEGER NOT NULL,
+    listener TEXT NOT NULL,
+    last_heard TEXT NOT NULL,
+    last_rssi INTEGER,
+    best_rssi INTEGER,
+    hits INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (mac, ear_id, listener)
+) WITHOUT ROWID;
+CREATE INDEX IF NOT EXISTS idx_ear_heard_ear ON ear_heard(ear_id, last_heard);
+
 CREATE INDEX IF NOT EXISTS idx_sightings_mac_time ON sightings(mac, timestamp);
 CREATE INDEX IF NOT EXISTS idx_sightings_timestamp ON sightings(timestamp);
 CREATE INDEX IF NOT EXISTS idx_identities_name ON identities(name COLLATE NOCASE);
@@ -2561,6 +2590,119 @@ async def set_esp32_scanner_settings(enabled: bool, host: str) -> None:
             (host or _ESP32_SCANNER_DEFAULT_HOST,),
         )
         await db.commit()
+
+
+async def create_ear(name: str, token_hash: str, token_hint: str) -> int:
+    async with _connect() as db:
+        cursor = await db.execute(
+            "INSERT INTO ears (name, token_hash, token_hint, created_at) VALUES (?, ?, ?, ?)",
+            (name, token_hash, token_hint, datetime.now().isoformat(timespec="seconds")),
+        )
+        await db.commit()
+        return cursor.lastrowid
+
+
+async def list_ears() -> list[dict]:
+    async with _connect() as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT e.id, e.name, e.token_hint, e.enabled, e.created_at, e.last_contact,"
+            " e.last_address, e.software, e.heard_total,"
+            " (SELECT COUNT(DISTINCT h.mac) FROM ear_heard h WHERE h.ear_id = e.id"
+            "    AND h.last_heard >= ?) AS devices_today"
+            " FROM ears e ORDER BY e.name COLLATE NOCASE",
+            ((datetime.now() - timedelta(hours=24)).isoformat(),),
+        ) as cursor:
+            return [dict(row) for row in await cursor.fetchall()]
+
+
+async def get_ear_by_token_hash(token_hash: str) -> Optional[dict]:
+    async with _connect() as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT id, name, enabled FROM ears WHERE token_hash = ?", (token_hash,)
+        ) as cursor:
+            row = await cursor.fetchone()
+    return dict(row) if row else None
+
+
+async def update_ear(ear_id: int, name: Optional[str] = None, enabled: Optional[bool] = None) -> bool:
+    sets, args = [], []
+    if name is not None:
+        sets.append("name = ?")
+        args.append(name)
+    if enabled is not None:
+        sets.append("enabled = ?")
+        args.append(1 if enabled else 0)
+    if not sets:
+        return False
+    async with _connect() as db:
+        cursor = await db.execute(f"UPDATE ears SET {', '.join(sets)} WHERE id = ?", (*args, ear_id))
+        await db.commit()
+        return cursor.rowcount > 0
+
+
+async def delete_ear(ear_id: int) -> bool:
+    async with _connect() as db:
+        await db.execute("DELETE FROM ear_heard WHERE ear_id = ?", (ear_id,))
+        cursor = await db.execute("DELETE FROM ears WHERE id = ?", (ear_id,))
+        await db.commit()
+        return cursor.rowcount > 0
+
+
+async def note_ear_contact(ear_id: int, address: Optional[str], software: Optional[str], heard: int) -> None:
+    async with _connect() as db:
+        await db.execute(
+            "UPDATE ears SET last_contact = ?, last_address = ?, software = COALESCE(?, software),"
+            " heard_total = heard_total + ? WHERE id = ?",
+            (datetime.now().isoformat(timespec="seconds"), address, software, heard, ear_id),
+        )
+        await db.commit()
+
+
+async def record_ear_heard(rows: list[tuple]) -> None:
+    """rows: (mac, ear_id, listener, age_seconds, last_rssi, best_rssi, hits)
+    as handed over by ears.EarHub.drain()."""
+    if not rows:
+        return
+    now = datetime.now()
+    async with _connect() as db:
+        await db.executemany(
+            "INSERT INTO ear_heard (mac, ear_id, listener, last_heard, last_rssi, best_rssi, hits)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?)"
+            " ON CONFLICT(mac, ear_id, listener) DO UPDATE SET"
+            "  last_heard = MAX(last_heard, excluded.last_heard),"
+            "  last_rssi = excluded.last_rssi,"
+            "  best_rssi = MAX(COALESCE(best_rssi, -127), excluded.best_rssi),"
+            "  hits = hits + excluded.hits",
+            [
+                (mac, ear_id, listener,
+                 (now - timedelta(seconds=age)).isoformat(timespec="seconds"),
+                 last_rssi, best_rssi, hits)
+                for mac, ear_id, listener, age, last_rssi, best_rssi, hits in rows
+            ],
+        )
+        await db.commit()
+
+
+async def get_ear_heard_for_device(mac: str, limit: int = 12) -> list[dict]:
+    async with _connect() as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT h.ear_id, e.name AS ear_name, h.listener, h.last_heard, h.last_rssi,"
+            " h.best_rssi, h.hits FROM ear_heard h JOIN ears e ON e.id = h.ear_id"
+            " WHERE h.mac = ? ORDER BY h.last_heard DESC LIMIT ?",
+            (mac.upper(), limit),
+        ) as cursor:
+            return [dict(row) for row in await cursor.fetchall()]
+
+
+async def prune_ear_heard(days: int = 30) -> int:
+    cutoff = (datetime.now() - timedelta(days=days)).isoformat(timespec="seconds")
+    async with _connect() as db:
+        cursor = await db.execute("DELETE FROM ear_heard WHERE last_heard < ?", (cutoff,))
+        await db.commit()
+        return cursor.rowcount
 
 
 _RTL433_DEFAULT_FREQUENCIES = "433.92M,868.3M"

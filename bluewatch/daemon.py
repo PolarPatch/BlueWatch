@@ -15,7 +15,7 @@ from typing import Optional
 
 import aiohttp
 
-from . import active_scan, db, wigle, __version__
+from . import active_scan, db, ears, wigle, __version__
 from .classifier import CLASSIFIER_VERSION, is_randomized_mac
 from .config import SCAN_INTERVAL, SOCKET_PATH, METRICS_PORT
 from .scanner import BluetoothScanner, ScannedDevice, list_adapters
@@ -26,6 +26,9 @@ from . import archive
 from .web import WebServer
 from .webapp.server import _device_to_json
 from .notifications import NotificationManager
+
+# How often what remote ears have posted is written to the database.
+EARS_FLUSH_SECONDS = 10
 
 def _sd_notify(message: str) -> None:
     """Send a message to systemd over the $NOTIFY_SOCKET datagram socket
@@ -149,6 +152,7 @@ class BlueWatchDaemon:
         asyncio.create_task(self._ble_continuous_manager())
         asyncio.create_task(self._esp32_scanner_manager())
         asyncio.create_task(self._esp32_ingest_loop())
+        asyncio.create_task(self._ears_ingest_loop())
         asyncio.create_task(self._mdns_ingest_loop())
         asyncio.create_task(self._rtl433_ingest_loop())
         asyncio.create_task(self._stats_overview_loop())
@@ -235,34 +239,66 @@ class BlueWatchDaemon:
             try:
                 if self._esp32_scanner is not None and self._esp32_scanner.connected:
                     devices = await self._esp32_scanner.snapshot()
-                    wigle_candidates = []
-                    for device in devices:
-                        db_device, is_new = await db.upsert_device(
-                            mac=device.mac,
-                            vendor=device.vendor,
-                            friendly_name=device.name,
-                            rssi=device.rssi,
-                            service_uuids=device.service_uuids,
-                            bt_type=device.bt_type,
-                            device_class=device.device_class,
-                            manufacturer_data=device.manufacturer_data,
-                            service_data=device.service_data,
-                            appearance=device.appearance,
-                        )
-                        if self._web_server is not None:
-                            try:
-                                await self._web_server.broadcast_sighting(_device_to_json(db_device))
-                            except Exception as e:
-                                logger.debug(f"Live-event broadcast failed: {e}")
-                        await self._notifications.on_device_seen(db_device, is_new)
-                        if not db_device.vendor and not is_randomized_mac(db_device.mac):
-                            wigle_candidates.append(db_device.mac)
-                    await self._try_wigle_lookups(wigle_candidates)
-                    if devices:
-                        await self._notify_clients({"event": "scan_complete", "count": len(devices)})
+                    await self._ingest_scanned(devices)
             except Exception as e:
                 logger.error(f"ESP32 ingest error: {e}")
             await asyncio.sleep(SCAN_INTERVAL)
+
+    async def _ingest_scanned(self, devices) -> None:
+        """Upsert devices heard by a second radio (ESP32 node, remote ears)
+        through the same path as the built-in scanner: database, live SSE
+        push, notifications and the WiGLE vendor fallback."""
+        wigle_candidates = []
+        for device in devices:
+            vendor = device.vendor
+            if vendor is None:
+                try:
+                    vendor = await self.scanner._get_vendor(device.mac)
+                except Exception:
+                    vendor = None
+            db_device, is_new = await db.upsert_device(
+                mac=device.mac,
+                vendor=vendor,
+                friendly_name=device.name,
+                rssi=device.rssi,
+                service_uuids=device.service_uuids,
+                bt_type=device.bt_type,
+                device_class=device.device_class,
+                manufacturer_data=device.manufacturer_data,
+                service_data=device.service_data,
+                appearance=device.appearance,
+            )
+            if self._web_server is not None:
+                try:
+                    await self._web_server.broadcast_sighting(_device_to_json(db_device))
+                except Exception as e:
+                    logger.debug(f"Live-event broadcast failed: {e}")
+            await self._notifications.on_device_seen(db_device, is_new)
+            if not db_device.vendor and not is_randomized_mac(db_device.mac):
+                wigle_candidates.append(db_device.mac)
+        await self._try_wigle_lookups(wigle_candidates)
+        if devices:
+            await self._notify_clients({"event": "scan_complete", "count": len(devices)})
+
+    async def _ears_ingest_loop(self) -> None:
+        """Drains what remote ears (ears.py) have posted since the last pass.
+        Runs every EARS_FLUSH_SECONDS rather than SCAN_INTERVAL so a device
+        walking from room to room shows up promptly, and only ever writes
+        what was actually heard since the previous pass -- nothing is
+        replayed from a cache, so a device that has left stops being seen."""
+        last_prune = 0.0
+        while self.running:
+            await asyncio.sleep(EARS_FLUSH_SECONDS)
+            try:
+                devices, rows = ears.HUB.drain()
+                if devices:
+                    await self._ingest_scanned(devices)
+                await db.record_ear_heard(rows)
+                if time.monotonic() - last_prune > 6 * 3600:
+                    last_prune = time.monotonic()
+                    await db.prune_ear_heard()
+            except Exception as e:
+                logger.error(f"Remote ears ingest error: {e}")
 
     async def _auto_type_backfill_loop(self) -> None:
         """One-time background job: store the automatic type for devices that

@@ -2916,6 +2916,7 @@ HTML_TEMPLATE = """
                 rfStateHtml(d) +
                 dultStateHtml(d) +
                 surveillanceHtml(d) +
+                '<div class="detail-item full" id="ears-heard-item" hidden><div class="detail-label">Heard by</div><div class="detail-value" id="ears-heard" style="font-size:0.8rem;"></div></div>' +
                 '<div class="detail-item"' + (d.identity_mac_count > 1 && d.identity_first_seen ? ' title="Earliest sighting across all ' + d.identity_mac_count + ' rotated addresses clustered under this identity"' : '') + '><div class="detail-label">First seen</div><div class="detail-value mono">' + (d.identity_mac_count > 1 && d.identity_first_seen ? new Date(d.identity_first_seen).toLocaleString() : (d.first_seen ? new Date(d.first_seen).toLocaleString() : '—')) + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">Last seen</div><div class="detail-value mono">' + (d.last_seen ? new Date(d.last_seen).toLocaleString() : '—') + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">Activity Pattern</div><div class="detail-value">' + (data.pattern || 'Insufficient data') + '</div></div>' +
@@ -3553,10 +3554,64 @@ HTML_TEMPLATE = """
         function startLiveSignalPolling(mac) {
             stopLiveSignalPolling();
             fetchAndRenderLiveSignal(mac);
+            fetchAndRenderEars(mac);
+            let ticks = 0;
             liveSignalPollTimer = setInterval(function() {
                 if (mac !== currentDeviceMac) { stopLiveSignalPolling(); return; }
                 fetchAndRenderLiveSignal(mac);
+                if (++ticks % 3 === 0) fetchAndRenderEars(mac);
             }, LIVE_SIGNAL_POLL_MS);
+        }
+
+        // "Heard by" row: which radios hear this device -- this BlueWatch's
+        // own and every remote ear (Config > Ears) -- strongest first, with
+        // the nearest one called out. Hidden until at least one ear exists.
+        function earLabel(r) {
+            if (r.local) return 'This BlueWatch';
+            return r.listener === r.ear || r.listener === 'ear' ? r.ear : r.listener + ' (' + r.ear + ')';
+        }
+
+        async function fetchAndRenderEars(mac) {
+            const item = document.getElementById('ears-heard-item');
+            const el = document.getElementById('ears-heard');
+            if (!item || !el) return;
+            let data;
+            try {
+                const response = await fetch('/api/device/' + encodeURIComponent(mac) + '/ears');
+                data = await response.json();
+            } catch (error) { return; }
+            if (mac !== currentDeviceMac || !data.has_ears) return;
+            const live = (data.live || []).slice().sort(function(a, b) {
+                return (a.seconds_ago > 60) - (b.seconds_ago > 60) || b.rssi - a.rssi;
+            });
+            const nearest = data.nearest;
+            // One ear (e.g. a single Home Assistant) -> the room name says it
+            // all; several ears -> keep the ear name to tell rooms apart.
+            const earCount = new Set(live.filter(function(r) { return !r.local; }).map(function(r) { return r.ear; })).size;
+            const rowLabel = function(r) { return earCount > 1 || r.local ? earLabel(r) : (r.listener === 'ear' ? r.ear : r.listener); };
+            let html = '';
+            if (nearest) {
+                html += '<div style="margin-bottom: 0.35rem;">Nearest: <strong style="color: var(--accent-blue, #58a6ff);">' + escapeHtml(earLabel(nearest)) + '</strong></div>';
+            }
+            html += live.map(function(r) {
+                const pct = Math.max(4, Math.min(100, Math.round((r.rssi + 100) / 70 * 100)));
+                const stale = r.seconds_ago > 60;
+                const isNearest = nearest && earLabel(r) === earLabel(nearest);
+                return '<div style="display: grid; grid-template-columns: minmax(7rem, 12rem) 1fr 4.2rem 3.2rem; gap: 0.5rem; align-items: center; opacity: ' + (stale ? '0.5' : '1') + ';">' +
+                    '<span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;' + (isNearest ? ' font-weight: 600;' : '') + '" title="' + escapeHtml(earLabel(r)) + '">' + escapeHtml(rowLabel(r)) + '</span>' +
+                    '<span style="height: 6px; border-radius: 3px; background: var(--bg-tertiary);"><span style="display: block; height: 100%; width: ' + pct + '%; border-radius: 3px; background: ' + (isNearest ? 'var(--accent-blue, #58a6ff)' : 'var(--text-muted)') + ';"></span></span>' +
+                    '<span class="mono" style="text-align: right;">' + r.rssi + ' dBm</span>' +
+                    '<span class="mono" style="text-align: right; color: var(--text-muted);">' + formatDurationCompact(r.seconds_ago) + '</span>' +
+                    '</div>';
+            }).join('');
+            if (!live.length) {
+                const last = (data.history || [])[0];
+                html += last
+                    ? '<span style="color: var(--text-muted);">Not heard right now · last by ' + escapeHtml(last.listener === 'ear' ? last.ear_name : last.listener + ' (' + last.ear_name + ')') + ', ' + new Date(last.last_heard).toLocaleString() + '</span>'
+                    : '<span style="color: var(--text-muted);">Not heard by any remote ear yet</span>';
+            }
+            el.innerHTML = html;
+            item.hidden = false;
         }
 
         function stopLiveSignalPolling() {
@@ -4045,6 +4100,7 @@ SETTINGS_TEMPLATE = """
             <a href="#wigle" data-tab="wigle" onclick="switchTab('wigle')">WiGLE</a>
             <a href="#fastpair" data-tab="fastpair" onclick="switchTab('fastpair')">Fast Pair</a>
             <a href="#esp32" data-tab="esp32" onclick="switchTab('esp32')">ESP32 Scanner</a>
+            <a href="#ears" data-tab="ears" onclick="switchTab('ears')">Ears</a>
             <a href="#rtl433" data-tab="rtl433" onclick="switchTab('rtl433')">RTL-SDR</a>
             <a href="#display" data-tab="display" onclick="switchTab('display')">Display</a>
             <a href="#export" data-tab="export" onclick="switchTab('export')">Export</a>
@@ -4406,6 +4462,44 @@ SETTINGS_TEMPLATE = """
                     <div style="display: flex; gap: 0.5rem; align-items: center;">
                         <label for="esp32-host" style="font-size: 0.8rem; color: var(--text-muted); white-space: nowrap;">Host / IP</label>
                         <input type="text" class="form-input" id="esp32-host" placeholder="192.168.5.1" style="max-width: 12rem;" onchange="saveEsp32Settings()">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Remote Ears Tab -->
+        <div class="config-tab" id="tab-ears">
+            <div class="page-header">
+                <div class="page-title">System Configuration</div>
+                <h1 class="page-heading">Remote Ears</h1>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">Extra listeners around the house</div>
+                <div class="panel-body">
+                    <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 1rem;">An ear is another passive Bluetooth listener that reports what it hears to this BlueWatch: Home Assistant with its Bluetooth proxies (the <strong>BlueWatch Ears</strong> integration), a second Raspberry Pi running <code>bluewatch-ear</code>, or anything else that speaks the small ear API. Devices heard by an ear show up as normal, and Device Details shows which listener hears them loudest -- in practice, which room they are in. Ears only listen; nothing is ever transmitted.</p>
+                    <div id="ears-list" style="font-size: 0.8rem;"><span style="color: var(--text-muted);">Loading…</span></div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">Add an ear</div>
+                <div class="panel-body">
+                    <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                        <input type="text" class="form-input" id="ear-new-name" placeholder="e.g. Home Assistant, Garage Pi" maxlength="40" style="max-width: 16rem;" onkeydown="if (event.key === 'Enter') createEar()">
+                        <button class="btn" onclick="createEar()">Create ear token</button>
+                    </div>
+                    <div id="ear-new-result" hidden style="margin-top: 1rem; font-size: 0.8rem;">
+                        <p style="margin-bottom: 0.5rem;">Token for <strong id="ear-new-result-name"></strong>. Copy it now -- BlueWatch only keeps a fingerprint of it and cannot show it again.</p>
+                        <div style="display: flex; gap: 0.5rem; align-items: center; margin-bottom: 1rem;">
+                            <input type="text" class="form-input mono" id="ear-new-token" readonly style="font-size: 0.75rem;" onclick="this.select()">
+                            <button class="btn" onclick="copyEarText('ear-new-token')">Copy</button>
+                        </div>
+                        <div style="color: var(--text-muted); font-size: 0.75rem; line-height: 1.6;">
+                            <div><strong style="color: var(--text-secondary);">Home Assistant:</strong> install the BlueWatch Ears integration, then enter <span class="mono" id="ear-new-url"></span> and the token.</div>
+                            <div><strong style="color: var(--text-secondary);">Another Linux box / Pi:</strong></div>
+                            <pre class="mono" id="ear-new-cli" style="white-space: pre-wrap; word-break: break-all; background: var(--bg-tertiary); padding: 0.5rem; border-radius: 6px; margin: 0.25rem 0 0;"></pre>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -5198,6 +5292,111 @@ SETTINGS_TEMPLATE = """
             } catch (error) { showStatus('Error saving Fast Pair settings', 'error'); }
         }
 
+        // --- Remote ears (Config > Ears) ---
+        function earEsc(s) {
+            return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) {
+                return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c];
+            });
+        }
+
+        function earAgo(seconds) {
+            if (seconds == null) return 'never';
+            if (seconds < 60) return seconds + 's ago';
+            if (seconds < 3600) return Math.floor(seconds / 60) + 'm ago';
+            if (seconds < 86400) return Math.floor(seconds / 3600) + 'h ago';
+            return Math.floor(seconds / 86400) + 'd ago';
+        }
+
+        async function loadEars() {
+            const el = document.getElementById('ears-list');
+            if (!el) return;
+            let data;
+            try {
+                const response = await fetch('/api/ears');
+                data = await response.json();
+            } catch (error) { return; }
+            const rows = data.ears || [];
+            if (!rows.length) {
+                el.innerHTML = '<span style="color: var(--text-muted);">No ears yet. Create a token below to add one.</span>';
+                return;
+            }
+            el.innerHTML = rows.map(function(e) {
+                const st = e.status || {};
+                let dot, state;
+                if (!e.enabled) { dot = 'var(--text-muted)'; state = 'paused'; }
+                else if (st.online) { dot = 'var(--accent-green, #3fb950)'; state = 'listening · ' + earAgo(st.seconds_since); }
+                else if (e.last_contact) { dot = 'var(--accent-amber, #d29922)'; state = 'quiet · last ' + new Date(e.last_contact).toLocaleString(); }
+                else { dot = 'var(--text-muted)'; state = 'waiting for first contact'; }
+                const listeners = (st.listeners || []).map(function(l) {
+                    return '<span style="display: inline-block; padding: 0.05rem 0.45rem; margin: 0.15rem 0.25rem 0 0; border: 1px solid var(--border-color); border-radius: 999px; opacity: ' + (l.seconds_since > 120 ? '0.55' : '1') + ';">' + earEsc(l.name) + '</span>';
+                }).join('');
+                return '<div style="display: flex; gap: 0.75rem; align-items: flex-start; justify-content: space-between; padding: 0.6rem 0; border-bottom: 1px solid var(--border-color);">' +
+                    '<div style="min-width: 0;">' +
+                    '<div><span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: ' + dot + '; margin-right: 0.4rem;"></span><strong>' + earEsc(e.name) + '</strong> <span style="color: var(--text-muted);">· ' + earEsc(state) + '</span></div>' +
+                    '<div style="color: var(--text-muted); font-size: 0.72rem; margin-top: 0.2rem;">' +
+                    (e.devices_today || 0) + ' devices in 24 h · ' + (e.heard_total || 0).toLocaleString() + ' adverts total' +
+                    (e.software ? ' · ' + earEsc(e.software) : '') + (e.last_address ? ' · from ' + earEsc(e.last_address) : '') +
+                    ' · token …' + earEsc(e.token_hint) + '</div>' +
+                    (listeners ? '<div style="margin-top: 0.2rem; font-size: 0.72rem;">' + listeners + '</div>' : '') +
+                    '</div>' +
+                    '<div style="display: flex; gap: 0.4rem; flex-shrink: 0;">' +
+                    '<button class="btn" style="padding: 0.25rem 0.6rem;" data-ear-toggle="' + e.id + '" data-ear-enabled="' + (e.enabled ? '1' : '0') + '">' + (e.enabled ? 'Pause' : 'Resume') + '</button>' +
+                    '<button class="btn" style="padding: 0.25rem 0.6rem;" data-ear-remove="' + e.id + '" data-ear-name="' + earEsc(e.name) + '">Remove</button>' +
+                    '</div></div>';
+            }).join('');
+        }
+
+        document.addEventListener('click', async function(ev) {
+            const toggle = ev.target.closest('[data-ear-toggle]');
+            const remove = ev.target.closest('[data-ear-remove]');
+            if (toggle) {
+                const id = toggle.getAttribute('data-ear-toggle');
+                const enabled = toggle.getAttribute('data-ear-enabled') !== '1';
+                await fetch('/api/ears/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: enabled }) });
+                showStatus(enabled ? 'Ear resumed' : 'Ear paused', 'success');
+                loadEars();
+            } else if (remove) {
+                if (remove.getAttribute('data-confirm') !== '1') {
+                    remove.setAttribute('data-confirm', '1');
+                    remove.textContent = 'Click again to remove';
+                    setTimeout(function() { remove.removeAttribute('data-confirm'); remove.textContent = 'Remove'; }, 4000);
+                    return;
+                }
+                await fetch('/api/ears/' + remove.getAttribute('data-ear-remove'), { method: 'DELETE' });
+                showStatus('Ear removed, its token no longer works', 'success');
+                loadEars();
+            }
+        });
+
+        async function createEar() {
+            const input = document.getElementById('ear-new-name');
+            const name = input.value.trim();
+            if (!name) { input.focus(); return; }
+            const response = await fetch('/api/ears', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: name }) });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) { showStatus(data.error || 'Could not create ear', 'error'); return; }
+            input.value = '';
+            const url = window.location.origin;
+            document.getElementById('ear-new-result-name').textContent = data.name;
+            document.getElementById('ear-new-token').value = data.token;
+            document.getElementById('ear-new-url').textContent = url;
+            document.getElementById('ear-new-cli').textContent = 'bluewatch-ear --hub ' + url + ' --token ' + data.token + ' --name "' + data.name + '"';
+            document.getElementById('ear-new-result').hidden = false;
+            showStatus('Ear created', 'success');
+            loadEars();
+        }
+
+        async function copyEarText(id) {
+            const el = document.getElementById(id);
+            try { await navigator.clipboard.writeText(el.value); showStatus('Copied', 'success'); }
+            catch (error) { el.select(); document.execCommand('copy'); }
+        }
+
+        setInterval(function() {
+            const tab = document.getElementById('tab-ears');
+            if (tab && tab.style.display === 'block' && !document.hidden) loadEars();
+        }, 5000);
+
         async function loadEsp32Settings() {
             const enabledBox = document.getElementById('esp32-enabled');
             if (!enabledBox) return;
@@ -5446,7 +5645,7 @@ SETTINGS_TEMPLATE = """
 
         // Tab routing: read hash on load, default to alerts
         var hash = window.location.hash.replace('#', '') || 'alerts';
-        switchTab(['alerts', 'operations', 'groups', 'classes', 'security', 'wigle', 'fastpair', 'esp32', 'rtl433', 'display', 'export', 'about'].indexOf(hash) !== -1 ? hash : 'alerts');
+        switchTab(['alerts', 'operations', 'groups', 'classes', 'security', 'wigle', 'fastpair', 'esp32', 'ears', 'rtl433', 'display', 'export', 'about'].indexOf(hash) !== -1 ? hash : 'alerts');
 
         loadSettings();
         loadAuthStatus();
@@ -5457,6 +5656,7 @@ SETTINGS_TEMPLATE = """
         loadWigleSettings();
         loadFastpairSettings();
         loadEsp32Settings();
+        loadEars();
         loadRtl433Settings();
         loadWatchedDevices();
         loadDisplaySettings();
@@ -8663,6 +8863,7 @@ LIVE_TEMPLATE = """
                 rfStateHtml(d) +
                 dultStateHtml(d) +
                 surveillanceHtml(d) +
+                '<div class="detail-item full" id="ears-heard-item" hidden><div class="detail-label">Heard by</div><div class="detail-value" id="ears-heard" style="font-size:0.8rem;"></div></div>' +
                 '<div class="detail-item"' + (d.identity_mac_count > 1 && d.identity_first_seen ? ' title="Earliest sighting across all ' + d.identity_mac_count + ' rotated addresses clustered under this identity"' : '') + '><div class="detail-label">First seen</div><div class="detail-value mono">' + (d.identity_mac_count > 1 && d.identity_first_seen ? new Date(d.identity_first_seen).toLocaleString() : (d.first_seen ? new Date(d.first_seen).toLocaleString() : '—')) + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">Last seen</div><div class="detail-value mono">' + (d.last_seen ? new Date(d.last_seen).toLocaleString() : '—') + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">Activity Pattern</div><div class="detail-value">' + (data.pattern || 'Insufficient data') + '</div></div>' +
@@ -9300,10 +9501,64 @@ LIVE_TEMPLATE = """
         function startLiveSignalPolling(mac) {
             stopLiveSignalPolling();
             fetchAndRenderLiveSignal(mac);
+            fetchAndRenderEars(mac);
+            let ticks = 0;
             liveSignalPollTimer = setInterval(function() {
                 if (mac !== currentDeviceMac) { stopLiveSignalPolling(); return; }
                 fetchAndRenderLiveSignal(mac);
+                if (++ticks % 3 === 0) fetchAndRenderEars(mac);
             }, LIVE_SIGNAL_POLL_MS);
+        }
+
+        // "Heard by" row: which radios hear this device -- this BlueWatch's
+        // own and every remote ear (Config > Ears) -- strongest first, with
+        // the nearest one called out. Hidden until at least one ear exists.
+        function earLabel(r) {
+            if (r.local) return 'This BlueWatch';
+            return r.listener === r.ear || r.listener === 'ear' ? r.ear : r.listener + ' (' + r.ear + ')';
+        }
+
+        async function fetchAndRenderEars(mac) {
+            const item = document.getElementById('ears-heard-item');
+            const el = document.getElementById('ears-heard');
+            if (!item || !el) return;
+            let data;
+            try {
+                const response = await fetch('/api/device/' + encodeURIComponent(mac) + '/ears');
+                data = await response.json();
+            } catch (error) { return; }
+            if (mac !== currentDeviceMac || !data.has_ears) return;
+            const live = (data.live || []).slice().sort(function(a, b) {
+                return (a.seconds_ago > 60) - (b.seconds_ago > 60) || b.rssi - a.rssi;
+            });
+            const nearest = data.nearest;
+            // One ear (e.g. a single Home Assistant) -> the room name says it
+            // all; several ears -> keep the ear name to tell rooms apart.
+            const earCount = new Set(live.filter(function(r) { return !r.local; }).map(function(r) { return r.ear; })).size;
+            const rowLabel = function(r) { return earCount > 1 || r.local ? earLabel(r) : (r.listener === 'ear' ? r.ear : r.listener); };
+            let html = '';
+            if (nearest) {
+                html += '<div style="margin-bottom: 0.35rem;">Nearest: <strong style="color: var(--accent-blue, #58a6ff);">' + escapeHtml(earLabel(nearest)) + '</strong></div>';
+            }
+            html += live.map(function(r) {
+                const pct = Math.max(4, Math.min(100, Math.round((r.rssi + 100) / 70 * 100)));
+                const stale = r.seconds_ago > 60;
+                const isNearest = nearest && earLabel(r) === earLabel(nearest);
+                return '<div style="display: grid; grid-template-columns: minmax(7rem, 12rem) 1fr 4.2rem 3.2rem; gap: 0.5rem; align-items: center; opacity: ' + (stale ? '0.5' : '1') + ';">' +
+                    '<span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;' + (isNearest ? ' font-weight: 600;' : '') + '" title="' + escapeHtml(earLabel(r)) + '">' + escapeHtml(rowLabel(r)) + '</span>' +
+                    '<span style="height: 6px; border-radius: 3px; background: var(--bg-tertiary);"><span style="display: block; height: 100%; width: ' + pct + '%; border-radius: 3px; background: ' + (isNearest ? 'var(--accent-blue, #58a6ff)' : 'var(--text-muted)') + ';"></span></span>' +
+                    '<span class="mono" style="text-align: right;">' + r.rssi + ' dBm</span>' +
+                    '<span class="mono" style="text-align: right; color: var(--text-muted);">' + formatDurationCompact(r.seconds_ago) + '</span>' +
+                    '</div>';
+            }).join('');
+            if (!live.length) {
+                const last = (data.history || [])[0];
+                html += last
+                    ? '<span style="color: var(--text-muted);">Not heard right now · last by ' + escapeHtml(last.listener === 'ear' ? last.ear_name : last.listener + ' (' + last.ear_name + ')') + ', ' + new Date(last.last_heard).toLocaleString() + '</span>'
+                    : '<span style="color: var(--text-muted);">Not heard by any remote ear yet</span>';
+            }
+            el.innerHTML = html;
+            item.hidden = false;
         }
 
         function stopLiveSignalPolling() {

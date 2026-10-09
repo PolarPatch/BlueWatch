@@ -99,6 +99,7 @@ BlueWatch is a Bluetooth scanner that:
 - Classic Bluetooth device class parsing
 - Randomized MAC filtering (hidden from main view)
 - Also lists devices announcing themselves on your local network (printers, TVs, speakers, computers, smart-home hubs) with their own name and model. Turn off with `BLUEWATCH_MDNS=0`
+- **Remote ears**: extra passive listeners around the house (Home Assistant Bluetooth proxies or a spare Pi) report what they hear, and Device Details shows which room a device is nearest to. See [Remote Ears](#remote-ears)
 
 ### Device Management
 - Mark devices as "Watched" for tracking personal devices
@@ -393,6 +394,37 @@ BlueWatch can send push notifications via [ntfy.sh](https://ntfy.sh), a free, op
    - New device detected
    - Watched device returns (after being absent)
    - Watched device leaves (not seen for X minutes)
+
+## Remote Ears
+
+One radio only hears so far. An *ear* is another passive listener that
+reports what it hears to your BlueWatch, so devices in the garage or upstairs
+show up too, and Device Details shows which listener hears each device
+loudest. In practice, that tells you which room it is in.
+
+1. In **Config > Ears**, give the ear a name and create a token. The token is
+   shown once. BlueWatch only keeps a fingerprint of it.
+2. Connect a listener:
+   - **Home Assistant**: install the *BlueWatch Ears* integration and enter
+     your BlueWatch address and the token. Every Bluetooth adapter and ESPHome
+     Bluetooth proxy that Home Assistant knows about becomes a listener, named
+     after the proxy.
+   - **A spare Linux box or Raspberry Pi** with BlueWatch installed:
+     ```bash
+     bluewatch-ear --hub http://<bluewatch-address>:8080 --token bwear_... --name "Garage"
+     ```
+     macOS cannot be an ear, because it hides real Bluetooth addresses.
+   - **Just trying it out**: `python3 tools/fake_ear.py --token bwear_...`
+     simulates three rooms and a device walking between them.
+
+Ears only listen. They never connect to devices or transmit anything. You can
+pause or remove an ear at any time, and removing it makes its token stop
+working immediately.
+
+The ear API is small: `GET /api/ears/v1/hello` checks a token, and
+`POST /api/ears/v1/heard` delivers a batch of up to 400 observations. Both
+take `Authorization: Bearer <token>`. See `bluewatch/ears.py` for the exact
+format and limits.
 
 ## Data Storage
 

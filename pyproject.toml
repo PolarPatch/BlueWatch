@@ -22,6 +22,7 @@ metrics = ["prometheus-client>=0.21.0"]
 
 [project.scripts]
 bluewatch = "bluewatch.daemon:main"
+bluewatch-ear = "bluewatch.ear_agent:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
