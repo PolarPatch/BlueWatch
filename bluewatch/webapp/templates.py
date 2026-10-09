@@ -3601,12 +3601,12 @@ HTML_TEMPLATE = """
             } else {
                 const rssi = data.current_rssi;
                 rssiEl.textContent = rssi + " dBm";
-                rssiEl.style.color = "#ffffff";
+                rssiEl.style.color = "var(--text-primary)";
                 if (trendEl) {
                     // Trend arrow: last sample vs. the average of the
                     // previous few -- same idea as Fieldwatch's RssiTrend
                     // (>>/>/=/</<<), just derived here instead of carried
-                    // from the API. White throughout, matching the
+                    // from the API. Theme text colour throughout, matching the
                     // reference card exactly -- no quality-color coding.
                     const s = data.sightings || [];
                     if (s.length >= 4) {
@@ -3619,7 +3619,7 @@ HTML_TEMPLATE = """
                         else if (delta <= -8) mark = "«";
                         else if (delta <= -3) mark = "‹";
                         trendEl.textContent = mark;
-                        trendEl.style.color = "#ffffff";
+                        trendEl.style.color = "var(--text-primary)";
                     } else {
                         trendEl.textContent = "";
                     }
@@ -3710,7 +3710,7 @@ HTML_TEMPLATE = """
                 grid +
                 '<path class="rssi-area" d="' + areaPath + '" style="fill: url(#liveSignalGradient); stroke: none;"/>' +
                 '<path class="rssi-line" d="' + linePath + '" style="stroke: ' + lineColor + ';"/>' +
-                '<circle cx="' + lastX + '" cy="' + lastY + '" r="3.4" fill="' + lineColor + '"/>' +
+                '<circle cx="' + lastX + '" cy="' + lastY + '" r="3.4" style="fill: ' + lineColor + ';"/>' +
                 "</svg>";
         }
 
@@ -9348,12 +9348,12 @@ LIVE_TEMPLATE = """
             } else {
                 const rssi = data.current_rssi;
                 rssiEl.textContent = rssi + " dBm";
-                rssiEl.style.color = "#ffffff";
+                rssiEl.style.color = "var(--text-primary)";
                 if (trendEl) {
                     // Trend arrow: last sample vs. the average of the
                     // previous few -- same idea as Fieldwatch's RssiTrend
                     // (>>/>/=/</<<), just derived here instead of carried
-                    // from the API. White throughout, matching the
+                    // from the API. Theme text colour throughout, matching the
                     // reference card exactly -- no quality-color coding.
                     const s = data.sightings || [];
                     if (s.length >= 4) {
@@ -9366,7 +9366,7 @@ LIVE_TEMPLATE = """
                         else if (delta <= -8) mark = "«";
                         else if (delta <= -3) mark = "‹";
                         trendEl.textContent = mark;
-                        trendEl.style.color = "#ffffff";
+                        trendEl.style.color = "var(--text-primary)";
                     } else {
                         trendEl.textContent = "";
                     }
@@ -9457,7 +9457,7 @@ LIVE_TEMPLATE = """
                 grid +
                 '<path class="rssi-area" d="' + areaPath + '" style="fill: url(#liveSignalGradient); stroke: none;"/>' +
                 '<path class="rssi-line" d="' + linePath + '" style="stroke: ' + lineColor + ';"/>' +
-                '<circle cx="' + lastX + '" cy="' + lastY + '" r="3.4" fill="' + lineColor + '"/>' +
+                '<circle cx="' + lastX + '" cy="' + lastY + '" r="3.4" style="fill: ' + lineColor + ';"/>' +
                 "</svg>";
         }
 
