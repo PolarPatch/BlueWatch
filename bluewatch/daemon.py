@@ -87,6 +87,12 @@ class BlueWatchDaemon:
             adapter = self.scanner.adapter or "auto"
             logger.info(f"Single-adapter mode: {adapter} (BLE and classic scans run sequentially)")
 
+        # Keep systemd's watchdog fed while starting up. On a Pi 3 after a
+        # cold boot, init_db()'s integrity check on a ~200 MB database can
+        # take longer than WatchdogSec, so systemd killed the daemon before
+        # the regular watchdog loop had started (seen 2026-10-09).
+        startup_watchdog = asyncio.create_task(self._startup_watchdog_loop())
+
         # Initialize database
         await db.init_db()
         logger.info(f"Database initialized at {db.DB_PATH}")
@@ -132,6 +138,8 @@ class BlueWatchDaemon:
         self.running = True
         self._http_session = aiohttp.ClientSession()
         asyncio.create_task(self._absence_check_loop())
+        startup_watchdog.cancel()
+        self._last_scan_cycle = time.monotonic()
         asyncio.create_task(self._systemd_watchdog_loop())
         if self._metrics:
             asyncio.create_task(self._metrics_update_loop())
@@ -165,6 +173,13 @@ class BlueWatchDaemon:
                 await self.scanner.start_continuous_ble()
                 paused_for_scan_unit = False
             await asyncio.sleep(0.5)
+
+    async def _startup_watchdog_loop(self) -> None:
+        """Ping the watchdog unconditionally until start() hands over to
+        _systemd_watchdog_loop. Slow startup is not a hang."""
+        while True:
+            _sd_notify("WATCHDOG=1")
+            await asyncio.sleep(15)
 
     async def _systemd_watchdog_loop(self) -> None:
         """Pings systemd's watchdog (WatchdogSec in bluewatch.service)
