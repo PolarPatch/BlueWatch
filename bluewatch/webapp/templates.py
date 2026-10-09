@@ -2077,7 +2077,7 @@ HTML_TEMPLATE = """
                 return '';
             };
             const nameFor = k => k.replace(/_ok$/, '').replace(/_[A-Za-z]+$/, '').replace(/_/g, ' ')
-                .replace(/\b\w/g, c => c.toUpperCase());
+                .replace(/\\b\\w/g, c => c.toUpperCase());
             const parts = [];
             for (const [k, v] of Object.entries(d.rf_state)) {
                 if (v === null || v === undefined || typeof v === 'object') continue;
@@ -2093,6 +2093,19 @@ HTML_TEMPLATE = """
         // DULT (Detecting Unwanted Location Trackers) -- network_id is a
         // raw registered number (the IETF spec doesn't publish the id->name
         // table), near_owner is the accessory's own live self-assessment.
+        // Flock/Axon/Raven radio clues graded low/medium/high by how specific
+        // and corroborated they are (classifier.surveillance_evidence). Not a
+        // probability: names can be spoofed and an OUI only names the radio.
+        function surveillanceHtml(d) {
+            const s = d.surveillance;
+            if (!s) return '';
+            const color = s.level === 'high' ? 'var(--accent-red, #f85149)'
+                : s.level === 'medium' ? 'var(--accent-orange, #d29922)' : 'var(--text-secondary, #8b949e)';
+            return '<div class="detail-item full"><div class="detail-label">Surveillance clues</div><div class="detail-value" style="font-size:0.8rem;">'
+                + escapeHtml(s.vendor) + ' · <span style="color: ' + color + ';">' + escapeHtml(s.level) + '</span> · '
+                + s.evidence.map(escapeHtml).join(' + ') + '</div></div>';
+        }
+
         function dultStateHtml(d) {
             if (!d.dult_state || !d.dult_state_at) return '';
             const ageMs = Date.now() - new Date(d.dult_state_at).getTime();
@@ -2897,6 +2910,7 @@ HTML_TEMPLATE = """
                 droneStateHtml(d) +
                 rfStateHtml(d) +
                 dultStateHtml(d) +
+                surveillanceHtml(d) +
                 '<div class="detail-item"' + (d.identity_mac_count > 1 && d.identity_first_seen ? ' title="Earliest sighting across all ' + d.identity_mac_count + ' rotated addresses clustered under this identity"' : '') + '><div class="detail-label">First seen</div><div class="detail-value mono">' + (d.identity_mac_count > 1 && d.identity_first_seen ? new Date(d.identity_first_seen).toLocaleString() : (d.first_seen ? new Date(d.first_seen).toLocaleString() : '—')) + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">Last seen</div><div class="detail-value mono">' + (d.last_seen ? new Date(d.last_seen).toLocaleString() : '—') + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">Activity Pattern</div><div class="detail-value">' + (data.pattern || 'Insufficient data') + '</div></div>' +
@@ -7909,7 +7923,7 @@ LIVE_TEMPLATE = """
                 return '';
             };
             const nameFor = k => k.replace(/_ok$/, '').replace(/_[A-Za-z]+$/, '').replace(/_/g, ' ')
-                .replace(/\b\w/g, c => c.toUpperCase());
+                .replace(/\\b\\w/g, c => c.toUpperCase());
             const parts = [];
             for (const [k, v] of Object.entries(d.rf_state)) {
                 if (v === null || v === undefined || typeof v === 'object') continue;
@@ -7925,6 +7939,19 @@ LIVE_TEMPLATE = """
         // DULT (Detecting Unwanted Location Trackers) -- network_id is a
         // raw registered number (the IETF spec doesn't publish the id->name
         // table), near_owner is the accessory's own live self-assessment.
+        // Flock/Axon/Raven radio clues graded low/medium/high by how specific
+        // and corroborated they are (classifier.surveillance_evidence). Not a
+        // probability: names can be spoofed and an OUI only names the radio.
+        function surveillanceHtml(d) {
+            const s = d.surveillance;
+            if (!s) return '';
+            const color = s.level === 'high' ? 'var(--accent-red, #f85149)'
+                : s.level === 'medium' ? 'var(--accent-orange, #d29922)' : 'var(--text-secondary, #8b949e)';
+            return '<div class="detail-item full"><div class="detail-label">Surveillance clues</div><div class="detail-value" style="font-size:0.8rem;">'
+                + escapeHtml(s.vendor) + ' · <span style="color: ' + color + ';">' + escapeHtml(s.level) + '</span> · '
+                + s.evidence.map(escapeHtml).join(' + ') + '</div></div>';
+        }
+
         function dultStateHtml(d) {
             if (!d.dult_state || !d.dult_state_at) return '';
             const ageMs = Date.now() - new Date(d.dult_state_at).getTime();
@@ -8625,6 +8652,7 @@ LIVE_TEMPLATE = """
                 droneStateHtml(d) +
                 rfStateHtml(d) +
                 dultStateHtml(d) +
+                surveillanceHtml(d) +
                 '<div class="detail-item"' + (d.identity_mac_count > 1 && d.identity_first_seen ? ' title="Earliest sighting across all ' + d.identity_mac_count + ' rotated addresses clustered under this identity"' : '') + '><div class="detail-label">First seen</div><div class="detail-value mono">' + (d.identity_mac_count > 1 && d.identity_first_seen ? new Date(d.identity_first_seen).toLocaleString() : (d.first_seen ? new Date(d.first_seen).toLocaleString() : '—')) + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">Last seen</div><div class="detail-value mono">' + (d.last_seen ? new Date(d.last_seen).toLocaleString() : '—') + '</div></div>' +
                 '<div class="detail-item"><div class="detail-label">Activity Pattern</div><div class="detail-value">' + (data.pattern || 'Insufficient data') + '</div></div>' +

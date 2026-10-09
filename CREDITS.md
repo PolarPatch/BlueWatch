@@ -272,3 +272,19 @@ cameras) were used, matched by registered vendor name; no code was copied. Its
 `docs/DETECTIONS.md` is also a good reference for how each signature was checked
 against the IEEE registry.
 
+
+## Flock / Axon / Raven evidence grading
+
+`surveillance_evidence()` in `bluewatch/classifier.py` follows the scheme in
+`camera_signatures.h` from [AWOKxDAG](https://github.com/dagnazty/awokxdag)
+(v1.7.8, MIT) by dagnazty. The scheme covers:
+
+- Flock's own BLE names, matched exactly.
+- The Axon OUI (`00:25:DF`) together with Axon product names.
+- The XUNTONG company ID `0x09C8`.
+- The Raven custom services `0x3100`-`0x3500`.
+
+Clues are graded low, medium or high by how specific and corroborated they
+are. OUIs only count on non-randomized addresses. The values and the grading
+idea were reimplemented in Python, and no code was copied. The underlying
+field research is credited in AWOKxDAG's `docs/camera-signatures.md`.

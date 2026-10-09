@@ -17,7 +17,7 @@ from typing import Optional
 from aiohttp import web
 
 from .. import archive, db, rpa
-from ..classifier import classify_device, get_type_icon, get_type_label, get_all_types, is_randomized_mac, is_macos_uuid, is_mdns_key, get_uuid_names
+from ..classifier import classify_device, get_type_icon, get_type_label, get_all_types, is_randomized_mac, is_macos_uuid, is_mdns_key, get_uuid_names, surveillance_evidence
 from ..patterns import generate_hourly_heatmap, generate_daily_heatmap
 from .radar_template import RADAR_TEMPLATE
 from .rf_template import RF_TEMPLATE
@@ -754,6 +754,7 @@ class WebServer:
                 "rf_state_at": (device.rf_state_at.isoformat()) if device.rf_state_at else None,
                 "dult_state": device.dult_state,
                 "dult_state_at": (device.dult_state_at.isoformat()) if device.dult_state_at else None,
+                "surveillance": surveillance_evidence(device.mac, device.friendly_name, device.manufacturer_data, device.service_uuids, device.service_data),
             },
             "type_label": get_type_label(device_type),
             "uuid_names": get_uuid_names(device.service_uuids),

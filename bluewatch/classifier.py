@@ -316,12 +316,32 @@ FLIPPER_MAC_OUI_LEGACY = "80:E1:26"
 # it caused false positives on Ring- SSIDs -- that OUI is deliberately not
 # included here for the same reason.
 FLOCK_MAC_OUI = "B4:1E:52"
-# Bird-codename product lines Flock Safety names its own hardware after --
-# generic English words on their own (a real false-positive risk shared
-# with Fieldwatch's own catalog, noted here rather than silently accepted),
-# kept only because Fieldwatch's curated catalog lists them as validated
-# against real units.
-FLOCK_NAME_PATTERNS = ("flock", "flck", "condor", "falcon", "sparrow")
+# Flock BLE names, matched whole rather than as substrings. "Flock" used
+# to match anywhere in a name, as did the bird codenames Condor/Falcon/
+# Sparrow, which hit ordinary products. Now the specific names below are
+# medium evidence on their own. Bird codenames (whole word) and "flock"
+# inside a longer name are only low evidence, so they need a second clue.
+# Sources: dagnazty/awokxdag camera_signatures.h (v1.7.8, MIT) and
+# OffGridPete/Fieldwatch Catalog 82 (MIT).
+_FLOCK_NAME_RE = re.compile(
+    r'^(flock|flck|flockcam|pigvision|penguin|fs ext battery'
+    r'|(flock|flck)[-_ ].+|penguin-\d{1,12}|fs-[0-9a-f]{4,8})$',
+    re.IGNORECASE)
+_FLOCK_WEAK_NAME_RE = re.compile(r'flock|\b(condor|falcon|sparrow)\b', re.IGNORECASE)
+# Axon Enterprise (body cameras, fleet cameras, docks). IEEE MA-L block.
+AXON_MAC_OUI = "00:25:DF"
+_AXON_NAME_RE = re.compile(r'^axon (body|flex|fleet|dock)', re.IGNORECASE)
+# XUNTONG, possibly the Flock external battery pack. The company ID is
+# not specific to Flock, so it is low evidence on its own.
+COMPANY_ID_XUNTONG = 0x09C8
+# Custom services seen on Flock Raven (acoustic gunshot sensor). One is low
+# evidence, two or more distinct services are medium. Generic services
+# (0x180A/0x1809/0x1819) are deliberately left out.
+RAVEN_SERVICE_SHORT_UUIDS = frozenset({0x3100, 0x3200, 0x3300, 0x3400, 0x3500})
+
+SURVEILLANCE_LOW = "low"
+SURVEILLANCE_MEDIUM = "medium"
+SURVEILLANCE_HIGH = "high"
 # Swapfiets e-bike lock (source: blesploit device-library)
 COMPANY_ID_SWAPFIETS = 0x020F
 # Smart-lock company IDs -- each names a lock maker specifically enough to
@@ -835,6 +855,96 @@ DJI_CAMERA_MODEL_IDS = frozenset({6, 16, 18, 20, 21, 23, 24, 25, 32, 33, 34})  #
 # DJI Power portable power stations share the DJI company ID -- not an
 # aircraft (Fieldwatch Catalog 91, v1.1.19: model 4500 = Power 2000).
 DJI_POWER_MODEL_IDS = frozenset({4500})
+
+
+def _short_uuid(uuid: str) -> Optional[int]:
+    """16-bit form of a Bluetooth-base UUID, or None for a custom 128-bit one."""
+    u = str(uuid).lower()
+    if len(u) == 4:
+        try:
+            return int(u, 16)
+        except ValueError:
+            return None
+    if len(u) == 36 and u.startswith("0000") and u.endswith("-0000-1000-8000-00805f9b34fb"):
+        try:
+            return int(u[4:8], 16)
+        except ValueError:
+            return None
+    return None
+
+
+def surveillance_evidence(mac: Optional[str], name: Optional[str],
+                          manufacturer_data: Optional[dict] = None,
+                          service_uuids: Optional[list[str]] = None,
+                          service_data: Optional[dict] = None) -> Optional[dict]:
+    """Collect Flock/Axon/Raven radio clues and grade them.
+
+    The grade says how specific and corroborated the clues are, not how
+    likely it is to be a camera. Names can be spoofed, and an OUI names the
+    radio's address block, not the product. OUIs are only trusted on
+    non-randomized addresses. Returns {"vendor", "level", "evidence",
+    "registered_oui"} or None. Scheme from dagnazty/awokxdag
+    camera_signatures.h (v1.7.8, MIT).
+    """
+    clues = set()
+    if mac and not is_macos_uuid(mac) and not is_randomized_mac(mac):
+        mac_norm = mac.upper().replace("-", ":")
+        if mac_norm.startswith(FLOCK_MAC_OUI):
+            clues.add("flock_oui")
+        elif mac_norm.startswith(AXON_MAC_OUI):
+            clues.add("axon_oui")
+    if name:
+        n = name.strip()
+        if _FLOCK_NAME_RE.match(n):
+            clues.add("flock_name")
+        elif _AXON_NAME_RE.match(n):
+            clues.add("axon_name")
+        elif _FLOCK_WEAK_NAME_RE.search(n):
+            clues.add("flock_weak_name")
+    if manufacturer_data and COMPANY_ID_XUNTONG in manufacturer_data:
+        clues.add("xuntong")
+    raven = set()
+    for u in list(service_uuids or []) + list((service_data or {}).keys()):
+        short = _short_uuid(u)
+        if short in RAVEN_SERVICE_SHORT_UUIDS:
+            raven.add(short)
+    if raven:
+        clues.add("raven_uuids" if len(raven) >= 2 else "raven_uuid")
+    # A bird codename or "flock" inside a longer name, with nothing else,
+    # is too common to be worth showing.
+    if not clues or clues == {"flock_weak_name"}:
+        return None
+
+    flock_name = "flock_name" in clues
+    if (("flock_name" in clues or "flock_weak_name" in clues)
+            and clues & {"flock_oui", "xuntong", "raven_uuid", "raven_uuids"}) \
+            or {"axon_name", "axon_oui"} <= clues:
+        level = SURVEILLANCE_HIGH
+    elif flock_name or "axon_name" in clues or "raven_uuids" in clues:
+        level = SURVEILLANCE_MEDIUM
+    else:
+        level = SURVEILLANCE_LOW
+
+    labels = {
+        "flock_oui": "Flock OUI", "axon_oui": "Axon OUI",
+        "flock_name": "Flock name", "flock_weak_name": "Flock-like name",
+        "axon_name": "Axon name", "xuntong": "mfg 0x09C8",
+        "raven_uuid": "Raven UUID", "raven_uuids": "2+ Raven UUIDs",
+    }
+    if clues & {"axon_oui", "axon_name"}:
+        vendor = "Axon"
+    elif clues & {"raven_uuid", "raven_uuids"} and not clues & {"flock_oui", "flock_name", "flock_weak_name"}:
+        vendor = "Flock Raven?"
+    elif clues == {"xuntong"}:
+        vendor = "Xuntong / Flock?"
+    else:
+        vendor = "Flock Safety"
+    return {
+        "vendor": vendor,
+        "level": level,
+        "evidence": [labels[c] for c in sorted(clues)],
+        "registered_oui": bool(clues & {"flock_oui", "axon_oui"}),
+    }
 
 
 def classify_dji_manufacturer_data(payload: bytes) -> Optional[str]:
@@ -1895,10 +2005,13 @@ def classify_device(
         mac_norm = mac.upper().replace("-", ":")
         if mac_norm.startswith(FLIPPER_MAC_OUI) or mac_norm.startswith(FLIPPER_MAC_OUI_LEGACY):
             return TYPE_FLIPPER
-        if mac_norm.startswith(FLOCK_MAC_OUI):
-            return TYPE_CAMERA
 
-    if name and any(p in name.lower() for p in FLOCK_NAME_PATTERNS):
+    # Flock/Axon/Raven: camera when the clues reach medium, or when the
+    # address sits in Flock's or Axon's own registered OUI block. A lone
+    # weak clue (a bird codename, one Raven UUID, the XUNTONG ID) is shown
+    # on Device Details but does not set the type. See surveillance_evidence().
+    surveillance = surveillance_evidence(mac, name, manufacturer_data, service_uuids, service_data)
+    if surveillance and (surveillance["level"] != SURVEILLANCE_LOW or surveillance["registered_oui"]):
         return TYPE_CAMERA
 
     # Manufacturer-data fingerprints (AirTag/Find My, Flipper Zero, Meta
