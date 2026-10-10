@@ -289,6 +289,19 @@ are. OUIs only count on non-randomized addresses. The values and the grading
 idea were reimplemented in Python, and no code was copied. The underlying
 field research is credited in AWOKxDAG's `docs/camera-signatures.md`.
 
+The signatures that still work on randomized addresses come from
+[Axe-off](https://github.com/colonelpanichacks/axeoff) (MIT) by
+colonelpanichacks:
+
+- the Bluetooth SIG company ID `0x034D` (TASER International, now Axon);
+- the 16-bit member service UUIDs `0xFC81` (Axon), `0xFE6B` and `0xFE6C`
+  (TASER).
+
+These cover Axon body cameras, Taser 7/10, Signal Sidearm and Fleet. The
+identifiers were checked against the Bluetooth SIG registries. Only the
+values were taken, and no code was copied. Axe-off's WiFi signatures are not
+used, because BlueWatch does not listen to WiFi.
+
 ## Remote ears
 
 The idea of feeding BlueWatch with observations from Home Assistant's

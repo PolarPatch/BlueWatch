@@ -331,6 +331,12 @@ _FLOCK_WEAK_NAME_RE = re.compile(r'flock|\b(condor|falcon|sparrow)\b', re.IGNORE
 # Axon Enterprise (body cameras, fleet cameras, docks). IEEE MA-L block.
 AXON_MAC_OUI = "00:25:DF"
 _AXON_NAME_RE = re.compile(r'^axon (body|flex|fleet|dock)', re.IGNORECASE)
+# Bluetooth SIG company ID "TASER International" (= Axon), and the 16-bit
+# member service UUIDs registered to TASER (0xFE6B, 0xFE6C) and Axon
+# (0xFC81). Unlike the OUI these still match on randomized addresses.
+# Source: colonelpanichacks/axeoff (MIT), checked against the SIG registry.
+COMPANY_ID_AXON = 0x034D
+AXON_SERVICE_SHORT_UUIDS = frozenset({0xFC81, 0xFE6B, 0xFE6C})
 # XUNTONG, possibly the Flock external battery pack. The company ID is
 # not specific to Flock, so it is low evidence on its own.
 COMPANY_ID_XUNTONG = 0x09C8
@@ -903,11 +909,15 @@ def surveillance_evidence(mac: Optional[str], name: Optional[str],
             clues.add("flock_weak_name")
     if manufacturer_data and COMPANY_ID_XUNTONG in manufacturer_data:
         clues.add("xuntong")
+    if manufacturer_data and COMPANY_ID_AXON in manufacturer_data:
+        clues.add("axon_cid")
     raven = set()
     for u in list(service_uuids or []) + list((service_data or {}).keys()):
         short = _short_uuid(u)
         if short in RAVEN_SERVICE_SHORT_UUIDS:
             raven.add(short)
+        elif short in AXON_SERVICE_SHORT_UUIDS:
+            clues.add("axon_uuid")
     if raven:
         clues.add("raven_uuids" if len(raven) >= 2 else "raven_uuid")
     # A bird codename or "flock" inside a longer name, with nothing else,
@@ -918,9 +928,9 @@ def surveillance_evidence(mac: Optional[str], name: Optional[str],
     flock_name = "flock_name" in clues
     if (("flock_name" in clues or "flock_weak_name" in clues)
             and clues & {"flock_oui", "xuntong", "raven_uuid", "raven_uuids"}) \
-            or {"axon_name", "axon_oui"} <= clues:
+            or len(clues & {"axon_name", "axon_oui", "axon_cid", "axon_uuid"}) >= 2:
         level = SURVEILLANCE_HIGH
-    elif flock_name or "axon_name" in clues or "raven_uuids" in clues:
+    elif flock_name or clues & {"axon_name", "axon_cid", "axon_uuid"} or "raven_uuids" in clues:
         level = SURVEILLANCE_MEDIUM
     else:
         level = SURVEILLANCE_LOW
@@ -929,9 +939,10 @@ def surveillance_evidence(mac: Optional[str], name: Optional[str],
         "flock_oui": "Flock OUI", "axon_oui": "Axon OUI",
         "flock_name": "Flock name", "flock_weak_name": "Flock-like name",
         "axon_name": "Axon name", "xuntong": "mfg 0x09C8",
+        "axon_cid": "Axon/TASER mfg 0x034D", "axon_uuid": "Axon service UUID",
         "raven_uuid": "Raven UUID", "raven_uuids": "2+ Raven UUIDs",
     }
-    if clues & {"axon_oui", "axon_name"}:
+    if clues & {"axon_oui", "axon_name", "axon_cid", "axon_uuid"}:
         vendor = "Axon"
     elif clues & {"raven_uuid", "raven_uuids"} and not clues & {"flock_oui", "flock_name", "flock_weak_name"}:
         vendor = "Flock Raven?"
@@ -1421,7 +1432,7 @@ def classify_by_vendor_company_id(manufacturer_data: Optional[dict]) -> Optional
 # Patterns are matched case-insensitively
 # Bump this when the classification rules change: on the next start every
 # stored automatic type is recomputed in the background (manual types are kept).
-CLASSIFIER_VERSION = 5
+CLASSIFIER_VERSION = 6
 
 VENDOR_PATTERNS = [
     # Surveillance and security cameras, matched by the registered vendor name.
