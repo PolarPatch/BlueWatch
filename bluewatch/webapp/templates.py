@@ -1851,6 +1851,7 @@ HTML_TEMPLATE = """
         }
 
         function renderCategoryTree() {
+            if (dragInProgress) { redrawAfterDrag.tree = true; return; }
             const el = document.getElementById('categories-tree');
             if (!el) return;
             const topLevel = categoriesCache.filter(g => !g.parent_id);
@@ -2184,6 +2185,19 @@ HTML_TEMPLATE = """
 
         let draggedCategoryId = null;
         let draggedDeviceMac = null;
+
+        // While something is being dragged, the category tree and the device
+        // list must not be redrawn: replacing the dragged row or the folder
+        // under the pointer cancels the drop (the live refreshes do that every
+        // few seconds). Redraws wait until the drag ends.
+        var dragInProgress = false;
+        var redrawAfterDrag = { tree: false, devices: false };
+        document.addEventListener('dragstart', () => { dragInProgress = true; });
+        document.addEventListener('dragend', () => {
+            dragInProgress = false;
+            if (redrawAfterDrag.tree) { redrawAfterDrag.tree = false; renderCategoryTree(); }
+            if (redrawAfterDrag.devices) { redrawAfterDrag.devices = false; renderDevices(); }
+        });
 
         function onCategoryDragStart(event, groupId) {
             draggedCategoryId = groupId;
@@ -2654,6 +2668,7 @@ HTML_TEMPLATE = """
         }
 
         function renderDevices() {
+            if (dragInProgress) { redrawAfterDrag.devices = true; return; }
             const tbody = document.getElementById('device-list');
             const sourceDevices = dateFilteredDevices !== null ? dateFilteredDevices : allDevices;
             // Devices with no recent RSSI reading are never hidden by the threshold.
@@ -7889,6 +7904,7 @@ LIVE_TEMPLATE = """
         }
 
         function renderCategoryTree() {
+            if (dragInProgress) { redrawAfterDrag.tree = true; return; }
             const el = document.getElementById('categories-tree');
             if (!el) return;
             const topLevel = categoriesCache.filter(g => !g.parent_id);
@@ -8256,6 +8272,19 @@ LIVE_TEMPLATE = """
 
         let draggedCategoryId = null;
         let draggedDeviceMac = null;
+
+        // While something is being dragged, the category tree and the device
+        // list must not be redrawn: replacing the dragged row or the folder
+        // under the pointer cancels the drop (the live refreshes do that every
+        // few seconds). Redraws wait until the drag ends.
+        var dragInProgress = false;
+        var redrawAfterDrag = { tree: false, devices: false };
+        document.addEventListener('dragstart', () => { dragInProgress = true; });
+        document.addEventListener('dragend', () => {
+            dragInProgress = false;
+            if (redrawAfterDrag.tree) { redrawAfterDrag.tree = false; renderCategoryTree(); }
+            if (redrawAfterDrag.devices) { redrawAfterDrag.devices = false; renderDevices(); }
+        });
 
         function onCategoryDragStart(event, groupId) {
             draggedCategoryId = groupId;
@@ -8725,6 +8754,7 @@ LIVE_TEMPLATE = """
         }
 
         function renderDevices() {
+            if (dragInProgress) { redrawAfterDrag.devices = true; return; }
             const tbody = document.getElementById('device-list');
             const sourceDevices = dateFilteredDevices !== null ? dateFilteredDevices : allDevices;
             // Devices with no recent RSSI reading are never hidden by the
