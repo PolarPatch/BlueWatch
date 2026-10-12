@@ -4,6 +4,8 @@
 
 # BlueWatch
 
+<a href="https://buymeacoffee.com/p0larpatch"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy PolarPatch a coffee" height="42"></a>
+
 Passive Bluetooth neighbourhood monitor for Raspberry Pi and Linux: a live radar, device triage, categories and alerts for new devices.
 
 The real strength shows up once you actually start using it: categorize
