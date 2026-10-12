@@ -342,8 +342,17 @@ AXON_SERVICE_SHORT_UUIDS = frozenset({0xFC81, 0xFE6B, 0xFE6C})
 COMPANY_ID_XUNTONG = 0x09C8
 # Custom services seen on Flock Raven (acoustic gunshot sensor). One is low
 # evidence, two or more distinct services are medium. Generic services
-# (0x180A/0x1809/0x1819) are deliberately left out.
-RAVEN_SERVICE_SHORT_UUIDS = frozenset({0x3100, 0x3200, 0x3300, 0x3400, 0x3500})
+# (0x180A/0x1809/0x1819) are deliberately left out. The whole range
+# 0x3100-0x3500 counts, not only the round values: 0x3101/0x3102 are the
+# ones that report its GPS position. The SIG has assigned nothing there.
+# Source: colonelpanichacks/flock-you (MIT), via SquachWatch-CYD #15.
+RAVEN_SERVICE_RANGE = (0x3100, 0x3500)
+# Flock accessory GATT service, from the GATT table in a Flock camera's
+# firmware dump (flock-you, MIT). Specific enough to be medium alone.
+FLOCK_GATT_SERVICE_UUID = "e8ccbb38-9532-46a8-9fe5-1814df172e6f"
+# A Penguin battery pack on its other firmware names itself by its bare
+# ten-digit serial (flock-you). Any gadget could be called that, so low.
+_FLOCK_SERIAL_NAME_RE = re.compile(r'^\d{10}$')
 
 SURVEILLANCE_LOW = "low"
 SURVEILLANCE_MEDIUM = "medium"
@@ -907,14 +916,19 @@ def surveillance_evidence(mac: Optional[str], name: Optional[str],
             clues.add("axon_name")
         elif _FLOCK_WEAK_NAME_RE.search(n):
             clues.add("flock_weak_name")
+        elif _FLOCK_SERIAL_NAME_RE.match(n):
+            clues.add("flock_serial_name")
     if manufacturer_data and COMPANY_ID_XUNTONG in manufacturer_data:
         clues.add("xuntong")
     if manufacturer_data and COMPANY_ID_AXON in manufacturer_data:
         clues.add("axon_cid")
     raven = set()
     for u in list(service_uuids or []) + list((service_data or {}).keys()):
+        if str(u).lower() == FLOCK_GATT_SERVICE_UUID:
+            clues.add("flock_gatt")
+            continue
         short = _short_uuid(u)
-        if short in RAVEN_SERVICE_SHORT_UUIDS:
+        if short is not None and RAVEN_SERVICE_RANGE[0] <= short <= RAVEN_SERVICE_RANGE[1]:
             raven.add(short)
         elif short in AXON_SERVICE_SHORT_UUIDS:
             clues.add("axon_uuid")
@@ -926,11 +940,12 @@ def surveillance_evidence(mac: Optional[str], name: Optional[str],
         return None
 
     flock_name = "flock_name" in clues
-    if (("flock_name" in clues or "flock_weak_name" in clues)
-            and clues & {"flock_oui", "xuntong", "raven_uuid", "raven_uuids"}) \
+    flock_named = clues & {"flock_name", "flock_weak_name", "flock_serial_name"}
+    if (flock_named and clues & {"flock_oui", "xuntong", "raven_uuid", "raven_uuids", "flock_gatt"}) \
+            or ("flock_gatt" in clues and "flock_oui" in clues) \
             or len(clues & {"axon_name", "axon_oui", "axon_cid", "axon_uuid"}) >= 2:
         level = SURVEILLANCE_HIGH
-    elif flock_name or clues & {"axon_name", "axon_cid", "axon_uuid"} or "raven_uuids" in clues:
+    elif flock_name or clues & {"axon_name", "axon_cid", "axon_uuid", "flock_gatt"} or "raven_uuids" in clues:
         level = SURVEILLANCE_MEDIUM
     else:
         level = SURVEILLANCE_LOW
@@ -938,6 +953,7 @@ def surveillance_evidence(mac: Optional[str], name: Optional[str],
     labels = {
         "flock_oui": "Flock OUI", "axon_oui": "Axon OUI",
         "flock_name": "Flock name", "flock_weak_name": "Flock-like name",
+        "flock_serial_name": "10-digit serial name", "flock_gatt": "Flock GATT service",
         "axon_name": "Axon name", "xuntong": "mfg 0x09C8",
         "axon_cid": "Axon/TASER mfg 0x034D", "axon_uuid": "Axon service UUID",
         "raven_uuid": "Raven UUID", "raven_uuids": "2+ Raven UUIDs",
@@ -948,6 +964,8 @@ def surveillance_evidence(mac: Optional[str], name: Optional[str],
         vendor = "Flock Raven?"
     elif clues == {"xuntong"}:
         vendor = "Xuntong / Flock?"
+    elif clues == {"flock_serial_name"}:
+        vendor = "Flock battery?"
     else:
         vendor = "Flock Safety"
     return {
@@ -1432,7 +1450,7 @@ def classify_by_vendor_company_id(manufacturer_data: Optional[dict]) -> Optional
 # Patterns are matched case-insensitively
 # Bump this when the classification rules change: on the next start every
 # stored automatic type is recomputed in the background (manual types are kept).
-CLASSIFIER_VERSION = 6
+CLASSIFIER_VERSION = 7
 
 VENDOR_PATTERNS = [
     # Surveillance and security cameras, matched by the registered vendor name.
