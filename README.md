@@ -617,6 +617,16 @@ scanning/persistence/notification plumbing was originally built on, see
 Questions or interest in the project? Reach out at
 [p0larpatch@proton.me](mailto:p0larpatch@proton.me).
 
+## Support
+
+BlueWatch is free and always will be. If it is useful to you and you would
+like to say thanks, you can
+[buy PolarPatch a coffee](https://buymeacoffee.com/p0larpatch).
+
+BlueWatch started out as [bluehood](https://github.com/dannymcc/bluehood) by
+Danny McClelland. If you enjoy it, consider
+[buying Danny a coffee](https://buymeacoffee.com/d3hkz6gwle) too.
+
 ## License
 
 MIT License - See [LICENSE](LICENSE) for details.
