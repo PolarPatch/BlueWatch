@@ -5,8 +5,9 @@ what actually gets picked up before deciding what deserves proper
 handling. Receive-only, same as everything sub-GHz in this project."""
 
 RF_TEMPLATE = r"""<!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="cyberpunk">
 <head>
+    <script>try { document.documentElement.setAttribute('data-theme', localStorage.getItem('bluewatch_theme') || 'cyberpunk'); } catch (e) {}</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>BlueWatch - RF log</title>
@@ -136,6 +137,7 @@ RF_TEMPLATE = r"""<!DOCTYPE html>
             <a href="/" class="nav-link">Dashboard</a>
             <a href="/all" class="nav-link">All devices</a>
             <a href="/radar" class="nav-link">Radar</a>
+            <a href="/crowd" class="nav-link">Crowd</a>
             <a href="/rf" class="nav-link active">RF log</a>
             <a href="/settings" class="nav-link">Config</a>
         </nav>
@@ -203,7 +205,7 @@ RF_TEMPLATE = r"""<!DOCTYPE html>
     })();
     document.getElementById('theme-toggle').onclick = function() {
         var order = ['dark', 'light', 'cyberpunk'];
-        var cur = document.documentElement.getAttribute('data-theme') || 'dark';
+        var cur = document.documentElement.getAttribute('data-theme') || 'cyberpunk';
         var next = order[(order.indexOf(cur) + 1) % order.length];
         document.documentElement.setAttribute('data-theme', next);
         try { localStorage.setItem('bluewatch_theme', next); } catch (e) {}

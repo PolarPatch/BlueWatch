@@ -323,6 +323,15 @@ many tracker addresses that are heard once and never again point to a
 flood. BlueWatch has its own implementation and its own thresholds, which
 were checked against a week of real traffic. No code was copied.
 
+## Crowd
+
+Counting people by the phones around them is the idea behind
+[ESP32-Paxcounter](https://github.com/cyberman54/ESP32-Paxcounter)
+(cyberman54, Apache-2.0) and its counting library libpax. BlueWatch's Crowd
+page is its own implementation with a different method (device types, an
+RSSI floor and address-rotation merging over the sightings it already has).
+No code was copied.
+
 ## Wi-Fi ears
 
 The Wi-Fi signatures in `bluewatch/wifi.py` are facts collected by others;

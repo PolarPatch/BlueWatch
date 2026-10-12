@@ -16,11 +16,12 @@ from typing import Optional
 
 from aiohttp import web
 
-from .. import archive, db, ears, rpa, __version__
+from .. import archive, crowd, db, ears, rpa, __version__
 from ..classifier import classify_device, get_type_icon, get_type_label, get_all_types, is_randomized_mac, is_macos_uuid, is_mdns_key, get_uuid_names, surveillance_evidence
 from ..patterns import generate_hourly_heatmap, generate_daily_heatmap
 from .radar_template import RADAR_TEMPLATE
 from .rf_template import RF_TEMPLATE
+from .crowd_template import CROWD_TEMPLATE
 from .templates import ABOUT_TEMPLATE, HTML_TEMPLATE, LIVE_TEMPLATE, LOGIN_TEMPLATE, SETTINGS_TEMPLATE
 
 logger = logging.getLogger(__name__)
@@ -230,6 +231,8 @@ class WebServer:
         self.app.router.add_get("/api/fastpair-settings", self.api_get_fastpair_settings)
         self.app.router.add_post("/api/fastpair-settings", self.api_set_fastpair_settings)
         self.app.router.add_get("/api/wifi", self.api_wifi_status)
+        self.app.router.add_get("/crowd", self.crowd_page)
+        self.app.router.add_get("/api/crowd", self.api_crowd)
         self.app.router.add_get("/api/esp32-scanner-settings", self.api_get_esp32_scanner_settings)
         self.app.router.add_post("/api/esp32-scanner-settings", self.api_set_esp32_scanner_settings)
         self.app.router.add_get("/api/ears/v1/hello", self.api_ear_hello)
@@ -1553,6 +1556,39 @@ class WebServer:
     async def radar_page(self, request: web.Request) -> web.Response:
         """Serve the radar view."""
         return web.Response(text=RADAR_TEMPLATE, content_type="text/html")
+
+    async def crowd_page(self, request: web.Request) -> web.Response:
+        return web.Response(text=CROWD_TEMPLATE, content_type="text/html")
+
+    async def api_crowd(self, request: web.Request) -> web.Response:
+        """Crowd page data: the last 5 minutes live, the stored buckets for
+        the chosen range, and what is usual for each time of day (median of
+        the 7 days before today)."""
+        days = 7 if request.query.get("range") == "7d" else 1
+        now = datetime.now()
+        step = timedelta(minutes=crowd.BUCKET_MINUTES)
+        live = crowd.estimate(await db.get_crowd_rows(now - step, now + timedelta(seconds=1)))
+        midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        rows = await db.get_crowd_buckets(min(now - timedelta(days=days), midnight - timedelta(days=7)))
+        by_time: dict[str, list[int]] = {}
+        for r in rows:
+            if r["bucket"] < midnight.isoformat(timespec="minutes"):
+                by_time.setdefault(r["bucket"][11:16], []).append(r["people"])
+        usual = {t: sorted(v)[len(v) // 2] for t, v in by_time.items() if len(v) >= 2}
+        since = (now - timedelta(days=days)).isoformat(timespec="minutes")
+        series = [r for r in rows if r["bucket"] >= since]
+        today = [r["people"] for r in rows if r["bucket"] >= midnight.isoformat(timespec="minutes")]
+        slot = now.replace(minute=now.minute - now.minute % crowd.BUCKET_MINUTES).strftime("%H:%M")
+        return web.json_response({
+            "now": live,
+            "usual_now": usual.get(slot),
+            "peak_today": max(today) if today else None,
+            "series": series,
+            "usual": usual,
+            "range": "7d" if days == 7 else "24h",
+            "rssi_floor": crowd.RSSI_FLOOR,
+            "bucket_minutes": crowd.BUCKET_MINUTES,
+        })
 
     async def rf_page(self, request: web.Request) -> web.Response:
         """Serve the temporary /rf raw sub-GHz firehose view."""

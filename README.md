@@ -99,6 +99,7 @@ BlueWatch is a Bluetooth scanner that:
 - Classic Bluetooth device class parsing
 - Randomized MAC filtering (hidden from main view)
 - Also lists devices announcing themselves on your local network (printers, TVs, speakers, computers, smart-home hubs) with their own name and model. Turn off with `BLUEWATCH_MDNS=0`
+- **Crowd**: roughly how many people are around, counted from the phones BlueWatch hears, through the day and against what is usual for the time. Totals only. See [Crowd](#crowd)
 - **Wi-Fi ears (optional)**: with a second, monitor-mode Wi-Fi adapter, BlueWatch also recognises Axon/Flock camera networks, WiFi Pineapples, ESP deauthers, Pwnagotchis and Remote ID drones, and alerts on deauthentication floods and evil twins. See [Wi-Fi Ears](#wi-fi-ears)
 - **Remote ears**: extra passive listeners around the house (Home Assistant Bluetooth proxies or a spare Pi) report what they hear, and Device Details shows which room a device is nearest to. See [Remote Ears](#remote-ears)
 
@@ -134,6 +135,7 @@ BlueWatch is a Bluetooth scanner that:
 - Both configurable from the web UI or via environment variables
 
 ### Web Interface
+- **Themes**: cyberpunk by default, with dark and light one click away (the toggle in the top bar, or Config > Display); each browser remembers its own choice
 - **Compact/Detailed view toggle** for different display preferences
 - **Screenshot mode** to obfuscate MACs and names for safe sharing
 - **Keyboard shortcuts** for power users (press `?` to view)
@@ -429,6 +431,21 @@ The ear API is small: `GET /api/ears/v1/hello` checks a token, and
 `POST /api/ears/v1/heard` delivers a batch of up to 400 observations. Both
 take `Authorization: Bearer <token>`. See `bluewatch/ears.py` for the exact
 format and limits.
+
+## Crowd
+
+The Crowd page (`/crowd`) estimates how many people are around: right now,
+through the last 24 hours or 7 days, and against the median for the same
+time of day over the past week. Every 5 minutes BlueWatch counts the phones
+it heard at -80 dBm or louder. Phones change address every 15 minutes or so,
+so two phone addresses that never overlap and are about as loud are counted
+once. Watches, earbuds and other personal devices are shown as a second
+line. Trackers, TVs, beacons and unidentified devices are left out.
+
+Only the totals are stored (`crowd_counts`); the count is worked out from
+sightings BlueWatch already keeps, so the page has history from the start.
+It is an estimate: people without a phone are missed, and neighbours are
+counted. Changes are more telling than the level.
 
 ## Wi-Fi Ears
 

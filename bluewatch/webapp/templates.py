@@ -2,8 +2,9 @@
 
 HTML_TEMPLATE = """
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="cyberpunk">
 <head>
+    <script>try { document.documentElement.setAttribute('data-theme', localStorage.getItem('bluewatch_theme') || 'cyberpunk'); } catch (e) {}</script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BlueWatch</title>
@@ -1102,6 +1103,7 @@ HTML_TEMPLATE = """
                 <a href="/" class="nav-link">Dashboard</a>
                 <a href="/all" class="nav-link active">All devices</a>
                 <a href="/radar" class="nav-link">Radar</a>
+                <a href="/crowd" class="nav-link">Crowd</a>
                 <a href="/rf" class="nav-link">RF log</a>
                 <a href="/settings" class="nav-link">Config</a>
             </nav>
@@ -1359,13 +1361,13 @@ HTML_TEMPLATE = """
 
         function toggleTheme() {
             const order = ['dark', 'light', 'cyberpunk'];
-            const current = document.documentElement.getAttribute('data-theme') || 'dark';
+            const current = document.documentElement.getAttribute('data-theme') || 'cyberpunk';
             const next = order[(order.indexOf(current) + 1) % order.length];
             localStorage.setItem('bluewatch_theme', next);
             applyTheme(next);
         }
 
-        applyTheme(localStorage.getItem('bluewatch_theme') || 'dark');
+        applyTheme(localStorage.getItem('bluewatch_theme') || 'cyberpunk');
 
         const PAGE_SIZE_OPTIONS = [25, 50, 100, 150, 250];
         const PAGE_SIZE_STORAGE_KEY = 'bluewatch_page_size_v2';
@@ -3939,8 +3941,9 @@ HTML_TEMPLATE = """
 
 SETTINGS_TEMPLATE = """
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="cyberpunk">
 <head>
+    <script>try { document.documentElement.setAttribute('data-theme', localStorage.getItem('bluewatch_theme') || 'cyberpunk'); } catch (e) {}</script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BlueWatch</title>
@@ -4079,6 +4082,7 @@ SETTINGS_TEMPLATE = """
                 <a href="/" class="nav-link">Dashboard</a>
                 <a href="/all" class="nav-link">All devices</a>
                 <a href="/radar" class="nav-link">Radar</a>
+                <a href="/crowd" class="nav-link">Crowd</a>
                 <a href="/rf" class="nav-link">RF log</a>
                 <a href="/settings" class="nav-link active">Config</a>
             </nav>
@@ -4708,12 +4712,12 @@ SETTINGS_TEMPLATE = """
         }
         function toggleTheme() {
             const order = ['dark', 'light', 'cyberpunk'];
-            const current = document.documentElement.getAttribute('data-theme') || 'dark';
+            const current = document.documentElement.getAttribute('data-theme') || 'cyberpunk';
             const next = order[(order.indexOf(current) + 1) % order.length];
             localStorage.setItem('bluewatch_theme', next);
             applyTheme(next);
         }
-        applyTheme(localStorage.getItem('bluewatch_theme') || 'dark');
+        applyTheme(localStorage.getItem('bluewatch_theme') || 'cyberpunk');
 
         // CONFIG hero glitch -- ghosts lean toward the cursor, same as
         // WDGWars' own UPLINK mark. Skipped entirely for reduced-motion or
@@ -5460,7 +5464,7 @@ SETTINGS_TEMPLATE = """
         // nothing to load from the server. See applyTheme()/applyContrast()
         // near the top of this script.
         function loadDisplaySettings() {
-            const theme = document.documentElement.getAttribute('data-theme') || 'dark';
+            const theme = document.documentElement.getAttribute('data-theme') || 'cyberpunk';
             const contrast = getContrast();
             for (const t of ['dark', 'light', 'cyberpunk']) {
                 const btn = document.getElementById('theme-btn-' + t);
@@ -5479,7 +5483,7 @@ SETTINGS_TEMPLATE = """
         }
 
         function onContrastInput(value) {
-            const theme = document.documentElement.getAttribute('data-theme') || 'dark';
+            const theme = document.documentElement.getAttribute('data-theme') || 'cyberpunk';
             applyContrast(theme, parseInt(value, 10));
             const label = document.getElementById('contrast-value');
             if (label) label.textContent = value;
@@ -5667,8 +5671,9 @@ SETTINGS_TEMPLATE = """
 
 ABOUT_TEMPLATE = """
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="cyberpunk">
 <head>
+    <script>try { document.documentElement.setAttribute('data-theme', localStorage.getItem('bluewatch_theme') || 'cyberpunk'); } catch (e) {}</script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BlueWatch</title>
@@ -5751,6 +5756,7 @@ ABOUT_TEMPLATE = """
                 <a href="/" class="nav-link">Dashboard</a>
                 <a href="/all" class="nav-link">All devices</a>
                 <a href="/radar" class="nav-link">Radar</a>
+                <a href="/crowd" class="nav-link">Crowd</a>
                 <a href="/rf" class="nav-link">RF log</a>
                 <a href="/settings" class="nav-link">Config</a>
             </nav>
@@ -5885,12 +5891,12 @@ ABOUT_TEMPLATE = """
         }
         function toggleTheme() {
             const order = ['dark', 'light', 'cyberpunk'];
-            const current = document.documentElement.getAttribute('data-theme') || 'dark';
+            const current = document.documentElement.getAttribute('data-theme') || 'cyberpunk';
             const next = order[(order.indexOf(current) + 1) % order.length];
             localStorage.setItem('bluewatch_theme', next);
             applyTheme(next);
         }
-        applyTheme(localStorage.getItem('bluewatch_theme') || 'dark');
+        applyTheme(localStorage.getItem('bluewatch_theme') || 'cyberpunk');
     </script>
 </body>
 </html>
@@ -5898,8 +5904,9 @@ ABOUT_TEMPLATE = """
 
 LIVE_TEMPLATE = """
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="cyberpunk">
 <head>
+    <script>try { document.documentElement.setAttribute('data-theme', localStorage.getItem('bluewatch_theme') || 'cyberpunk'); } catch (e) {}</script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BlueWatch - Live</title>
@@ -7005,6 +7012,7 @@ LIVE_TEMPLATE = """
                 <a href="/" class="nav-link active">Dashboard</a>
                 <a href="/all" class="nav-link">All devices</a>
                 <a href="/radar" class="nav-link">Radar</a>
+                <a href="/crowd" class="nav-link">Crowd</a>
                 <a href="/rf" class="nav-link">RF log</a>
                 <a href="/settings" class="nav-link">Config</a>
             </nav>
@@ -7277,13 +7285,13 @@ LIVE_TEMPLATE = """
 
         function toggleTheme() {
             const order = ['dark', 'light', 'cyberpunk'];
-            const current = document.documentElement.getAttribute('data-theme') || 'dark';
+            const current = document.documentElement.getAttribute('data-theme') || 'cyberpunk';
             const next = order[(order.indexOf(current) + 1) % order.length];
             localStorage.setItem('bluewatch_theme', next);
             applyTheme(next);
         }
 
-        applyTheme(localStorage.getItem('bluewatch_theme') || 'dark');
+        applyTheme(localStorage.getItem('bluewatch_theme') || 'cyberpunk');
 
         const PAGE_SIZE_OPTIONS = [25, 50, 100, 150, 250];
         const PAGE_SIZE_STORAGE_KEY = 'bluewatch_page_size_v2';
@@ -9875,8 +9883,9 @@ LIVE_TEMPLATE = """
 
 LOGIN_TEMPLATE = """
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="cyberpunk">
 <head>
+    <script>try { document.documentElement.setAttribute('data-theme', localStorage.getItem('bluewatch_theme') || 'cyberpunk'); } catch (e) {}</script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BlueWatch</title>
@@ -10011,12 +10020,12 @@ LOGIN_TEMPLATE = """
         }
         function toggleTheme() {
             const order = ['dark', 'light', 'cyberpunk'];
-            const current = document.documentElement.getAttribute('data-theme') || 'dark';
+            const current = document.documentElement.getAttribute('data-theme') || 'cyberpunk';
             const next = order[(order.indexOf(current) + 1) % order.length];
             localStorage.setItem('bluewatch_theme', next);
             applyTheme(next);
         }
-        applyTheme(localStorage.getItem('bluewatch_theme') || 'dark');
+        applyTheme(localStorage.getItem('bluewatch_theme') || 'cyberpunk');
 
         document.getElementById('login-form').addEventListener('submit', async (e) => {
             e.preventDefault();

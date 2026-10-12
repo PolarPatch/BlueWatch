@@ -9,13 +9,13 @@ import platform
 import signal
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
 import aiohttp
 
-from . import active_scan, db, ears, wifi, wifi_sniffer, wigle, __version__
+from . import active_scan, crowd, db, ears, wifi, wifi_sniffer, wigle, __version__
 from .classifier import CLASSIFIER_VERSION, is_randomized_mac
 from .config import SCAN_INTERVAL, SOCKET_PATH, METRICS_PORT, WIFI_IFACE, WIFI_PCAP
 from .scanner import BluetoothScanner, ScannedDevice, list_adapters
@@ -158,6 +158,7 @@ class BlueWatchDaemon:
         asyncio.create_task(self._ears_ingest_loop())
         asyncio.create_task(self._mdns_ingest_loop())
         asyncio.create_task(self._rtl433_ingest_loop())
+        asyncio.create_task(self._crowd_loop())
         if self._wifi_iface or self._wifi_pcap:
             asyncio.create_task(self._wifi_loop())
         asyncio.create_task(self._stats_overview_loop())
@@ -284,6 +285,36 @@ class BlueWatchDaemon:
         await self._try_wigle_lookups(wigle_candidates)
         if devices:
             await self._notify_clients({"event": "scan_complete", "count": len(devices)})
+
+    async def _crowd_loop(self) -> None:
+        """Fills crowd_counts one finished 5-minute bucket at a time
+        (crowd.py). On a fresh install it first works back through the
+        sightings still on disk (up to a week), slowly, so the Crowd page
+        has history at once without loading a Pi 3."""
+        step = timedelta(minutes=crowd.BUCKET_MINUTES)
+        await asyncio.sleep(30)
+        while self.running:
+            done = 0
+            try:
+                now = datetime.now()
+                current = now.replace(minute=now.minute - now.minute % crowd.BUCKET_MINUTES, second=0, microsecond=0)
+                last = await db.get_last_crowd_bucket()
+                if last:
+                    start = datetime.fromisoformat(last) + step
+                else:
+                    oldest = await db.get_oldest_sighting_time()
+                    start = max(oldest, now - timedelta(days=7)) if oldest else current
+                    start = start.replace(minute=start.minute - start.minute % crowd.BUCKET_MINUTES, second=0, microsecond=0)
+                start = max(start, current - timedelta(days=7))
+                while start < current and done < 48 and self.running:
+                    rows = await db.get_crowd_rows(start, start + step)
+                    await db.save_crowd_bucket(start, crowd.estimate(rows))
+                    start += step
+                    done += 1
+                    await asyncio.sleep(0.2)
+            except Exception as e:
+                logger.warning(f"Crowd count failed: {e}")
+            await asyncio.sleep(2 if done == 48 else 60)
 
     WIFI_FLUSH_SECONDS = 5
 

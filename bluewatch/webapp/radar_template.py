@@ -7,8 +7,9 @@ fixed, repeatable position per device so dots don't jump around.
 """
 
 RADAR_TEMPLATE = r"""<!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="cyberpunk">
 <head>
+    <script>try { document.documentElement.setAttribute('data-theme', localStorage.getItem('bluewatch_theme') || 'cyberpunk'); } catch (e) {}</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>BlueWatch - Radar</title>
@@ -118,6 +119,7 @@ RADAR_TEMPLATE = r"""<!DOCTYPE html>
             <a href="/" class="nav-link">Dashboard</a>
             <a href="/all" class="nav-link">All devices</a>
             <a href="/radar" class="nav-link active">Radar</a>
+            <a href="/crowd" class="nav-link">Crowd</a>
             <a href="/rf" class="nav-link">RF log</a>
             <a href="/settings" class="nav-link">Config</a>
         </nav>
@@ -181,13 +183,13 @@ RADAR_TEMPLATE = r"""<!DOCTYPE html>
     }
     document.getElementById('theme-toggle').onclick = () => {
         const order = ['dark', 'light', 'cyberpunk'];
-        const current = document.documentElement.getAttribute('data-theme') || 'dark';
+        const current = document.documentElement.getAttribute('data-theme') || 'cyberpunk';
         const next = order[(order.indexOf(current) + 1) % order.length];
         try { localStorage.setItem('bluewatch_theme', next); } catch (e) {}
         applyTheme(next);
     };
-    let savedTheme = 'dark';
-    try { savedTheme = localStorage.getItem('bluewatch_theme') || 'dark'; } catch (e) {}
+    let savedTheme = 'cyberpunk';
+    try { savedTheme = localStorage.getItem('bluewatch_theme') || 'cyberpunk'; } catch (e) {}
     applyTheme(savedTheme);
 
     // ----- colors by type -----
