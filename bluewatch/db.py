@@ -114,7 +114,7 @@ class Settings:
     # flagging every time it reappears, not just the first time it's ever
     # triaged. Comma-separated string in storage; empty means no type-based
     # alerts configured.
-    type_alert_types: tuple[str, ...] = ("flipper",)
+    type_alert_types: tuple[str, ...] = ("flipper", "attack")
     notify_watched_return: bool = True
     notify_watched_leave: bool = True
     watched_absence_minutes: int = 30  # Minutes before "left"
@@ -2082,7 +2082,7 @@ async def get_settings() -> Settings:
         ntfy_enabled=settings_dict.get("ntfy_enabled", "0") == "1",
         notify_new_device=settings_dict.get("notify_new_device", "0") == "1",
         type_alert_types=tuple(
-            t for t in (settings_dict.get("type_alert_types", "flipper") or "").split(",") if t
+            t for t in (settings_dict.get("type_alert_types", "flipper,attack") or "").split(",") if t
         ),
         notify_watched_return=settings_dict.get("notify_watched_return", "1") == "1",
         notify_watched_leave=settings_dict.get("notify_watched_leave", "1") == "1",

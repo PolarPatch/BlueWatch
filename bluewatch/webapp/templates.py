@@ -2087,7 +2087,7 @@ HTML_TEMPLATE = """
                 parts.push(escapeHtml(nameFor(k)) + ': ' + escapeHtml(String(val)) + unitFor(k));
             }
             if (!parts.length) return '';
-            return '<div class="detail-item full"><div class="detail-label">Sub-GHz reading (live)</div><div class="detail-value" style="font-size:0.8rem;">' + parts.join(' · ') + '</div></div>';
+            return '<div class="detail-item full"><div class="detail-label">' + (d.bt_type === 'wifi' ? 'Wi-Fi (live)' : 'Sub-GHz reading (live)') + '</div><div class="detail-value" style="font-size:0.8rem;">' + parts.join(' · ') + '</div></div>';
         }
 
         // DULT (Detecting Unwanted Location Trackers) -- network_id is a
@@ -8138,7 +8138,7 @@ LIVE_TEMPLATE = """
                 parts.push(escapeHtml(nameFor(k)) + ': ' + escapeHtml(String(val)) + unitFor(k));
             }
             if (!parts.length) return '';
-            return '<div class="detail-item full"><div class="detail-label">Sub-GHz reading (live)</div><div class="detail-value" style="font-size:0.8rem;">' + parts.join(' · ') + '</div></div>';
+            return '<div class="detail-item full"><div class="detail-label">' + (d.bt_type === 'wifi' ? 'Wi-Fi (live)' : 'Sub-GHz reading (live)') + '</div><div class="detail-value" style="font-size:0.8rem;">' + parts.join(' · ') + '</div></div>';
         }
 
         // DULT (Detecting Unwanted Location Trackers) -- network_id is a

@@ -229,6 +229,7 @@ class WebServer:
 
         self.app.router.add_get("/api/fastpair-settings", self.api_get_fastpair_settings)
         self.app.router.add_post("/api/fastpair-settings", self.api_set_fastpair_settings)
+        self.app.router.add_get("/api/wifi", self.api_wifi_status)
         self.app.router.add_get("/api/esp32-scanner-settings", self.api_get_esp32_scanner_settings)
         self.app.router.add_post("/api/esp32-scanner-settings", self.api_set_esp32_scanner_settings)
         self.app.router.add_get("/api/ears/v1/hello", self.api_ear_hello)
@@ -769,6 +770,7 @@ class WebServer:
                 "drone_state_at": (device.drone_state_at.isoformat()) if device.drone_state_at else None,
                 "rf_state": device.rf_state,
                 "rf_state_at": (device.rf_state_at.isoformat()) if device.rf_state_at else None,
+                "bt_type": device.bt_type,
                 "dult_state": device.dult_state,
                 "dult_state_at": (device.dult_state_at.isoformat()) if device.dult_state_at else None,
                 "surveillance": surveillance_evidence(device.mac, device.friendly_name, device.manufacturer_data, device.service_uuids, device.service_data),
@@ -1595,6 +1597,7 @@ class WebServer:
                 "sightings": r["total_sightings"],
                 "lan": r["bt_type"] == "lan",
                 "rf": r["bt_type"] == "rf",
+                "wifi": r["bt_type"] == "wifi",
                 "random": is_randomized_mac(r["mac"]),
             })
         return web.json_response({"window": window, "devices": out})
@@ -1684,7 +1687,7 @@ class WebServer:
         now = datetime.now()
         rows = []
         for r in await db.get_radar_devices(window):
-            if r["rssi"] is None or r["bt_type"] in ("lan", "rf"):
+            if r["rssi"] is None or r["bt_type"] in ("lan", "rf", "wifi"):
                 continue
             device_type = r["type"] or "unknown"
             if hide_classified and device_type != "unknown":
@@ -2125,6 +2128,11 @@ class WebServer:
             return web.json_response({"status": "ok"})
         except Exception as e:
             return web.json_response({"error": str(e)}, status=400)
+
+    async def api_wifi_status(self, request: web.Request) -> web.Response:
+        """Wi-Fi ears status: source, channel, frame counts, recent attack alerts."""
+        from .. import wifi_sniffer
+        return web.json_response(wifi_sniffer.STATUS)
 
     async def api_get_esp32_scanner_settings(self, request: web.Request) -> web.Response:
         """Whether the optional ESP32-S3 (blesploit firmware) second BLE

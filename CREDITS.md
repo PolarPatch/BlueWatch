@@ -323,6 +323,26 @@ many tracker addresses that are heard once and never again point to a
 flood. BlueWatch has its own implementation and its own thresholds, which
 were checked against a week of real traffic. No code was copied.
 
+## Wi-Fi ears
+
+The Wi-Fi signatures in `bluewatch/wifi.py` are facts collected by others;
+the frame parsing and detection code is BlueWatch's own:
+
+- the Axon body camera network prefixes (`AB2-`, `AB3-`, `AB4-`, `AXON-`), the
+  Flock setup prefix, and the deauth-flood and evil-twin ideas come from
+  [SquachWatch-CYD](https://github.com/skizzophrenic/SquachWatch-CYD)
+  (skizzophrenic, GPL-3.0); only the values and ideas were used;
+- the bare `Flock` network name comes from
+  [Flock-You](https://github.com/colonelpanichacks/flock-you)
+  (colonelpanichacks, MIT);
+- the Pwnagotchi beacon (information element 222 carrying JSON) is documented
+  by the [pwngrid](https://github.com/evilsocket/pwngrid) project (evilsocket,
+  GPL-3.0);
+- Remote ID over Wi-Fi beacons (vendor element `FA:0B:BC`, type `0x0D`)
+  follows ASTM F3411 as implemented in
+  [opendroneid-core-c](https://github.com/opendroneid/opendroneid-core-c)
+  (Apache-2.0).
+
 ## Remote ears
 
 The idea of feeding BlueWatch with observations from Home Assistant's

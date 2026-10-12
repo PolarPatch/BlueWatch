@@ -128,6 +128,7 @@ TYPE_BEACON = "beacon"
 TYPE_MESH = "mesh"
 TYPE_SKIMMER = "skimmer"
 TYPE_DRONE = "drone"
+TYPE_ATTACK = "attack"
 TYPE_LOCK = "lock"
 TYPE_METER = "meter"
 TYPE_UNKNOWN = "unknown"
@@ -249,6 +250,7 @@ TYPE_ICONS = {
     TYPE_MESH: "[MSH]",
     TYPE_SKIMMER: "[SKM]",
     TYPE_DRONE: "[UAS]",
+    TYPE_ATTACK: "[ATK]",
     TYPE_LOCK: "[LCK]",
     TYPE_METER: "[MTR]",
     TYPE_UNKNOWN: "[---]",
@@ -278,6 +280,7 @@ TYPE_LABELS = {
     TYPE_MESH: "Mesh Radio",
     TYPE_SKIMMER: "Possible Skimmer",
     TYPE_DRONE: "Drone (Remote ID)",
+    TYPE_ATTACK: "Wi-Fi Attack Tool",
     TYPE_LOCK: "Smart Lock",
     TYPE_METER: "Utility Meter",
     TYPE_UNKNOWN: "Unknown",
@@ -1885,6 +1888,25 @@ def classify_mdns(name: Optional[str], service_uuids: Optional[list[str]], weak:
     return None
 
 
+# Wi-Fi devices (bluewatch/wifi.py) carry what matched as "wifi-sig:" tags in
+# service_uuids, the way mDNS devices carry their services there.
+_WIFI_TAG_TYPES = {
+    "pwnagotchi": TYPE_ATTACK, "pineapple": TYPE_ATTACK, "deauther": TYPE_ATTACK,
+    "axon-ssid": TYPE_CAMERA, "flock-ssid": TYPE_CAMERA,
+    "flock-oui": TYPE_CAMERA, "axon-oui": TYPE_CAMERA,
+}
+
+
+def classify_wifi(service_uuids: Optional[list[str]]) -> Optional[str]:
+    """Type for a Wi-Fi match, or None if this is not one. Attack tools win
+    over a camera address block (somebody could run a deauther on one)."""
+    tags = [s[9:] for s in (service_uuids or []) if isinstance(s, str) and s.startswith("wifi-sig:")]
+    types = [_WIFI_TAG_TYPES[t] for t in tags if t in _WIFI_TAG_TYPES]
+    if TYPE_ATTACK in types:
+        return TYPE_ATTACK
+    return types[0] if types else None
+
+
 def classify_device(
     vendor: Optional[str],
     name: Optional[str] = None,
@@ -1917,6 +1939,9 @@ def classify_device(
     mdns_type = classify_mdns(name, service_uuids)
     if mdns_type:
         return mdns_type
+    wifi_type = classify_wifi(service_uuids)
+    if wifi_type:
+        return wifi_type
 
     # A resolved Fast Pair Model ID names the exact product (e.g. "Sonos
     # Ace"), so it's a stronger signal than any generic UUID/company-ID

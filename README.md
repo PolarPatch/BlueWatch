@@ -99,6 +99,7 @@ BlueWatch is a Bluetooth scanner that:
 - Classic Bluetooth device class parsing
 - Randomized MAC filtering (hidden from main view)
 - Also lists devices announcing themselves on your local network (printers, TVs, speakers, computers, smart-home hubs) with their own name and model. Turn off with `BLUEWATCH_MDNS=0`
+- **Wi-Fi ears (optional)**: with a second, monitor-mode Wi-Fi adapter, BlueWatch also recognises Axon/Flock camera networks, WiFi Pineapples, ESP deauthers, Pwnagotchis and Remote ID drones, and alerts on deauthentication floods and evil twins. See [Wi-Fi Ears](#wi-fi-ears)
 - **Remote ears**: extra passive listeners around the house (Home Assistant Bluetooth proxies or a spare Pi) report what they hear, and Device Details shows which room a device is nearest to. See [Remote Ears](#remote-ears)
 
 ### Device Management
@@ -199,6 +200,9 @@ The web dashboard will be available at **http://localhost:8080**
 | `BLUEWATCH_METRICS_PORT` | disabled | Prometheus metrics port (e.g., `9199`) |
 | `BLUEWATCH_HEARTBEAT_URL` | disabled | URL to POST heartbeat check-ins (e.g., a healthchecks.io or uptime-kuma push URL) |
 | `BLUEWATCH_HEARTBEAT_INTERVAL` | `300` | Seconds between heartbeat check-ins |
+| `BLUEWATCH_WIFI_IFACE` | unset (off) | Monitor-mode Wi-Fi adapter to listen on, e.g. `wlan1`. See [Wi-Fi Ears](#wi-fi-ears) |
+| `BLUEWATCH_WIFI_CHANNELS` | `1`-`13` | Channels to hop through, e.g. `1,6,11,36,40,44,48` |
+| `BLUEWATCH_WIFI_PCAP` | unset | Replay a radiotap `.pcap` through the Wi-Fi recognition instead of listening |
 | `BLUEWATCH_PRUNE_DAYS` | `0` (disabled) | Auto-delete sightings older than N days to free storage |
 | `BLUEWATCH_PRUNE_MIN_SIGHTINGS` | `0` (disabled) | When >0, prune whole stale devices (older than `BLUEWATCH_PRUNE_DAYS` and with fewer than N total sightings) instead of only trimming old sighting rows; watched devices are never pruned |
 
@@ -425,6 +429,42 @@ The ear API is small: `GET /api/ears/v1/hello` checks a token, and
 `POST /api/ears/v1/heard` delivers a batch of up to 400 observations. Both
 take `Authorization: Bearer <token>`. See `bluewatch/ears.py` for the exact
 format and limits.
+
+## Wi-Fi Ears
+
+Optional, and off by default. With a USB Wi-Fi adapter that supports monitor
+mode, BlueWatch listens to Wi-Fi management frames as well (beacons,
+probe responses and deauthentication frames). It never transmits and never
+reads data frames. The Raspberry Pi's own Wi-Fi cannot do monitor mode, so
+this needs a second adapter; MediaTek chips (mt76 driver, e.g. MT7612U or
+MT7921AU) work out of the box on Linux. Realtek adapters usually need
+out-of-tree drivers.
+
+```bash
+BLUEWATCH_WIFI_IFACE=wlan1 bluewatch        # or: bluewatch --wifi-iface wlan1
+```
+
+BlueWatch puts the adapter in monitor mode itself and hops through channels
+1-13 (set `BLUEWATCH_WIFI_CHANNELS` for 5 GHz). It refuses the interface the
+machine is online through.
+
+Unlike Bluetooth, ordinary networks and phones are **not** stored. Only
+matches become devices (radio "wifi" in Device Details):
+
+| Match | Type |
+|---|---|
+| Axon body camera networks (`AB2-`, `AB3-`, `AB4-`, `AXON-`), Flock setup networks, Flock's and Axon's own address blocks | Camera |
+| WiFi Pineapple (`Pineapple_`), ESP deauther (`pwned`), Pwnagotchi (its self-announcing beacon, with name and handshake count) | Wi-Fi Attack Tool |
+| Remote ID beacons (ASTM F3411 over Wi-Fi), decoded like the Bluetooth ones | Drone |
+
+Two attacks are not a device and come as push alerts instead: a
+deauthentication flood (10 frames in 10 s from one sender) and an evil twin
+(the same network name both open and password-protected). `/api/wifi` shows
+the capture status and the latest alerts.
+
+No adapter yet? `--wifi-pcap capture.pcap` replays a radiotap capture (for
+example from `tcpdump -i wlan1mon -w capture.pcap`) through the same
+recognition.
 
 ## Data Storage
 

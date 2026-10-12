@@ -417,6 +417,19 @@ class NotificationManager:
             # Update last seen time
             self._watched_last_seen[device.mac] = now
 
+    async def on_wifi_event(self, event) -> None:
+        """A Wi-Fi attack that is not a device (wifi.Event: a deauth flood or
+        an evil twin). WifiWatch already rate-limits each one."""
+        if not self._settings or not self._settings.ntfy_enabled:
+            return
+        await self._send_notification(
+            title=event.title,
+            message=event.message,
+            priority=4,
+            tags=["warning", "wifi"],
+            cooldown_key=f"wifi:{event.kind}:{event.key}",
+        )
+
     async def _check_ble_spam_flood(self, device: Device, now: datetime) -> None:
         """Flag a burst of pairing-popup-style BLE advertisements
         (Apple Continuity, Microsoft Swift Pair, Samsung) system-wide --

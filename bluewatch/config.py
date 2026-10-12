@@ -47,3 +47,8 @@ PRUNE_MIN_SIGHTINGS = int(os.environ.get("BLUEWATCH_PRUNE_MIN_SIGHTINGS", "0"))
 # key), since there is no simple self-service public API for this lookup.
 # Defaults under DATA_DIR so it survives reinstalls the same way the DB does.
 FASTPAIR_KEYS_PATH = Path(os.environ.get("BLUEWATCH_FASTPAIR_KEYS_PATH", DATA_DIR / "fastpair_keys.json"))
+
+# Wi-Fi ears (wifi_sniffer.py): a monitor-mode capable adapter to listen on,
+# or a radiotap pcap to replay. Both off by default.
+WIFI_IFACE = os.environ.get("BLUEWATCH_WIFI_IFACE") or None
+WIFI_PCAP = os.environ.get("BLUEWATCH_WIFI_PCAP") or None

@@ -15,9 +15,9 @@ from typing import Optional
 
 import aiohttp
 
-from . import active_scan, db, ears, wigle, __version__
+from . import active_scan, db, ears, wifi, wifi_sniffer, wigle, __version__
 from .classifier import CLASSIFIER_VERSION, is_randomized_mac
-from .config import SCAN_INTERVAL, SOCKET_PATH, METRICS_PORT
+from .config import SCAN_INTERVAL, SOCKET_PATH, METRICS_PORT, WIFI_IFACE, WIFI_PCAP
 from .scanner import BluetoothScanner, ScannedDevice, list_adapters
 from .esp32_scanner import ESP32Scanner
 from .mdns import MdnsScanner
@@ -64,7 +64,8 @@ logger = logging.getLogger(__name__)
 class BlueWatchDaemon:
     """Main daemon process for Bluetooth scanning."""
 
-    def __init__(self, adapter: Optional[str] = None, classic_adapter: Optional[str] = None, web_port: Optional[int] = None, metrics_port: Optional[int] = None):
+    def __init__(self, adapter: Optional[str] = None, classic_adapter: Optional[str] = None, web_port: Optional[int] = None, metrics_port: Optional[int] = None,
+                 wifi_iface: Optional[str] = None, wifi_pcap: Optional[str] = None):
         self.scanner = BluetoothScanner(adapter=adapter, classic_adapter=classic_adapter)
         self.running = False
         self.clients: list[asyncio.StreamWriter] = []
@@ -79,6 +80,8 @@ class BlueWatchDaemon:
         self._esp32_scanner: ESP32Scanner | None = None
         self._esp32_config: tuple[bool, str] | None = None
         self._last_scan_cycle = time.monotonic()
+        self._wifi_iface = wifi_iface or WIFI_IFACE
+        self._wifi_pcap = wifi_pcap or WIFI_PCAP
 
     async def start(self) -> None:
         """Start the daemon."""
@@ -155,6 +158,8 @@ class BlueWatchDaemon:
         asyncio.create_task(self._ears_ingest_loop())
         asyncio.create_task(self._mdns_ingest_loop())
         asyncio.create_task(self._rtl433_ingest_loop())
+        if self._wifi_iface or self._wifi_pcap:
+            asyncio.create_task(self._wifi_loop())
         asyncio.create_task(self._stats_overview_loop())
         asyncio.create_task(self._auto_type_backfill_loop())
         asyncio.create_task(self._hourly_seen_backfill_loop())
@@ -279,6 +284,70 @@ class BlueWatchDaemon:
         await self._try_wigle_lookups(wigle_candidates)
         if devices:
             await self._notify_clients({"event": "scan_complete", "count": len(devices)})
+
+    WIFI_FLUSH_SECONDS = 5
+
+    async def _wifi_loop(self) -> None:
+        """Wi-Fi ears (wifi_sniffer.py): only matches are stored, as devices
+        with bt_type "wifi"; attacks that are not a device become alerts.
+        Restarts the capture after an error, the way the other radios do."""
+        status = wifi_sniffer.STATUS
+        status.update(enabled=True, source=self._wifi_pcap or self._wifi_iface)
+        watch = wifi.WifiWatch()
+        while self.running:
+            pending: dict[str, wifi.Hit] = {}
+            last_flush = time.monotonic()
+            try:
+                status.update(state="starting", error=None)
+                if self._wifi_pcap:
+                    source = wifi_sniffer.frames_from_pcap(self._wifi_pcap)
+                else:
+                    source = wifi_sniffer.frames_from_iface(self._wifi_iface, wifi_sniffer.channels_from_env())
+                async for item in source:
+                    ts, frame = item if self._wifi_pcap else (time.monotonic(), item)
+                    status["state"] = "listening"
+                    hit, event = watch.feed(frame, ts)
+                    if hit is not None:
+                        pending[hit.mac] = hit
+                    if event is not None:
+                        wifi_sniffer.note_event(event)
+                        await self._notifications.on_wifi_event(event)
+                    status.update(frames=watch.frames, beacons=watch.beacons, deauths=watch.deauths)
+                    if pending and time.monotonic() - last_flush >= self.WIFI_FLUSH_SECONDS:
+                        await self._store_wifi_hits(pending)
+                        pending, last_flush = {}, time.monotonic()
+                await self._store_wifi_hits(pending)
+                if self._wifi_pcap:
+                    status["state"] = "replay finished"
+                    logger.info(f"Wi-Fi: replay of {self._wifi_pcap} finished ({watch.frames} frames)")
+                    return
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                status.update(state="error", error=str(e))
+                logger.warning(f"Wi-Fi: {e}; retrying in 60s")
+                if self._wifi_pcap:
+                    return
+            await asyncio.sleep(60)
+
+    async def _store_wifi_hits(self, hits: dict) -> None:
+        for hit in hits.values():
+            try:
+                vendor = await self.scanner._get_vendor(hit.mac)
+            except Exception:
+                vendor = None
+            db_device, is_new = await db.upsert_device(
+                mac=hit.mac, vendor=vendor, friendly_name=hit.name, rssi=hit.rssi,
+                service_uuids=hit.tags, bt_type="wifi", service_data=hit.service_data,
+                rf_state=hit.state,
+            )
+            wifi_sniffer.STATUS["hits"] += 1
+            if self._web_server is not None:
+                try:
+                    await self._web_server.broadcast_sighting(_device_to_json(db_device))
+                except Exception as e:
+                    logger.debug(f"Live-event broadcast failed: {e}")
+            await self._notifications.on_device_seen(db_device, is_new)
 
     async def _ears_ingest_loop(self) -> None:
         """Drains what remote ears (ears.py) have posted since the last pass.
@@ -1032,6 +1101,15 @@ def main() -> None:
         default=None,
         help="Prometheus metrics port (default: disabled, env: BLUEWATCH_METRICS_PORT)"
     )
+    parser.add_argument(
+        "--wifi-iface",
+        help="Wi-Fi adapter to listen on in monitor mode, e.g. wlan1 (env: BLUEWATCH_WIFI_IFACE). "
+             "Never the one this machine is online through."
+    )
+    parser.add_argument(
+        "--wifi-pcap",
+        help="Replay a radiotap pcap through the Wi-Fi recognition instead (env: BLUEWATCH_WIFI_PCAP)"
+    )
     args = parser.parse_args()
 
     if args.list_adapters:
@@ -1046,7 +1124,8 @@ def main() -> None:
 
     web_port = None if args.no_web else args.port
     metrics_port = args.metrics_port or METRICS_PORT
-    daemon = BlueWatchDaemon(adapter=args.adapter, classic_adapter=args.classic_adapter, web_port=web_port, metrics_port=metrics_port)
+    daemon = BlueWatchDaemon(adapter=args.adapter, classic_adapter=args.classic_adapter, web_port=web_port, metrics_port=metrics_port,
+                             wifi_iface=args.wifi_iface, wifi_pcap=args.wifi_pcap)
     try:
         asyncio.run(daemon.start())
     except KeyboardInterrupt:
