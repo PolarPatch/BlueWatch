@@ -117,6 +117,11 @@ RF_TEMPLATE = r"""<!DOCTYPE html>
     tbody tr:hover { background: var(--bg-hover); }
     tbody tr.is-new { animation: flash 1.5s ease-out; }
     @keyframes flash { from { background: rgba(63,185,80,0.25); } to { background: transparent; } }
+    thead th.sortable { cursor: pointer; user-select: none; }
+    thead th.sortable:hover { color: var(--text-primary); }
+    thead th.sortable.sorted { color: var(--text-primary); }
+    thead th.sortable.sorted::after { content: ' \25BC'; font-size: 0.6rem; }
+    thead th.sortable.sorted.asc::after { content: ' \25B2'; }
     .t-time { white-space: nowrap; color: var(--text-secondary); }
     .t-model { font-weight: 600; }
     .t-key { color: var(--text-muted); font-size: 0.72rem; }
@@ -172,8 +177,8 @@ RF_TEMPLATE = r"""<!DOCTYPE html>
             </div>
             <div class="filter-sliders">
                 <span class="stat-cap">RSSI &ge;</span>
-                <input type="range" id="rssi-threshold" min="-100" max="0" value="-100" step="1" oninput="onRssiThresholdChange()">
-                <span id="rssi-threshold-value" class="slider-value">-100 dBm</span>
+                <input type="range" id="rssi-threshold" min="-40" max="0" value="-40" step="1" oninput="onRssiThresholdChange()" title="rtl_433 signal level in dB below the receiver's full scale">
+                <span id="rssi-threshold-value" class="slider-value">all</span>
             </div>
         </div>
         <div class="stat-card stat-box priority-card" id="priority-box">
@@ -191,7 +196,7 @@ RF_TEMPLATE = r"""<!DOCTYPE html>
     <div class="table-wrap">
         <table>
             <thead>
-                <tr><th>Time</th><th>Model</th><th>Key</th><th>RSSI</th><th>Decoded fields</th></tr>
+                <tr><th class="sortable" data-sort="time">Time</th><th class="sortable" data-sort="model">Model</th><th class="sortable" data-sort="key">Key</th><th class="sortable" data-sort="rssi" title="Signal level from rtl_433 in dB relative to the receiver's full scale: closer to 0 is stronger. Not comparable with Bluetooth dBm.">RSSI (dB)</th><th>Decoded fields</th></tr>
             </thead>
             <tbody id="rows"><tr><td colspan="5" class="empty">Loading...</td></tr></tbody>
         </table>
@@ -213,7 +218,7 @@ RF_TEMPLATE = r"""<!DOCTYPE html>
 
     var paused = false;
     var lastMaxId = 0;
-    var META_KEYS = {time:1, model:1, id:1, mic:1, protocol:1};
+    var META_KEYS = {time:1, model:1, id:1, mic:1, protocol:1, rssi:1, snr:1, noise:1};
 
     // Hide-by-model filter (e.g. drop a common weather station like
     // Nexus-TH once you've seen enough of it) -- remembered per browser,
@@ -263,10 +268,10 @@ RF_TEMPLATE = r"""<!DOCTYPE html>
         renderFromCache();
     }
 
-    var rssiFloor = -100;
+    var rssiFloor = -40;
     function onRssiThresholdChange() {
         rssiFloor = parseInt(document.getElementById('rssi-threshold').value, 10);
-        document.getElementById('rssi-threshold-value').textContent = rssiFloor + ' dBm';
+        document.getElementById('rssi-threshold-value').textContent = rssiFloor > -40 ? rssiFloor + ' dB' : 'all';
         renderFromCache();
     }
 
@@ -365,6 +370,47 @@ RF_TEMPLATE = r"""<!DOCTYPE html>
 
     var lastEvents = [];
 
+    // Sortable columns, like the device lists. Newest first by default;
+    // the choice is remembered per browser.
+    var sortKey = 'time', sortAsc = false;
+    try {
+        var savedSort = JSON.parse(localStorage.getItem('bluewatch_rf_sort') || 'null');
+        if (savedSort && savedSort.key) { sortKey = savedSort.key; sortAsc = !!savedSort.asc; }
+    } catch (e) {}
+    function sortValue(e) {
+        if (sortKey === 'model') return (e.model || '').toLowerCase();
+        if (sortKey === 'key') return (e.device_key || '').toLowerCase();
+        if (sortKey === 'rssi') return e.rssi;
+        return e.id;
+    }
+    function sortEvents(list) {
+        return list.slice().sort(function(a, b) {
+            var va = sortValue(a), vb = sortValue(b);
+            if (va == null && vb == null) return b.id - a.id;
+            if (va == null) return 1;            // no reading: always last
+            if (vb == null) return -1;
+            if (va < vb) return sortAsc ? -1 : 1;
+            if (va > vb) return sortAsc ? 1 : -1;
+            return b.id - a.id;
+        });
+    }
+    function markSortHeader() {
+        document.querySelectorAll('th.sortable').forEach(function(th) {
+            th.classList.toggle('sorted', th.dataset.sort === sortKey);
+            th.classList.toggle('asc', th.dataset.sort === sortKey && sortAsc);
+        });
+    }
+    document.querySelector('thead').addEventListener('click', function(ev) {
+        var th = ev.target.closest('th.sortable');
+        if (!th) return;
+        if (th.dataset.sort === sortKey) sortAsc = !sortAsc;
+        else { sortKey = th.dataset.sort; sortAsc = sortKey === 'model' || sortKey === 'key'; }
+        try { localStorage.setItem('bluewatch_rf_sort', JSON.stringify({key: sortKey, asc: sortAsc})); } catch (e) {}
+        markSortHeader();
+        renderFromCache();
+    });
+    markSortHeader();
+
     function renderFromCache() {
         var events = lastEvents;
         renderPriorityBox();
@@ -385,9 +431,9 @@ RF_TEMPLATE = r"""<!DOCTYPE html>
 
         document.getElementById('count-events-all').textContent = events.length;
 
-        var visible = events.filter(function(e) {
+        var visible = sortEvents(events).filter(function(e) {
             if (hiddenModels[e.model || '?']) return false;
-            if (e.rssi != null && e.rssi < rssiFloor) return false;
+            if (e.rssi != null && rssiFloor > -40 && e.rssi < rssiFloor) return false;  // far left = no floor
             return true;
         });
         document.getElementById('count').textContent = visible.length;

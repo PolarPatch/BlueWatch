@@ -87,7 +87,9 @@ class Rtl433Scanner:
             logger.info("rtl_433 not installed -- sub-GHz (433/868 MHz) discovery skipped")
             return False
         freqs = frequencies or RTL433_FREQUENCIES
-        args = ["rtl_433", "-F", "json", "-s", RTL433_SAMPLE_RATE]
+        # -M level adds rssi/snr/noise (dB) to every decode; without it
+        # rtl_433 reports no signal strength at all (issue #8).
+        args = ["rtl_433", "-F", "json", "-M", "level", "-s", RTL433_SAMPLE_RATE]
         for freq in freqs:
             args += ["-f", freq]
         if len(freqs) > 1:
