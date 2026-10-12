@@ -138,14 +138,20 @@ CROWD_TEMPLATE = r"""<!DOCTYPE html>
 <div class="tip" id="tip"></div>
 
 <script>
+    function themeIcon() {
+        var t = document.documentElement.getAttribute('data-theme');
+        document.getElementById('theme-toggle').textContent = t === 'light' ? '\u263d' : (t === 'cyberpunk' ? '\u26a1' : '\u2600');
+    }
     document.getElementById('theme-toggle').onclick = function() {
         var order = ['dark', 'light', 'cyberpunk'];
         var cur = document.documentElement.getAttribute('data-theme') || 'cyberpunk';
         var next = order[(order.indexOf(cur) + 1) % order.length];
         document.documentElement.setAttribute('data-theme', next);
         try { localStorage.setItem('bluewatch_theme', next); } catch (e) {}
+        themeIcon();
         draw();
     };
+    themeIcon();
 
     var range = '24h';
     var data = null;
