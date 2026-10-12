@@ -46,6 +46,72 @@ def _is_pairing_popup_advert(device: Device) -> bool:
     return any(_short_uuid(u) == _FAST_PAIR_SHORT_UUID for u in (device.service_data or {}))
 
 
+class TagFloodWatch:
+    """Spots a flood of fake trackers: a spam tool sends each fake AirTag or
+    Google tag from a fresh address, then drops it. Real tags stay on one
+    address for minutes and are heard on every scan pass.
+
+    Evidence is a tracker address heard on a single scan pass and not again
+    within FORGOTTEN_AFTER. A flood is ONE_SHOT_TRIP of those within
+    WINDOW, or BURST_NEW new tracker addresses within a minute (floods too
+    fast to go stale). It ends after QUIET_AFTER with no evidence. On the
+    lab Pi a week of real traffic peaked at 9 one-shot trackers in 5
+    minutes (a car full of Find My devices) and 14 new trackers a minute.
+    Idea from SquachWatch-CYD (skizzophrenic, GPL-3.0, "SpamWatch"); own
+    implementation, since BlueWatch scans in passes rather than per advert.
+    """
+
+    FORGOTTEN_AFTER = timedelta(seconds=60)
+    WINDOW = timedelta(minutes=5)
+    ONE_SHOT_TRIP = 15
+    BURST_NEW = 40
+    QUIET_AFTER = timedelta(minutes=5)
+    MAX_TRACKED = 5000
+
+    def __init__(self) -> None:
+        self._sightings: dict[str, tuple[datetime, int]] = {}  # mac -> (last seen, passes)
+        self._one_shots: deque[datetime] = deque()
+        self._new: deque[datetime] = deque()
+        self.last_evidence: Optional[datetime] = None
+        self.active = False
+        self.fakes = 0  # fake tags counted during the current flood
+
+    def seen(self, mac: str, is_new: bool, now: datetime) -> bool:
+        """Note a tracker sighting. True when this starts a flood."""
+        last = self._sightings.get(mac)
+        self._sightings[mac] = (now, last[1] + 1 if last else 1)
+        # Addresses heard once and then gone count as fakes, dated when they
+        # were given up on rather than when this sighting noticed it.
+        stale = sorted((t, m) for m, (t, _) in self._sightings.items() if now - t > self.FORGOTTEN_AFTER)
+        for t, m in stale:
+            if self._sightings.pop(m)[1] == 1:
+                self._one_shots.append(t + self.FORGOTTEN_AFTER)
+                self.last_evidence = t + self.FORGOTTEN_AFTER
+                if self.active:
+                    self.fakes += 1
+        while len(self._sightings) > self.MAX_TRACKED:
+            self._sightings.pop(next(iter(self._sightings)))
+        if is_new:
+            self._new.append(now)
+        while self._new and now - self._new[0] > timedelta(minutes=1):
+            self._new.popleft()
+        while self._one_shots and now - self._one_shots[0] > self.WINDOW:
+            self._one_shots.popleft()
+
+        if self.active:
+            if len(self._new) >= self.BURST_NEW:
+                self.last_evidence = now
+            elif not self.last_evidence or now - self.last_evidence > self.QUIET_AFTER:
+                self.active = False
+            return False
+        if len(self._one_shots) >= self.ONE_SHOT_TRIP or len(self._new) >= self.BURST_NEW:
+            self.active = True
+            self.last_evidence = now
+            self.fakes = max(len(self._one_shots), len(self._new))
+            return True
+        return False
+
+
 # Minimum gap between two notifications of the same noisy kind.
 NOISY_ALERT_COOLDOWN = timedelta(minutes=30)
 
@@ -73,6 +139,7 @@ class NotificationManager:
         # nothing meaningful to persist about it across a restart.
         self._pairing_burst: deque[tuple[datetime, str]] = deque()
         self._ble_spam_flood_active = False  # true while over threshold, so we alert once per burst, not every sighting
+        self._tag_flood = TagFloodWatch()
         # Tracker "FOLLOW" alert: MACs already alerted for this run, so a
         # lingering tracker notifies once rather than on every sighting
         # once past threshold. In-memory only -- see class docstring below
@@ -220,8 +287,24 @@ class NotificationManager:
             service_data=device.service_data,
             mac=device.mac,
         )
+        # Fake-tracker flood: one alert for the flood, and no per-tag alerts
+        # while it lasts.
+        tag_flood = False
+        if device_type == TYPE_TRACKER and self._settings.ble_spam_alert_enabled:
+            if self._tag_flood.seen(device.mac, is_new, now):
+                await self._send_notification(
+                    title="⚠ Fake tracker flood",
+                    message=f"About {self._tag_flood.fakes} tracker addresses that appear once and vanish "
+                            "-- typical of a BLE spam tool faking AirTags or Google tags. "
+                            "Single tracker alerts are paused until it has been quiet for 5 minutes.",
+                    priority=4,
+                    tags=["warning", "bluetooth"],
+                    cooldown_key="tag_flood",
+                )
+            tag_flood = self._tag_flood.active
+
         type_alert_sent = False
-        if device_type and device_type in self._settings.type_alert_types:
+        if device_type and device_type in self._settings.type_alert_types and not tag_flood:
             should_alert = is_new
             if not should_alert and prev_seen is not None:
                 gap_minutes = (now - prev_seen).total_seconds() / 60

@@ -302,6 +302,27 @@ identifiers were checked against the Bluetooth SIG registries. Only the
 values were taken, and no code was copied. Axe-off's WiFi signatures are not
 used, because BlueWatch does not listen to WiFi.
 
+Three more Flock signs come from
+[Flock-You](https://github.com/colonelpanichacks/flock-you) (MIT) by
+colonelpanichacks, found through SquachWatch-CYD's issue #15:
+
+- every Raven service in the range `0x3100`-`0x3500`, not only the round
+  values (`0x3101`/`0x3102` carry its GPS position);
+- Flock's accessory GATT service `e8ccbb38-9532-46a8-9fe5-1814df172e6f`,
+  from a Flock camera firmware dump, which is medium on its own;
+- a battery pack named by its bare ten-digit serial, which is low on its own.
+
+Only the values were taken, and no code was copied.
+
+## Fake tracker floods
+
+The tag flood alert in `bluewatch/notifications.py` follows an idea from
+SquachWatch-CYD's "SpamWatch" (skizzophrenic, GPL-3.0). Spam tools send
+each fake AirTag or Google tag from a fresh address and then drop it, so
+many tracker addresses that are heard once and never again point to a
+flood. BlueWatch has its own implementation and its own thresholds, which
+were checked against a week of real traffic. No code was copied.
+
 ## Remote ears
 
 The idea of feeding BlueWatch with observations from Home Assistant's
