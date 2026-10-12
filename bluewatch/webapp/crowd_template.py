@@ -61,6 +61,11 @@ CROWD_TEMPLATE = r"""<!DOCTYPE html>
     .btn { background: var(--bg-tertiary); border: 1px solid var(--border-color); color: var(--text-secondary); border-radius: 6px; padding: 0.3rem 0.7rem; font-family: var(--font-mono); font-size: 0.72rem; cursor: pointer; }
     .btn:hover { background: var(--bg-hover); }
     .btn.on { color: var(--accent-cyan); border-color: var(--accent-cyan); }
+    .controls { display: flex; align-items: center; gap: 1.25rem; flex-wrap: wrap; }
+    .bucket { display: flex; align-items: center; gap: 0.6rem; font-size: 0.72rem; color: var(--text-secondary); }
+    .bucket input { width: 7rem; accent-color: var(--accent-cyan); }
+    .bucket-ticks { display: flex; justify-content: space-between; width: 7rem; font-size: 0.6rem; color: var(--text-muted); margin-top: -0.2rem; }
+    .bucket-value { color: var(--accent-cyan); min-width: 3.2rem; font-variant-numeric: tabular-nums; }
 
     .cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; margin-bottom: 0.75rem; }
     @media (max-width: 900px) { .cards { grid-template-columns: repeat(2, 1fr); } }
@@ -105,9 +110,19 @@ CROWD_TEMPLATE = r"""<!DOCTYPE html>
             <h1>Crowd</h1>
             <p class="note">Roughly how many people are around, counted from the phones BlueWatch hears. Totals only: nothing is kept about anyone.</p>
         </div>
-        <div>
-            <button class="btn on" id="range-24h" onclick="setRange('24h')">24 hours</button>
-            <button class="btn" id="range-7d" onclick="setRange('7d')">7 days</button>
+        <div class="controls">
+            <label class="bucket" title="How long each count looks back. 1 minute catches people passing by; 10 minutes shows who stays.">
+                <span>Count per</span>
+                <span>
+                    <input type="range" id="bucket" min="0" max="2" step="1" value="1" oninput="setBucket(this.value)">
+                    <span class="bucket-ticks"><span>1</span><span>5</span><span>10</span></span>
+                </span>
+                <span class="bucket-value" id="bucket-value">5 min</span>
+            </label>
+            <span>
+                <button class="btn on" id="range-24h" onclick="setRange('24h')">24 hours</button>
+                <button class="btn" id="range-7d" onclick="setRange('7d')">7 days</button>
+            </span>
         </div>
     </div>
 
@@ -115,7 +130,7 @@ CROWD_TEMPLATE = r"""<!DOCTYPE html>
         <div class="card"><div class="cap">People now</div><div class="big" id="people-now">&ndash;</div><div class="sub" id="people-sub">last 5 minutes</div></div>
         <div class="card"><div class="cap">Personal devices</div><div class="big small" id="devices-now">&ndash;</div><div class="sub">phones, watches, earbuds, wearables, tablets, laptops</div></div>
         <div class="card"><div class="cap">Usual for now</div><div class="big small" id="usual-now">&ndash;</div><div class="sub" id="usual-sub">median, same time, last 7 days</div></div>
-        <div class="card"><div class="cap">Peak today</div><div class="big small" id="peak-today">&ndash;</div><div class="sub">highest 5-minute count since midnight</div></div>
+        <div class="card"><div class="cap">Peak today</div><div class="big small" id="peak-today">&ndash;</div><div class="sub" id="peak-sub">highest 5-minute count since midnight</div></div>
     </div>
 
     <div class="card chart-card">
@@ -131,7 +146,7 @@ CROWD_TEMPLATE = r"""<!DOCTYPE html>
     </div>
 
     <div class="about">
-        <p>How it works: every 5 minutes BlueWatch counts the phones it heard at <span id="floor">-80</span> dBm or louder (about the radar's outer ring). Phones change their Bluetooth address every 15 minutes or so; two phone addresses that never overlap and are about as loud are counted once. Trackers, TVs, beacons and unidentified devices are left out.</p>
+        <p>How it works: for each minute, 5 minutes or 10 minutes (the slider) BlueWatch counts the phones it heard at <span id="floor">-80</span> dBm or louder (about the radar's outer ring). Phones change their Bluetooth address every 15 minutes or so; two phone addresses that never overlap and are about as loud are counted once. Trackers, TVs, beacons and unidentified devices are left out.</p>
         <p>It is an estimate. People without a phone, or with Bluetooth off, are not counted; people in the house next door are. The level matters less than the changes. Idea from ESP32-Paxcounter.</p>
     </div>
 </div>
@@ -154,6 +169,17 @@ CROWD_TEMPLATE = r"""<!DOCTYPE html>
     themeIcon();
 
     var range = '24h';
+    var BUCKETS = [1, 5, 10];
+    var minutes = 5;
+    try { minutes = parseInt(localStorage.getItem('bluewatch_crowd_minutes'), 10) || 5; } catch (e) {}
+    if (BUCKETS.indexOf(minutes) < 0) minutes = 5;
+    document.getElementById('bucket').value = BUCKETS.indexOf(minutes);
+
+    function setBucket(i) {
+        minutes = BUCKETS[parseInt(i, 10)] || 5;
+        try { localStorage.setItem('bluewatch_crowd_minutes', String(minutes)); } catch (e) {}
+        load();
+    }
     var data = null;
     var points = [];
 
@@ -169,7 +195,7 @@ CROWD_TEMPLATE = r"""<!DOCTYPE html>
 
     async function load() {
         try {
-            var r = await fetch('/api/crowd?range=' + range);
+            var r = await fetch('/api/crowd?range=' + range + '&minutes=' + minutes);
             if (!r.ok) return;
             data = await r.json();
         } catch (e) { return; }
@@ -178,7 +204,10 @@ CROWD_TEMPLATE = r"""<!DOCTYPE html>
         text('usual-now', data.usual_now);
         text('peak-today', data.peak_today);
         text('floor', data.rssi_floor);
-        var sub = 'last 5 minutes';
+        var span = minutes === 1 ? 'minute' : minutes + ' minutes';
+        text('bucket-value', minutes + ' min');
+        text('peak-sub', 'highest ' + (minutes === 1 ? '1-minute' : minutes + '-minute') + ' count since midnight');
+        var sub = 'last ' + span;
         if (data.usual_now !== null && data.usual_now !== undefined) {
             var diff = data.now.people - data.usual_now;
             sub = diff === 0 ? 'as usual for this time' : (Math.abs(diff) + (diff > 0 ? ' more' : ' fewer') + ' than usual');
@@ -247,7 +276,7 @@ CROWD_TEMPLATE = r"""<!DOCTYPE html>
             ctx.save();
             ctx.globalAlpha = alpha; ctx.strokeStyle = color; ctx.lineWidth = width; ctx.setLineDash(dash);
             ctx.beginPath();
-            var gap = (range === '7d' ? 30 : 15) * 60000, prev = null;
+            var gap = Math.max(range === '7d' ? 30 : 15, 3 * data.bucket_minutes) * 60000, prev = null;
             pts.forEach(function(p) {
                 if (prev && p[0] - prev > gap) ctx.moveTo(x(p[0]), y(p[1])); else if (!prev) ctx.moveTo(x(p[0]), y(p[1])); else ctx.lineTo(x(p[0]), y(p[1]));
                 prev = p[0];

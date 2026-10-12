@@ -1561,24 +1561,40 @@ class WebServer:
         return web.Response(text=CROWD_TEMPLATE, content_type="text/html")
 
     async def api_crowd(self, request: web.Request) -> web.Response:
-        """Crowd page data: the last 5 minutes live, the stored buckets for
-        the chosen range, and what is usual for each time of day (median of
-        the 7 days before today)."""
+        """Crowd page data for one bucket length (?minutes=1|5|10): the last
+        bucket's worth live, the stored buckets for the range, and what is
+        usual for each time of day (median of the 7 days before today)."""
         days = 7 if request.query.get("range") == "7d" else 1
+        try:
+            minutes = int(request.query.get("minutes", crowd.DEFAULT_BUCKET))
+        except ValueError:
+            minutes = crowd.DEFAULT_BUCKET
+        if minutes not in crowd.BUCKET_CHOICES:
+            minutes = crowd.DEFAULT_BUCKET
         now = datetime.now()
-        step = timedelta(minutes=crowd.BUCKET_MINUTES)
+        step = timedelta(minutes=minutes)
         live = crowd.estimate(await db.get_crowd_rows(now - step, now + timedelta(seconds=1)))
         midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        rows = await db.get_crowd_buckets(min(now - timedelta(days=days), midnight - timedelta(days=7)))
+        rows = await db.get_crowd_buckets(minutes, min(now - timedelta(days=days), midnight - timedelta(days=7)))
+        today_from = midnight.isoformat(timespec="minutes")
         by_time: dict[str, list[int]] = {}
         for r in rows:
-            if r["bucket"] < midnight.isoformat(timespec="minutes"):
+            if r["bucket"] < today_from:
                 by_time.setdefault(r["bucket"][11:16], []).append(r["people"])
         usual = {t: sorted(v)[len(v) // 2] for t, v in by_time.items() if len(v) >= 2}
         since = (now - timedelta(days=days)).isoformat(timespec="minutes")
         series = [r for r in rows if r["bucket"] >= since]
-        today = [r["people"] for r in rows if r["bucket"] >= midnight.isoformat(timespec="minutes")]
-        slot = now.replace(minute=now.minute - now.minute % crowd.BUCKET_MINUTES).strftime("%H:%M")
+        if days == 7 and minutes == 1:
+            # A week of minutes is more points than a chart can show; keep
+            # each 5-minute stretch's highest minute, so peaks survive.
+            peaks: dict[str, dict] = {}
+            for r in series:
+                key = r["bucket"][:15] + str(int(r["bucket"][15]) // 5 * 5)
+                if key not in peaks or r["people"] > peaks[key]["people"]:
+                    peaks[key] = dict(r, bucket=key)
+            series = list(peaks.values())
+        today = [r["people"] for r in rows if r["bucket"] >= today_from]
+        slot = now.replace(minute=now.minute - now.minute % minutes).strftime("%H:%M")
         return web.json_response({
             "now": live,
             "usual_now": usual.get(slot),
@@ -1587,7 +1603,8 @@ class WebServer:
             "usual": usual,
             "range": "7d" if days == 7 else "24h",
             "rssi_floor": crowd.RSSI_FLOOR,
-            "bucket_minutes": crowd.BUCKET_MINUTES,
+            "bucket_minutes": minutes,
+            "bucket_choices": list(crowd.BUCKET_CHOICES),
         })
 
     async def rf_page(self, request: web.Request) -> web.Response:

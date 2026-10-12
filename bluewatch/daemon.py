@@ -287,34 +287,41 @@ class BlueWatchDaemon:
             await self._notify_clients({"event": "scan_complete", "count": len(devices)})
 
     async def _crowd_loop(self) -> None:
-        """Fills crowd_counts one finished 5-minute bucket at a time
-        (crowd.py). On a fresh install it first works back through the
-        sightings still on disk (up to a week), slowly, so the Crowd page
-        has history at once without loading a Pi 3."""
-        step = timedelta(minutes=crowd.BUCKET_MINUTES)
+        """Fills crowd_buckets with each finished bucket, for every bucket
+        length the Crowd page offers (crowd.py). On a fresh install it first
+        works back through the sightings still on disk (up to a week), a
+        batch at a time, so the page has history at once without loading a
+        Pi 3."""
         await asyncio.sleep(30)
         while self.running:
-            done = 0
-            try:
-                now = datetime.now()
-                current = now.replace(minute=now.minute - now.minute % crowd.BUCKET_MINUTES, second=0, microsecond=0)
-                last = await db.get_last_crowd_bucket()
-                if last:
-                    start = datetime.fromisoformat(last) + step
-                else:
-                    oldest = await db.get_oldest_sighting_time()
-                    start = max(oldest, now - timedelta(days=7)) if oldest else current
-                    start = start.replace(minute=start.minute - start.minute % crowd.BUCKET_MINUTES, second=0, microsecond=0)
-                start = max(start, current - timedelta(days=7))
-                while start < current and done < 48 and self.running:
-                    rows = await db.get_crowd_rows(start, start + step)
-                    await db.save_crowd_bucket(start, crowd.estimate(rows))
-                    start += step
-                    done += 1
-                    await asyncio.sleep(0.2)
-            except Exception as e:
-                logger.warning(f"Crowd count failed: {e}")
-            await asyncio.sleep(2 if done == 48 else 60)
+            behind = False
+            for minutes in crowd.BUCKET_CHOICES:
+                step = timedelta(minutes=minutes)
+
+                def floor(t: datetime) -> datetime:
+                    return t.replace(minute=t.minute - t.minute % minutes, second=0, microsecond=0)
+
+                try:
+                    now = datetime.now()
+                    current = floor(now)
+                    last = await db.get_last_crowd_bucket(minutes)
+                    if last:
+                        start = datetime.fromisoformat(last) + step
+                    else:
+                        oldest = await db.get_oldest_sighting_time()
+                        start = floor(max(oldest, now - timedelta(days=7))) if oldest else current
+                    start = max(start, floor(now - timedelta(days=7)))
+                    done = 0
+                    while start < current and done < 60 and self.running:
+                        rows = await db.get_crowd_rows(start, start + step)
+                        await db.save_crowd_bucket(minutes, start, crowd.estimate(rows))
+                        start += step
+                        done += 1
+                        await asyncio.sleep(0.05)
+                    behind = behind or start < current
+                except Exception as e:
+                    logger.warning(f"Crowd count ({minutes} min) failed: {e}")
+            await asyncio.sleep(2 if behind else 20)
 
     WIFI_FLUSH_SECONDS = 5
 

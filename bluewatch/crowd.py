@@ -22,7 +22,8 @@ from dataclasses import dataclass
 from statistics import median
 from typing import Iterable
 
-BUCKET_MINUTES = 5
+BUCKET_CHOICES = (1, 5, 10)
+DEFAULT_BUCKET = 5
 RSSI_FLOOR = -80
 ROTATION_RSSI_GAP = 8          # dB between the two halves of a rotation
 PEOPLE_TYPES = frozenset({"phone"})

@@ -276,13 +276,15 @@ CREATE TABLE IF NOT EXISTS ear_heard (
 ) WITHOUT ROWID;
 CREATE INDEX IF NOT EXISTS idx_ear_heard_ear ON ear_heard(ear_id, last_heard);
 
--- Crowd (crowd.py): estimated people and personal devices per 5-minute
--- bucket. Totals only, nothing per device.
-CREATE TABLE IF NOT EXISTS crowd_counts (
-    bucket TEXT PRIMARY KEY,
+-- Crowd (crowd.py): estimated people and personal devices per bucket, for
+-- each bucket length (1, 5 or 10 minutes). Totals only, nothing per device.
+CREATE TABLE IF NOT EXISTS crowd_buckets (
+    minutes INTEGER NOT NULL,
+    bucket TEXT NOT NULL,
     people INTEGER NOT NULL,
     devices INTEGER NOT NULL,
-    addresses INTEGER NOT NULL
+    addresses INTEGER NOT NULL,
+    PRIMARY KEY (minutes, bucket)
 ) WITHOUT ROWID;
 
 CREATE INDEX IF NOT EXISTS idx_sightings_mac_time ON sightings(mac, timestamp);
@@ -4091,27 +4093,28 @@ async def get_oldest_sighting_time() -> Optional[datetime]:
         return None
 
 
-async def get_crowd_buckets(since: datetime) -> list[dict]:
+async def get_crowd_buckets(minutes: int, since: datetime) -> list[dict]:
     async with _connect() as db:
         async with db.execute(
-            "SELECT bucket, people, devices, addresses FROM crowd_counts WHERE bucket >= ? ORDER BY bucket",
-            (since.isoformat(timespec="minutes"),),
+            "SELECT bucket, people, devices, addresses FROM crowd_buckets"
+            " WHERE minutes = ? AND bucket >= ? ORDER BY bucket",
+            (minutes, since.isoformat(timespec="minutes")),
         ) as cursor:
             rows = await cursor.fetchall()
     return [{"bucket": b, "people": p, "devices": d, "addresses": a} for b, p, d, a in rows]
 
 
-async def get_last_crowd_bucket() -> Optional[str]:
+async def get_last_crowd_bucket(minutes: int) -> Optional[str]:
     async with _connect() as db:
-        async with db.execute("SELECT MAX(bucket) FROM crowd_counts") as cursor:
+        async with db.execute("SELECT MAX(bucket) FROM crowd_buckets WHERE minutes = ?", (minutes,)) as cursor:
             row = await cursor.fetchone()
     return row[0] if row else None
 
 
-async def save_crowd_bucket(bucket: datetime, counts: dict) -> None:
+async def save_crowd_bucket(minutes: int, bucket: datetime, counts: dict) -> None:
     async with _connect() as db:
         await db.execute(
-            "INSERT OR REPLACE INTO crowd_counts (bucket, people, devices, addresses) VALUES (?, ?, ?, ?)",
-            (bucket.isoformat(timespec="minutes"), counts["people"], counts["devices"], counts["addresses"]),
+            "INSERT OR REPLACE INTO crowd_buckets (minutes, bucket, people, devices, addresses) VALUES (?, ?, ?, ?, ?)",
+            (minutes, bucket.isoformat(timespec="minutes"), counts["people"], counts["devices"], counts["addresses"]),
         )
         await db.commit()

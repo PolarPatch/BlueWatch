@@ -436,13 +436,14 @@ format and limits.
 
 The Crowd page (`/crowd`) estimates how many people are around: right now,
 through the last 24 hours or 7 days, and against the median for the same
-time of day over the past week. Every 5 minutes BlueWatch counts the phones
-it heard at -80 dBm or louder. Phones change address every 15 minutes or so,
+time of day over the past week. BlueWatch counts the phones it heard at
+-80 dBm or louder per 1, 5 or 10 minutes (a slider on the page): short
+buckets catch people passing by, long ones show who stays. Phones change address every 15 minutes or so,
 so two phone addresses that never overlap and are about as loud are counted
 once. Watches, earbuds and other personal devices are shown as a second
 line. Trackers, TVs, beacons and unidentified devices are left out.
 
-Only the totals are stored (`crowd_counts`); the count is worked out from
+Only the totals are stored (`crowd_buckets`); the count is worked out from
 sightings BlueWatch already keeps, so the page has history from the start.
 It is an estimate: people without a phone are missed, and neighbours are
 counted. Changes are more telling than the level.
