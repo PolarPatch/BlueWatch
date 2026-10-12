@@ -1685,13 +1685,22 @@ HTML_TEMPLATE = """
         // Only the newest request may update the screen: a slower, older
         // request (e.g. the live "active now" refresh) finishing after the one
         // for the category just clicked used to put the full list back.
-        let devicesRefreshSeq = 0;
+        // One fetch at a time: a refresh asked for while one is running is
+        // queued and runs once it finishes. Dropping every reply that had a
+        // newer request behind it meant that on a busy Pi, where a fetch
+        // takes longer than the gap between live sightings, nothing was
+        // ever drawn. A reply for filters that have since changed is not
+        // drawn; the queued refresh fetches the new ones.
+        let devicesRefreshBusy = false;
+        let devicesRefreshAgain = false;
         async function refreshDevices() {
-            const seq = ++devicesRefreshSeq;
+            if (devicesRefreshBusy) { devicesRefreshAgain = true; return; }
+            devicesRefreshBusy = true;
+            const url = buildDevicesUrl();
             try {
-                const response = await fetch(buildDevicesUrl());
+                const response = await fetch(url);
                 const data = await response.json();
-                if (seq !== devicesRefreshSeq) return;
+                if (url !== buildDevicesUrl()) { devicesRefreshAgain = true; return; }
                 allDevices = data.devices || [];
                 const knownMacs = new Set(allDevices.map(d => d.mac));
                 selectedMacs = new Set([...selectedMacs].filter(mac => knownMacs.has(mac)));
@@ -1709,6 +1718,12 @@ HTML_TEMPLATE = """
                 updateSelectionUI();
             } catch (error) {
                 console.error('Scan error:', error);
+            } finally {
+                devicesRefreshBusy = false;
+                if (devicesRefreshAgain) {
+                    devicesRefreshAgain = false;
+                    refreshDevices();
+                }
             }
         }
 
@@ -7613,13 +7628,22 @@ LIVE_TEMPLATE = """
         // Only the newest request may update the screen: a slower, older
         // request (e.g. the live "active now" refresh) finishing after the one
         // for the category just clicked used to put the full list back.
-        let devicesRefreshSeq = 0;
+        // One fetch at a time: a refresh asked for while one is running is
+        // queued and runs once it finishes. Dropping every reply that had a
+        // newer request behind it meant that on a busy Pi, where a fetch
+        // takes longer than the gap between live sightings, nothing was
+        // ever drawn. A reply for filters that have since changed is not
+        // drawn; the queued refresh fetches the new ones.
+        let devicesRefreshBusy = false;
+        let devicesRefreshAgain = false;
         async function refreshDevices() {
-            const seq = ++devicesRefreshSeq;
+            if (devicesRefreshBusy) { devicesRefreshAgain = true; return; }
+            devicesRefreshBusy = true;
+            const url = buildDevicesUrl();
             try {
-                const response = await fetch(buildDevicesUrl());
+                const response = await fetch(url);
                 const data = await response.json();
-                if (seq !== devicesRefreshSeq) return;
+                if (url !== buildDevicesUrl()) { devicesRefreshAgain = true; return; }
                 allDevices = data.devices || [];
                 const knownMacs = new Set(allDevices.map(d => d.mac));
                 selectedMacs = new Set([...selectedMacs].filter(mac => knownMacs.has(mac)));
@@ -7637,6 +7661,12 @@ LIVE_TEMPLATE = """
                 updateSelectionUI();
             } catch (error) {
                 console.error('Scan error:', error);
+            } finally {
+                devicesRefreshBusy = false;
+                if (devicesRefreshAgain) {
+                    devicesRefreshAgain = false;
+                    refreshDevices();
+                }
             }
         }
 
