@@ -1606,14 +1606,17 @@ class WebServer:
         slot = slot_start.strftime("%H:%M")
         # The usual line as instants: slots are server-local times of day,
         # which a browser in another timezone cannot line up by itself.
+        # A week of 1-minute slots is drawn as 5-minute peaks, so 5 minutes
+        # is fine enough there.
         usual_series = []
-        if days == 1:
-            t = slot_start - timedelta(days=1)
-            while t <= slot_start:
-                u = usual.get(t.strftime("%H:%M"))
-                if u is not None:
-                    usual_series.append({"t": t.isoformat(timespec="minutes"), "v": u})
-                t += step
+        usual_step = step if days == 1 else max(step, timedelta(minutes=5))
+        t = slot_start - timedelta(days=days)
+        t = t.replace(minute=t.minute - t.minute % (usual_step.seconds // 60))
+        while t <= slot_start:
+            u = usual.get(t.strftime("%H:%M"))
+            if u is not None:
+                usual_series.append({"t": t.isoformat(timespec="minutes"), "v": u})
+            t += usual_step
         return json_response({
             "now": live,
             "usual_now": usual.get(slot),

@@ -399,6 +399,12 @@ class BlueWatchDaemon:
             try:
                 devices, rows = ears.HUB.drain()
                 if devices:
+                    # An ear's signal says how close the device is to that
+                    # ear, not to BlueWatch: it goes to ear_heard ("Heard
+                    # by") only, so radar, zones, RSSI charts and Crowd keep
+                    # measuring from BlueWatch's own radio.
+                    for device in devices:
+                        device.rssi = None
                     await self._ingest_scanned(devices)
                 await db.record_ear_heard(rows)
                 if time.monotonic() - last_prune > 6 * 3600:

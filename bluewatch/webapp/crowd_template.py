@@ -244,6 +244,7 @@ CROWD_TEMPLATE = r"""<!DOCTYPE html>
         var usual = (data.usual_series || []).map(function(r) { return {t: parseBucket(r.t), v: r.v}; })
             .filter(function(p) { return p.t >= start; });
         usual.forEach(function(p) { usualAt[p.t] = p.v; });
+        if (range !== '24h') usual = [];  // the week view shows usual in the tooltip only
         var maxV = 4;
         series.forEach(function(p) { maxV = Math.max(maxV, p.people, p.devices); });
         usual.forEach(function(p) { maxV = Math.max(maxV, p.v); });

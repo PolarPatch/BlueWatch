@@ -50,12 +50,28 @@ def _iso_z(dt: datetime) -> str:
     return dt.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
+def _attach(value: datetime, fold: int) -> datetime:
+    zone = server_zone()
+    value = value.replace(fold=fold)
+    return (value.replace(tzinfo=zone) if zone else value.astimezone()).astimezone(timezone.utc)
+
+
 def local_to_utc(value: datetime) -> datetime:
-    """A naive local datetime as an aware UTC one. Aware values pass through."""
-    if value.tzinfo is None:
-        zone = server_zone()
-        value = value.replace(tzinfo=zone) if zone else value.astimezone()
-    return value.astimezone(timezone.utc)
+    """A naive local datetime as an aware UTC one. Aware values pass through.
+
+    When the clocks go back, an hour of local times happens twice and a
+    naive value cannot say which. During that second hour, and for an hour
+    after, a value that fits the second pass is read as the second pass, so
+    a device seen just now does not show as an hour ago. Older ambiguous
+    values are read as the first pass."""
+    if value.tzinfo is not None:
+        return value.astimezone(timezone.utc)
+    first, second = _attach(value, 0), _attach(value, 1)
+    if first != second:
+        age = (datetime.now(timezone.utc) - second).total_seconds()
+        if -5 <= age < 3600:
+            return second
+    return first
 
 
 def to_iso(value: Any) -> Any:
@@ -93,11 +109,21 @@ def from_client(value: str) -> datetime:
     return (dt.astimezone(zone) if zone else dt.astimezone()).replace(tzinfo=None)
 
 
+# Fields people or devices type into. A name or note that happens to look
+# like a timestamp is text, not a time.
+FREE_TEXT_KEYS = frozenset({
+    "name", "friendly_name", "notes", "label", "vendor", "ssid", "model",
+    "group_name", "ear_name", "listener", "message", "title", "description",
+    "query", "search",
+})
+
+
 def stamp(data: Any) -> Any:
     """to_iso() over every value in a JSON-ready structure. Keys are left
-    alone, so tables keyed by time of day ("08:15") keep their keys."""
+    alone, so tables keyed by time of day ("08:15") keep their keys, and so
+    are the values of FREE_TEXT_KEYS."""
     if isinstance(data, dict):
-        return {k: stamp(v) for k, v in data.items()}
+        return {k: v if k in FREE_TEXT_KEYS else stamp(v) for k, v in data.items()}
     if isinstance(data, (list, tuple)):
         return [stamp(v) for v in data]
     return to_iso(data)

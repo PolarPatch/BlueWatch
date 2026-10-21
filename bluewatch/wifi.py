@@ -264,7 +264,8 @@ class WifiWatch:
     attacks that only show up across frames."""
 
     DEAUTH_WINDOW = 10.0       # seconds
-    DEAUTH_PER_SENDER = 10     # frames from one transmitter in the window
+    DEAUTH_PER_SENDER = 30     # frames from one transmitter in the window; access
+                               # points kicking clients (band steering, mesh) stay below
     EVENT_COOLDOWN = 900.0     # seconds before the same event fires again
     TWIN_WINDOW = 300.0        # an open and a protected copy within this long
 

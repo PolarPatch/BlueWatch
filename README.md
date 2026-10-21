@@ -479,7 +479,7 @@ matches become devices (radio "wifi" in Device Details):
 | Remote ID beacons (ASTM F3411 over Wi-Fi), decoded like the Bluetooth ones | Drone |
 
 Two attacks are not a device and come as push alerts instead: a
-deauthentication flood (10 frames in 10 s from one sender) and an evil twin
+deauthentication flood (30 frames in 10 s from one sender) and an evil twin
 (the same network name both open and password-protected). `/api/wifi` shows
 the capture status and the latest alerts.
 

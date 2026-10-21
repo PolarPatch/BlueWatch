@@ -1,6 +1,7 @@
 """Prometheus metrics exporter for BlueWatch."""
 
 import logging
+from datetime import datetime, timedelta
 from threading import Thread
 from typing import Optional
 
@@ -136,7 +137,8 @@ class MetricsExporter:
 
                 # Active devices (seen in last 5 minutes)
                 async with conn.execute(
-                    "SELECT COUNT(*) FROM devices WHERE last_seen > datetime('now', '-5 minutes')"
+                    "SELECT COUNT(*) FROM devices WHERE last_seen > ?",
+                    ((datetime.now() - timedelta(minutes=5)).isoformat(),),
                 ) as cursor:
                     row = await cursor.fetchone()
                 self.devices_active.set(row[0] if row else 0)

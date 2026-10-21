@@ -961,7 +961,7 @@ async def get_devices_page(
             # subqueries, so they run for one page of rows, not every device
             # that matches the filter.
             f"""SELECT d.*,
-                (SELECT s.rssi FROM sightings s WHERE s.mac = d.mac ORDER BY s.timestamp DESC LIMIT 1) AS last_rssi,
+                (SELECT s.rssi FROM sightings s WHERE s.mac = d.mac AND s.rssi IS NOT NULL ORDER BY s.timestamp DESC LIMIT 1) AS last_rssi,
                 (SELECT COUNT(*) FROM devices d2 WHERE d2.identity_id = d.identity_id) AS identity_mac_count,
                 (SELECT SUM(d2.total_sightings) FROM devices d2 WHERE d2.identity_id = d.identity_id) AS identity_total_sightings,
                 (SELECT MIN(d2.first_seen) FROM devices d2 WHERE d2.identity_id = d.identity_id) AS identity_first_seen
@@ -972,6 +972,13 @@ async def get_devices_page(
         ) as cursor:
             rows = await cursor.fetchall()
             return ([_parse_device_row(row) for row in rows], total)
+
+
+def _days_ago(days: float) -> str:
+    """A cutoff N days back, in the same naive local ISO form as the stored
+    timestamps. SQLite's datetime('now', ...) is UTC with a space instead of
+    a T, so comparing it with stored values as text was wrong twice over."""
+    return (datetime.now() - timedelta(days=days)).isoformat()
 
 
 async def get_devices_export(
@@ -1036,8 +1043,8 @@ async def get_sightings_for_export(
             where = f"mac IN ({placeholders})"
             params: list = list(subset)
             if days is not None:
-                where += " AND timestamp > datetime('now', ?)"
-                params.append(f"-{days} days")
+                where += " AND timestamp > ?"
+                params.append(_days_ago(days))
 
             async with db.execute(
                 f"""
@@ -1822,10 +1829,10 @@ async def get_sightings(mac: str, days: int = 30) -> list[Sighting]:
         async with db.execute(
             """
             SELECT * FROM sightings
-            WHERE mac = ? AND timestamp > datetime('now', ?)
+            WHERE mac = ? AND timestamp > ?
             ORDER BY timestamp DESC
             """,
-            (mac, f"-{days} days")
+            (mac, _days_ago(days))
         ) as cursor:
             rows = await cursor.fetchall()
             sightings = []
@@ -1848,11 +1855,11 @@ async def get_hourly_distribution(mac: str, days: int = 30) -> dict[int, int]:
             """
             SELECT strftime('%H', timestamp) as hour, COUNT(*) as count
             FROM sightings
-            WHERE mac = ? AND timestamp > datetime('now', ?)
+            WHERE mac = ? AND timestamp > ?
             GROUP BY hour
             ORDER BY hour
             """,
-            (mac, f"-{days} days")
+            (mac, _days_ago(days))
         ) as cursor:
             rows = await cursor.fetchall()
             return {int(row[0]): row[1] for row in rows}
@@ -1865,11 +1872,11 @@ async def get_daily_distribution(mac: str, days: int = 30) -> dict[int, int]:
             """
             SELECT strftime('%w', timestamp) as day, COUNT(*) as count
             FROM sightings
-            WHERE mac = ? AND timestamp > datetime('now', ?)
+            WHERE mac = ? AND timestamp > ?
             GROUP BY day
             ORDER BY day
             """,
-            (mac, f"-{days} days")
+            (mac, _days_ago(days))
         ) as cursor:
             rows = await cursor.fetchall()
             # SQLite %w: 0=Sunday, 1=Monday... Convert to 0=Monday
@@ -1883,11 +1890,11 @@ async def get_daily_sightings(mac: str, days: int = 30) -> list[dict]:
             """
             SELECT date(timestamp) as date, COUNT(*) as count, AVG(rssi) as avg_rssi
             FROM sightings
-            WHERE mac = ? AND timestamp > datetime('now', ?)
+            WHERE mac = ? AND timestamp > ?
             GROUP BY date(timestamp)
             ORDER BY date ASC
             """,
-            (mac, f"-{days} days")
+            (mac, _days_ago(days))
         ) as cursor:
             rows = await cursor.fetchall()
             return [
@@ -1904,8 +1911,8 @@ async def cleanup_old_sightings(days: int = 90) -> int:
     """Remove sightings older than N days. Returns count deleted."""
     async with _connect() as db:
         cursor = await db.execute(
-            "DELETE FROM sightings WHERE timestamp < datetime('now', ?)",
-            (f"-{days} days",)
+            "DELETE FROM sightings WHERE timestamp < ?",
+            (_days_ago(days),)
         )
         await db.commit()
         return cursor.rowcount
@@ -1961,13 +1968,13 @@ async def prune_stale_devices(days: int, min_sightings: int) -> int:
         return 0
 
     async with _connect() as db:
-        cutoff = f"-{days} days"
+        cutoff = _days_ago(days)
         async with db.execute(
             """
             SELECT mac FROM devices
             WHERE COALESCE(watched, 0) = 0
               AND group_id IS NULL
-              AND last_seen < datetime('now', ?)
+              AND last_seen < ?
               AND total_sightings < ?
             """,
             (cutoff, min_sightings),
@@ -3394,10 +3401,10 @@ async def get_rssi_history(mac: str, days: int = 7) -> list[dict]:
             """
             SELECT timestamp, rssi
             FROM sightings
-            WHERE mac = ? AND rssi IS NOT NULL AND timestamp > datetime('now', ?)
+            WHERE mac = ? AND rssi IS NOT NULL AND timestamp > ?
             ORDER BY timestamp ASC
             """,
-            (mac, f"-{days} days")
+            (mac, _days_ago(days))
         ) as cursor:
             rows = await cursor.fetchall()
             return [
@@ -3424,10 +3431,10 @@ async def get_dwell_time(mac: str, days: int = 30, gap_minutes: int = 15) -> dic
         async with db.execute(
             """
             SELECT timestamp FROM sightings
-            WHERE mac = ? AND timestamp > datetime('now', ?)
+            WHERE mac = ? AND timestamp > ?
             ORDER BY timestamp ASC
             """,
-            (mac, f"-{days} days")
+            (mac, _days_ago(days))
         ) as cursor:
             rows = await cursor.fetchall()
 
@@ -3581,10 +3588,10 @@ async def get_correlated_devices(
         async with db.execute(
             """
             SELECT timestamp FROM sightings
-            WHERE mac = ? AND timestamp > datetime('now', ?)
+            WHERE mac = ? AND timestamp > ?
             ORDER BY timestamp ASC
             """,
-            (mac, f"-{days} days")
+            (mac, _days_ago(days))
         ) as cursor:
             target_rows = await cursor.fetchall()
 
@@ -3625,14 +3632,14 @@ async def get_correlated_devices(
                 AND s2.timestamp <  replace(datetime(s1.timestamp, ?, '+1 second'), ' ', 'T')
             JOIN devices d ON d.mac = s2.mac
             WHERE s1.mac = ?
-                AND s1.timestamp > datetime('now', ?)
+                AND s1.timestamp > ?
                 AND d.ignored = 0
             GROUP BY s2.mac
             HAVING co_occurrences >= 2
             ORDER BY co_occurrences DESC
             LIMIT 50
             """,
-            (f"-{window_minutes} minutes", f"+{window_minutes} minutes", mac, f"-{days} days")
+            (f"-{window_minutes} minutes", f"+{window_minutes} minutes", mac, _days_ago(days))
         ) as cursor:
             rows = await cursor.fetchall()
 
@@ -3646,10 +3653,10 @@ async def get_correlated_devices(
         async with db.execute(
             f"""
             SELECT mac, timestamp FROM sightings
-            WHERE mac IN ({placeholders}) AND timestamp > datetime('now', ?)
+            WHERE mac IN ({placeholders}) AND timestamp > ?
             ORDER BY mac ASC, timestamp ASC
             """,
-            (*candidate_macs, f"-{days} days")
+            (*candidate_macs, _days_ago(days))
         ) as cursor:
             sighting_rows = await cursor.fetchall()
 
@@ -3759,10 +3766,10 @@ async def get_rotation_candidates(
         async with db.execute(
             """
             SELECT timestamp, rssi FROM sightings
-            WHERE mac = ? AND rssi IS NOT NULL AND timestamp > datetime('now', ?)
+            WHERE mac = ? AND rssi IS NOT NULL AND timestamp > ?
             ORDER BY timestamp ASC
             """,
-            (mac, f"-{days} days")
+            (mac, _days_ago(days))
         ) as cursor:
             target_rows = await cursor.fetchall()
 
@@ -3803,7 +3810,7 @@ async def get_rotation_candidates(
         # wildly different cost depending on how selective this particular
         # device's candidate pool happens to be.
         randomized = _randomized_mac_sql("d.mac")
-        params = [mac, f"-{days} days", min_sightings, t_mean, rssi_tolerance]
+        params = [mac, _days_ago(days), min_sightings, t_mean, rssi_tolerance]
         name_having = ""
         if target_name:
             name_having = " OR lower(c.friendly_name) = lower(?)"
@@ -3817,7 +3824,7 @@ async def get_rotation_candidates(
             SELECT s.mac AS mac, AVG(s.rssi) AS mean_rssi, COUNT(*) AS cnt
             FROM candidates c CROSS JOIN sightings s ON s.mac = c.mac
             WHERE s.rssi IS NOT NULL
-              AND s.timestamp > datetime('now', ?)
+              AND s.timestamp > ?
             GROUP BY s.mac
             HAVING cnt >= ? AND (ABS(AVG(s.rssi) - ?) <= ?{name_having})
             """,
@@ -3834,10 +3841,10 @@ async def get_rotation_candidates(
             f"""
             SELECT mac, timestamp, rssi FROM sightings
             WHERE mac IN ({placeholders}) AND rssi IS NOT NULL
-              AND timestamp > datetime('now', ?)
+              AND timestamp > ?
             ORDER BY mac ASC, timestamp ASC
             """,
-            (*cand_macs, f"-{days} days")
+            (*cand_macs, _days_ago(days))
         ) as cursor:
             sighting_rows = await cursor.fetchall()
 
@@ -4036,9 +4043,9 @@ async def get_proximity_stats(mac: str, days: int = 7) -> dict:
         async with db.execute(
             """
             SELECT rssi FROM sightings
-            WHERE mac = ? AND rssi IS NOT NULL AND timestamp > datetime('now', ?)
+            WHERE mac = ? AND rssi IS NOT NULL AND timestamp > ?
             """,
-            (mac, f"-{days} days")
+            (mac, _days_ago(days))
         ) as cursor:
             rows = await cursor.fetchall()
 

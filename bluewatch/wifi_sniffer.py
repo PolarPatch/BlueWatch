@@ -91,6 +91,7 @@ async def prepare_monitor(iface: str) -> None:
 
 
 async def _hop(iface: str, channels: list[int]) -> None:
+    channels = list(dict.fromkeys(channels))  # a channel listed twice is tuned once
     bad: set[int] = set()
     while True:
         for ch in channels:
@@ -103,8 +104,9 @@ async def _hop(iface: str, channels: list[int]) -> None:
                 continue
             STATUS["channel"] = ch
             await asyncio.sleep(DWELL_SECONDS)
-        if len(bad) == len(channels):
+        if len(bad) >= len(channels):
             raise RuntimeError(f"{iface} could not tune to any of channels {channels}")
+        await asyncio.sleep(0)
 
 
 async def frames_from_iface(iface: str, channels: list[int]) -> AsyncIterator[wifi.Frame]:
@@ -118,7 +120,12 @@ async def frames_from_iface(iface: str, channels: list[int]) -> AsyncIterator[wi
         while True:
             if hopper.done():
                 hopper.result()  # raises what stopped it
-            packet = await loop.sock_recv(sock, 4096)
+            try:
+                # A timeout, so a hopper that failed is noticed even when no
+                # frames arrive at all.
+                packet = await asyncio.wait_for(loop.sock_recv(sock, 4096), timeout=2.0)
+            except asyncio.TimeoutError:
+                continue
             parsed = wifi.parse_radiotap(packet)
             if parsed is None:
                 continue

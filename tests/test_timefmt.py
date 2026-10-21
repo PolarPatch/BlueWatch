@@ -67,8 +67,36 @@ class TimefmtTests(unittest.TestCase):
 
     def test_stamp_keeps_keys(self):
         with Zone("Australia/Brisbane"):
-            out = timefmt.stamp({"usual": {"08:15": 3}, "rows": [{"at": "2026-10-13T12:00:00"}]})
-            self.assertEqual(out, {"usual": {"08:15": 3}, "rows": [{"at": "2026-10-13T02:00:00Z"}]})
+            out = timefmt.stamp({"usual": {"08:15": 3}, "rows": [{"at": "2026-10-13T12:00:00"}],
+                                 "notes": "2026-10-13 12:00", "friendly_name": "2026-10-13 12:00"})
+            self.assertEqual(out, {"usual": {"08:15": 3}, "rows": [{"at": "2026-10-13T02:00:00Z"}],
+                                   "notes": "2026-10-13 12:00", "friendly_name": "2026-10-13 12:00"})
+
+
+class AmbiguousHourTests(unittest.TestCase):
+    """Oslo goes from 03:00 CEST back to 02:00 CET on 25 October 2026, so
+    02:30 happens twice: 00:30Z, then 01:30Z."""
+
+    def at(self, utc):
+        real = datetime
+
+        class Clock(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return utc if tz else real.now()
+        return patch.object(timefmt, "datetime", Clock)
+
+    def test_second_pass_is_just_now(self):
+        with Zone("Europe/Oslo"), self.at(datetime(2026, 10, 25, 1, 31, tzinfo=timezone.utc)):
+            self.assertEqual(timefmt.to_iso("2026-10-25T02:30:00"), "2026-10-25T01:30:00Z")
+
+    def test_first_pass_while_it_happens(self):
+        with Zone("Europe/Oslo"), self.at(datetime(2026, 10, 25, 0, 31, tzinfo=timezone.utc)):
+            self.assertEqual(timefmt.to_iso("2026-10-25T02:30:00"), "2026-10-25T00:30:00Z")
+
+    def test_old_ambiguous_values_are_the_first_pass(self):
+        with Zone("Europe/Oslo"), self.at(datetime(2026, 10, 26, 12, 0, tzinfo=timezone.utc)):
+            self.assertEqual(timefmt.to_iso("2026-10-25T02:30:00"), "2026-10-25T00:30:00Z")
 
 
 class ApiTests(unittest.IsolatedAsyncioTestCase):

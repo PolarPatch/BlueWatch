@@ -78,13 +78,18 @@ class TagFloodWatch:
 
     def seen(self, mac: str, is_new: bool, now: datetime) -> bool:
         """Note a tracker sighting. True when this starts a flood."""
-        last = self._sightings.get(mac)
+        # Re-inserting keeps the dict ordered by last sighting, oldest first,
+        # so only the stale front has to be looked at.
+        last = self._sightings.pop(mac, None)
         self._sightings[mac] = (now, last[1] + 1 if last else 1)
         # Addresses heard once and then gone count as fakes, dated when they
         # were given up on rather than when this sighting noticed it.
-        stale = sorted((t, m) for m, (t, _) in self._sightings.items() if now - t > self.FORGOTTEN_AFTER)
-        for t, m in stale:
-            if self._sightings.pop(m)[1] == 1:
+        while self._sightings:
+            m, (t, passes) = next(iter(self._sightings.items()))
+            if now - t <= self.FORGOTTEN_AFTER:
+                break
+            del self._sightings[m]
+            if passes == 1:
                 self._one_shots.append(t + self.FORGOTTEN_AFTER)
                 self.last_evidence = t + self.FORGOTTEN_AFTER
                 if self.active:
