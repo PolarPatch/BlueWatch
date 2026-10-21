@@ -300,7 +300,7 @@ colonelpanichacks:
 These cover Axon body cameras, Taser 7/10, Signal Sidearm and Fleet. The
 identifiers were checked against the Bluetooth SIG registries. Only the
 values were taken, and no code was copied. Axe-off's WiFi signatures are not
-used, because BlueWatch does not listen to WiFi.
+used; the Wi-Fi ears take theirs from the sources listed under Wi-Fi ears.
 
 Three more Flock signs come from
 [Flock-You](https://github.com/colonelpanichacks/flock-you) (MIT) by
