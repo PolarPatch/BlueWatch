@@ -2366,7 +2366,8 @@ class WebServer:
         """Whether optional sub-GHz (433/868 MHz) discovery via rtl_433 and
         an RTL-SDR dongle is enabled, and which frequencies it hops."""
         enabled, frequencies = await db.get_rtl433_settings()
-        return json_response({"enabled": enabled, "frequencies": frequencies})
+        meters = await db.get_rtl433_meters()
+        return json_response({"enabled": enabled, "frequencies": frequencies, "meters": meters})
 
     async def api_set_rtl433_settings(self, request: web.Request) -> web.Response:
         try:
@@ -2374,6 +2375,8 @@ class WebServer:
             enabled = bool(data.get("enabled"))
             frequencies = (data.get("frequencies") or "").strip() or "433.92M,868.3M"
             await db.set_rtl433_settings(enabled, frequencies)
+            if "meters" in data:
+                await db.set_rtl433_meters(data["meters"])
             return json_response({"status": "ok"})
         except Exception as e:
             return json_response({"error": str(e)}, status=400)

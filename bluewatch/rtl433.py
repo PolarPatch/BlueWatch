@@ -44,6 +44,66 @@ RTL433_HOP_SECONDS = 30
 # rate too, so one samplerate covers both without a second dedicated pass.
 RTL433_SAMPLE_RATE = "1000k"
 
+# Utility meters by region (Config > RTL-SDR > Utility meters). rtl_433
+# already has the decoders on by default; what a region adds is the
+# frequencies those meters send on, and 1200k, which Wireless M-Bus Mode
+# C/T and Badger ORION need (the other protocols decode fine at it too).
+#   eu: Wireless M-Bus C/T at 868.95 MHz (most water/heat/gas meters and
+#       many electricity meters; Mode S/T at 868.3 MHz is already hopped).
+#   na: Itron ERT SCM/IDM and Neptune R900 around 912.6 MHz, Badger ORION
+#       at 916.45 MHz (the US/Canada 902-928 MHz band).
+# One dongle hears one band at a time, so a region adds frequencies to the
+# hop rather than replacing it. Source: merbanan/rtl_433 protocol list.
+METER_REGIONS = {
+    "eu": ["868.95M"],
+    "na": ["912.6M", "916.45M"],
+}
+METER_SAMPLE_RATE = "1200k"
+
+# rtl_433 model names of utility meters and energy monitors (taken from
+# rtl_433 25.02's decoders). Matched by prefix, case-insensitive.
+METER_MODEL_PREFIXES = (
+    "wireless-mbus", "ert-scm", "scmplus", "idm", "netidm", "neptune-r900",
+    "badger-orion", "mueller-hotrod", "aradmsmeter", "flowis", "landisgyr-gs",
+    "ikea-sparsnas", "efergy", "currentcost", "emontx", "esa-x000", "elv-em1000",
+    "esic-emt7110", "clipsal-cmr113", "blueline-powercost", "geo-minim", "revolt-",
+)
+
+# What is kept of a meter's decode: who and what it is, never what it
+# reads. Consumption and power say when a home is in use, so they are not
+# stored or shown. Everything else rtl_433 reports is dropped.
+METER_KEEP_KEYS = frozenset({
+    "model", "id", "channel", "M", "manufacturer", "version", "type", "type_string",
+    "ert_type", "ERTType", "ERTSerialNumber", "meter_type", "battery_ok", "tamper",
+    "physical_tamper", "encoder_tamper", "leak", "rssi", "snr", "noise", "freq",
+    "freq1", "freq2", "mod",
+})
+
+
+def is_meter_model(model: Optional[str]) -> bool:
+    return bool(model) and model.lower().startswith(METER_MODEL_PREFIXES)
+
+
+def meter_safe(data: dict) -> dict:
+    """A meter decode with readings removed (see METER_KEEP_KEYS). Other
+    devices pass through unchanged."""
+    if not is_meter_model(data.get("model")):
+        return data
+    return {k: v for k, v in data.items() if k in METER_KEEP_KEYS}
+
+
+def hop_plan(frequencies: list[str], meters: Optional[str]) -> tuple[list[str], str]:
+    """The frequencies to hop and the sample rate, with a meter region's
+    frequencies added."""
+    freqs = list(frequencies)
+    extra = METER_REGIONS.get(meters or "")
+    if not extra:
+        return freqs, RTL433_SAMPLE_RATE
+    for freq in extra:
+        if freq not in freqs:
+            freqs.append(freq)
+    return freqs, METER_SAMPLE_RATE
+
 
 @dataclass
 class Rtl433Device:
@@ -69,6 +129,8 @@ def _device_key(data: dict) -> Optional[str]:
         return None
     ident = data.get("id")
     if ident is None:
+        ident = data.get("ERTSerialNumber")  # ERT IDM meters have no id
+    if ident is None:
         ident = data.get("channel")
     if ident is None:
         return None
@@ -82,14 +144,14 @@ class Rtl433Scanner:
     def __init__(self) -> None:
         self._proc: Optional[asyncio.subprocess.Process] = None
 
-    async def start(self, frequencies: Optional[list[str]] = None) -> bool:
+    async def start(self, frequencies: Optional[list[str]] = None, meters: Optional[str] = None) -> bool:
         if not _binary_available():
             logger.info("rtl_433 not installed -- sub-GHz (433/868 MHz) discovery skipped")
             return False
-        freqs = frequencies or RTL433_FREQUENCIES
+        freqs, sample_rate = hop_plan(frequencies or RTL433_FREQUENCIES, meters)
         # -M level adds rssi/snr/noise (dB) to every decode; without it
         # rtl_433 reports no signal strength at all (issue #8).
-        args = ["rtl_433", "-F", "json", "-M", "level", "-s", RTL433_SAMPLE_RATE]
+        args = ["rtl_433", "-F", "json", "-M", "level", "-s", sample_rate]
         for freq in freqs:
             args += ["-f", freq]
         if len(freqs) > 1:
@@ -156,7 +218,7 @@ class Rtl433Scanner:
                 label=model,
                 model=model,
                 rssi=data.get("rssi"),
-                raw=data,
+                raw=meter_safe(data),
             ))
         return out
 

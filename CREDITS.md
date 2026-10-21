@@ -163,6 +163,15 @@ A third Fieldwatch pass (catalogs 85-92, v1.1.16-v1.1.21, diffed from
 - Remote ID maker from the serial-number prefix: `1748C` is Autel and
   `1668B` is Skydio.
 
+A fourth pass (catalog 96, v1.1.27) added:
+- Chipolo's service UUID `FE33` -> `TYPE_TRACKER`, so a renamed tag still
+  counts as a tracker.
+- Polar's service UUID `FEEE` -> `TYPE_WEARABLE`, and names starting with
+  `Polar ` (straps -> `TYPE_WEARABLE`, the rest -> `TYPE_WATCH`).
+- Flipper Zero service UUID `3080`.
+- Remote ID System message: operator location type, operator altitude, and
+  the EU category and class.
+
 Additional smart-glasses company IDs (`TYPE_GLASSES` in
 `classify_by_manufacturer_data()`/`classify_device()`,
 `bluewatch/classifier.py`: Luxottica Group and Snapchat Inc added bare
@@ -247,6 +256,8 @@ invoked at runtime, same relationship BlueWatch has with `bluetoothctl`/
 `hcitool`. All actual sub-GHz protocol decoding (weather stations, TPMS,
 remotes, Wireless M-Bus utility meters, and 200+ others) is rtl_433's own
 work; BlueWatch only ingests its output into the shared devices table.
+The utility meter regions (frequencies, the 1200k sample rate, and the
+meter model names) come from rtl_433's own protocol list and decoder names.
 
 ## Behavioral-fingerprint identity linking
 

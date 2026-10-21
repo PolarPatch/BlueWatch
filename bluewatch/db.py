@@ -2759,6 +2759,27 @@ async def set_rtl433_settings(enabled: bool, frequencies: str) -> None:
         await db.commit()
 
 
+RTL433_METER_REGIONS = ("off", "eu", "na")
+
+
+async def get_rtl433_meters() -> str:
+    """Utility meter region for rtl_433: "off" (default), "eu" or "na".
+    See rtl433.METER_REGIONS."""
+    async with _connect() as db:
+        async with db.execute("SELECT value FROM settings WHERE key = 'rtl433_meters'") as cursor:
+            row = await cursor.fetchone()
+    value = row[0] if row else "off"
+    return value if value in RTL433_METER_REGIONS else "off"
+
+
+async def set_rtl433_meters(region: str) -> None:
+    if region not in RTL433_METER_REGIONS:
+        raise ValueError(f"meter region must be one of {', '.join(RTL433_METER_REGIONS)}")
+    async with _connect() as db:
+        await db.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('rtl433_meters', ?)", (region,))
+        await db.commit()
+
+
 _RF_LOG_MAX_ROWS = 5000
 
 

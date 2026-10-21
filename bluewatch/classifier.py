@@ -3,6 +3,7 @@
 import re
 from typing import Optional
 
+from . import rtl433
 from .fastpair_models import identify_fastpair_device
 
 # macOS CoreBluetooth provides UUIDs instead of real MAC addresses for privacy.
@@ -1045,6 +1046,17 @@ _DRONE_STATUS_LABELS = {
     0x4: "remote ID system failure",
 }
 
+# System message extras (ASTM F3411 / ASD-STAN prEN 4709-002): where the
+# operator position comes from, and the EU category/class the drone
+# declares. Source: OffGridPete/Fieldwatch Catalog 96 (v1.1.27, MIT
+# licensed), checked against the opendroneid-core-c field layout.
+_DRONE_OPERATOR_LOCATION_LABELS = {
+    0x0: "takeoff point",
+    0x1: "pilot (live GNSS)",
+    0x2: "fixed point",
+}
+_DRONE_EU_CATEGORY_LABELS = {1: "Open", 2: "Specific", 3: "Certified"}
+
 
 def _drone_remote_id_payload(service_data):
     """Raw Remote ID service_data bytes (the full payload after the
@@ -1144,6 +1156,22 @@ def decode_drone_remote_id(service_data):
         if not (op_lat == 0.0 and op_lon == 0.0):
             result["operator_latitude"] = round(op_lat, 7)
             result["operator_longitude"] = round(op_lon, 7)
+            location_type = message[1] & 0x03
+            result["operator_location"] = _DRONE_OPERATOR_LOCATION_LABELS.get(
+                location_type, f"unknown (0x{location_type:x})")
+        # Classification type 1 is EU; byte 17 is then category (high
+        # nibble) and class (low nibble, 1 = class C0 ... 7 = C6).
+        if (message[1] >> 2) & 0x07 == 1 and len(message) >= 18:
+            category = _DRONE_EU_CATEGORY_LABELS.get(message[17] >> 4)
+            eu_class = message[17] & 0x0F
+            if category:
+                result["eu_category"] = category
+            if 1 <= eu_class <= 7:
+                result["eu_class"] = f"C{eu_class - 1}"
+        if len(message) >= 20:
+            op_alt_raw = int.from_bytes(message[18:20], "little", signed=False)
+            if op_alt_raw not in (0, 0xFFFF):
+                result["operator_altitude_m"] = round(op_alt_raw * 0.5 - 1000, 1)
 
     elif msg_type == _DRONE_MSG_TYPE_OPERATOR_ID and len(message) >= 22:
         result["operator_id"] = message[2:22].split(b"\x00", 1)[0].decode("ascii", errors="replace").strip()
@@ -1453,7 +1481,7 @@ def classify_by_vendor_company_id(manufacturer_data: Optional[dict]) -> Optional
 # Patterns are matched case-insensitively
 # Bump this when the classification rules change: on the next start every
 # stored automatic type is recomputed in the background (manual types are kept).
-CLASSIFIER_VERSION = 7
+CLASSIFIER_VERSION = 8
 
 VENDOR_PATTERNS = [
     # Surveillance and security cameras, matched by the registered vendor name.
@@ -1679,6 +1707,10 @@ SERVICE_UUID_PATTERNS = [
     ("0000feed", TYPE_TRACKER),  # Tile
     ("0000feec", TYPE_TRACKER),  # Tile
     ("0000fd5a", TYPE_TRACKER),  # Samsung SmartTag
+    # Chipolo and Polar's own SIG member UUIDs, so a renamed tag or strap is
+    # still recognised (source: OffGridPete/Fieldwatch Catalog 96).
+    ("0000fe33", TYPE_TRACKER),  # Chipolo
+    ("0000feee", TYPE_WEARABLE),  # Polar (heart-rate strap or watch)
     ("0000febe", TYPE_SMART_HOME),  # Bose
 
     # Smart glasses
@@ -1690,6 +1722,7 @@ SERVICE_UUID_PATTERNS = [
     # Flipper Zero also advertises these 16-bit service UUIDs (in
     # addition to company ID 0x0E29, checked separately in
     # classify_by_manufacturer_data) -- source: blesploit device-library.
+    ("00003080", TYPE_FLIPPER),  # source: OffGridPete/Fieldwatch Catalog 96
     ("00003081", TYPE_FLIPPER),
     ("00003082", TYPE_FLIPPER),
     ("00003083", TYPE_FLIPPER),
@@ -2021,6 +2054,15 @@ def classify_device(
     if name and "polar" in name.lower() and manufacturer_data and COMPANY_ID_POLAR in manufacturer_data:
         return TYPE_WATCH
 
+    # Polar's own product names ("Polar H10 1A2B3C4D", "Polar Vantage V2
+    # ...") are specific enough on their own; the space keeps Polaroid out.
+    # Straps and armbands are wearables, everything else a watch. Source:
+    # OffGridPete/Fieldwatch Catalog 96.
+    if name and name.startswith("Polar "):
+        if re.match(r"Polar (H\d|OH1|Verity)", name):
+            return TYPE_WEARABLE
+        return TYPE_WATCH
+
     # Huawei: same reasoning -- company ID + name, not either alone.
     if name and "huawei" in name.lower() and manufacturer_data and COMPANY_ID_HUAWEI in manufacturer_data:
         return TYPE_PHONE
@@ -2246,10 +2288,10 @@ def classify_device(
         # Aidon, Kaifa) use this same OMS/wM-Bus framing on 868 MHz.
         if "mbus" in name_lower or "m-bus" in name_lower:
             return TYPE_METER
-        # ERT (Encoder Receiver Transmitter) -- US utility "SCM"/"IDM"
-        # protocols, included for completeness even though not the primary
-        # target here.
-        if any(x in name_lower for x in ("ert-scm", "ert-idm", "consumption message")):
+        # The other meters and energy monitors rtl_433 decodes: ERT, Neptune
+        # and Badger in North America, clamp-on monitors (Efergy, Sparsnäs,
+        # CurrentCost...) anywhere. See rtl433.METER_MODEL_PREFIXES.
+        if rtl433.is_meter_model(name):
             return TYPE_METER
 
     # Try Classic BT device class (more reliable than vendor guessing)

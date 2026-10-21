@@ -577,25 +577,26 @@ class BlueWatchDaemon:
             logger.info("Sub-GHz (rtl_433) discovery disabled by BLUEWATCH_RTL433=0")
             return
         scanner: Optional[Rtl433Scanner] = None
-        running_frequencies = None
+        running_plan = None
         while self.running:
             try:
                 enabled, frequencies = await db.get_rtl433_settings()
+                meters = await db.get_rtl433_meters()
             except Exception as e:
                 logger.warning(f"Could not read rtl_433 settings: {e}")
-                enabled, frequencies = True, None
+                enabled, frequencies, meters = True, None, "off"
 
             if not enabled and scanner is not None:
                 await scanner.stop()
                 scanner = None
-                running_frequencies = None
-            elif enabled and (scanner is None or frequencies != running_frequencies):
+                running_plan = None
+            elif enabled and (scanner is None or (frequencies, meters) != running_plan):
                 if scanner is not None:
                     await scanner.stop()
                 freq_list = [f.strip() for f in frequencies.split(",") if f.strip()] if frequencies else None
                 scanner = Rtl433Scanner()
-                if await scanner.start(frequencies=freq_list):
-                    running_frequencies = frequencies
+                if await scanner.start(frequencies=freq_list, meters=meters):
+                    running_plan = (frequencies, meters)
                 else:
                     scanner = None  # no dongle/binary -- try again next check
 

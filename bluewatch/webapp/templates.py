@@ -2065,8 +2065,12 @@ HTML_TEMPLATE = """
             if (s.status) parts.push('Status: ' + escapeHtml(s.status));
             if (s.self_id) parts.push('"' + escapeHtml(s.self_id) + '"');
             if (s.operator_latitude !== undefined && s.operator_longitude !== undefined) {
-                parts.push('Operator @ ' + s.operator_latitude + ', ' + s.operator_longitude);
+                let op = 'Operator @ ' + s.operator_latitude + ', ' + s.operator_longitude;
+                if (s.operator_altitude_m !== undefined) op += ' @ ' + s.operator_altitude_m + 'm';
+                if (s.operator_location) op += ' (' + escapeHtml(s.operator_location) + ')';
+                parts.push(op);
             }
+            if (s.eu_category || s.eu_class) parts.push('EU ' + escapeHtml([s.eu_category, s.eu_class].filter(Boolean).join(' ')));
             if (s.operator_id) parts.push('Operator ID ' + escapeHtml(s.operator_id));
             if (!parts.length) return '';
             return '<div class="detail-item full"><div class="detail-label">Drone Remote ID (live)</div><div class="detail-value" style="font-size:0.8rem;">' + parts.join(' · ') + '</div></div>';
@@ -4559,6 +4563,15 @@ SETTINGS_TEMPLATE = """
                         <input type="text" class="form-input" id="rtl433-frequencies" placeholder="433.92M,868.3M" style="max-width: 16rem;" onchange="saveRtl433Settings()">
                     </div>
                     <p style="font-size: 0.7rem; color: var(--text-muted); margin-top: 0.5rem;">Comma-separated, hopped between every few seconds. 433.92M covers almost everything; 868.3M catches some newer sensors and doorbells too.</p>
+                    <div style="display: flex; gap: 0.5rem; align-items: center; margin-top: 1rem;">
+                        <label for="rtl433-meters" style="font-size: 0.8rem; color: var(--text-muted); white-space: nowrap;">Utility meters</label>
+                        <select class="form-input" id="rtl433-meters" style="max-width: 16rem;" onchange="saveRtl433Settings()">
+                            <option value="off">Off</option>
+                            <option value="eu">Europe (Wireless M-Bus, 868.95 MHz)</option>
+                            <option value="na">North America (ERT, Neptune, Badger, 912-916 MHz)</option>
+                        </select>
+                    </div>
+                    <p style="font-size: 0.7rem; color: var(--text-muted); margin-top: 0.5rem;">Adds the frequencies wireless water, heat, gas and electricity meters send on to the hop list above. Each frequency gets an equal share of the dongle's time. Meters are shown by ID and maker only: their readings say when a home is in use, so BlueWatch never stores them. In North America, 868.3M in the list above can be removed.</p>
                 </div>
             </div>
         </div>
@@ -5468,17 +5481,19 @@ SETTINGS_TEMPLATE = """
                 const data = await response.json();
                 enabledBox.checked = !!data.enabled;
                 document.getElementById('rtl433-frequencies').value = data.frequencies || '433.92M,868.3M';
+                document.getElementById('rtl433-meters').value = data.meters || 'off';
             } catch (error) { /* leave fields as-is */ }
         }
 
         async function saveRtl433Settings() {
             const enabled = document.getElementById('rtl433-enabled').checked;
             const frequencies = document.getElementById('rtl433-frequencies').value;
+            const meters = document.getElementById('rtl433-meters').value;
             try {
                 const response = await fetch('/api/rtl433-settings', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ enabled: enabled, frequencies: frequencies })
+                    body: JSON.stringify({ enabled: enabled, frequencies: frequencies, meters: meters })
                 });
                 if (response.ok) {
                     showStatus('RTL-SDR settings saved', 'success');
@@ -8152,8 +8167,12 @@ LIVE_TEMPLATE = """
             if (s.status) parts.push('Status: ' + escapeHtml(s.status));
             if (s.self_id) parts.push('"' + escapeHtml(s.self_id) + '"');
             if (s.operator_latitude !== undefined && s.operator_longitude !== undefined) {
-                parts.push('Operator @ ' + s.operator_latitude + ', ' + s.operator_longitude);
+                let op = 'Operator @ ' + s.operator_latitude + ', ' + s.operator_longitude;
+                if (s.operator_altitude_m !== undefined) op += ' @ ' + s.operator_altitude_m + 'm';
+                if (s.operator_location) op += ' (' + escapeHtml(s.operator_location) + ')';
+                parts.push(op);
             }
+            if (s.eu_category || s.eu_class) parts.push('EU ' + escapeHtml([s.eu_category, s.eu_class].filter(Boolean).join(' ')));
             if (s.operator_id) parts.push('Operator ID ' + escapeHtml(s.operator_id));
             if (!parts.length) return '';
             return '<div class="detail-item full"><div class="detail-label">Drone Remote ID (live)</div><div class="detail-value" style="font-size:0.8rem;">' + parts.join(' · ') + '</div></div>';
