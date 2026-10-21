@@ -12,6 +12,7 @@ from typing import Optional
 from dataclasses import dataclass
 
 from . import rpa
+from . import timefmt
 from . import classifier
 from .config import DB_PATH, HEARTBEAT_URL, HEARTBEAT_INTERVAL, PRUNE_DAYS, PRUNE_MIN_SIGHTINGS
 
@@ -2441,7 +2442,8 @@ async def get_irk_keys() -> list[dict]:
             "SELECT id, label, irk_hex, created_at FROM irk_keys ORDER BY id DESC"
         ) as cursor:
             rows = await cursor.fetchall()
-            return [dict(row) for row in rows]
+            # created_at is CURRENT_TIMESTAMP, so already UTC
+            return [dict(row, created_at=timefmt.utc_naive(row["created_at"])) for row in rows]
 
 
 async def add_irk_key(label: str, irk_hex: str) -> int:
@@ -2789,7 +2791,7 @@ async def get_rf_log(limit: int = 200) -> list[dict]:
             raw = {}
         out.append({
             "id": row["id"],
-            "timestamp": row["timestamp"],
+            "timestamp": timefmt.utc_naive(row["timestamp"]),  # CURRENT_TIMESTAMP, UTC
             "model": row["model"],
             "device_key": row["device_key"],
             "rssi": row["rssi"],

@@ -19,7 +19,7 @@ from typing import Optional
 
 import aiosqlite
 
-from . import db
+from . import db, timefmt
 from .config import DATA_DIR
 
 logger = logging.getLogger(__name__)
@@ -106,7 +106,7 @@ async def _export_day(day: str) -> tuple[int, Path]:
                     if not batch:
                         break
                     writer.writerows(
-                        [(r["timestamp"], r["mac"], r["rssi"], r["vendor"], r["friendly_name"], r["type"]) for r in batch]
+                        [(timefmt.to_iso(r["timestamp"]), r["mac"], r["rssi"], r["vendor"], r["friendly_name"], r["type"]) for r in batch]
                     )
                     rows += len(batch)
             fh.flush()

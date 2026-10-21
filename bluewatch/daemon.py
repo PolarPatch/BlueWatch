@@ -15,7 +15,7 @@ from typing import Optional
 
 import aiohttp
 
-from . import active_scan, crowd, db, ears, wifi, wifi_sniffer, wigle, __version__
+from . import active_scan, crowd, db, ears, timefmt, wifi, wifi_sniffer, wigle, __version__
 from .classifier import CLASSIFIER_VERSION, is_randomized_mac
 from .config import SCAN_INTERVAL, SOCKET_PATH, METRICS_PORT, WIFI_IFACE, WIFI_PCAP
 from .scanner import BluetoothScanner, ScannedDevice, list_adapters
@@ -698,7 +698,7 @@ class BlueWatchDaemon:
                 try:
                     request = json.loads(data.decode())
                     response = await self._handle_request(request)
-                    writer.write(json.dumps(response).encode() + b"\n")
+                    writer.write(json.dumps(timefmt.stamp(response)).encode() + b"\n")
                     await writer.drain()
                 except json.JSONDecodeError:
                     logger.warning("Invalid JSON from client")
@@ -817,8 +817,8 @@ class BlueWatchDaemon:
 
             # Parse datetime strings if provided
             from datetime import datetime
-            start_dt = datetime.fromisoformat(start_time) if start_time else None
-            end_dt = datetime.fromisoformat(end_time) if end_time else None
+            start_dt = timefmt.from_client(start_time) if start_time else None
+            end_dt = timefmt.from_client(end_time) if end_time else None
 
             results = await db.search_devices(mac_filter, start_dt, end_dt)
             return {
@@ -1094,7 +1094,7 @@ class BlueWatchDaemon:
 
     async def _notify_clients(self, event: dict) -> None:
         """Send an event to all connected clients."""
-        data = json.dumps(event).encode() + b"\n"
+        data = json.dumps(timefmt.stamp(event)).encode() + b"\n"
         for writer in self.clients:
             try:
                 writer.write(data)

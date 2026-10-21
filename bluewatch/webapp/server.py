@@ -16,7 +16,7 @@ from typing import Optional
 
 from aiohttp import web
 
-from .. import archive, crowd, db, ears, rpa, __version__
+from .. import archive, crowd, db, ears, rpa, timefmt, __version__
 from ..classifier import classify_device, get_type_icon, get_type_label, get_all_types, is_randomized_mac, is_macos_uuid, is_mdns_key, get_uuid_names, surveillance_evidence
 from ..patterns import generate_hourly_heatmap, generate_daily_heatmap
 from .radar_template import RADAR_TEMPLATE
@@ -51,6 +51,14 @@ try:
     from ..notifications import NotificationManager
 except ImportError:
     NotificationManager = None
+
+def json_response(data, **kwargs) -> web.Response:
+    """web.json_response with every naive timestamp sent as UTC with Z, so a
+    browser in another timezone works out the same age (#10). The
+    /api/display* endpoints send preformatted text and keep using
+    web.json_response."""
+    return web.json_response(timefmt.stamp(data), **kwargs)
+
 
 def hash_password(password: str) -> str:
     """Hash a password using SHA-256 with salt."""
@@ -285,7 +293,7 @@ class WebServer:
             return await handler(request)
         if not await self._check_auth(request):
             if request.path.startswith("/api/"):
-                return web.json_response({"error": "Unauthorized"}, status=401)
+                return json_response({"error": "Unauthorized"}, status=401)
             raise web.HTTPFound("/login")
         return await handler(request)
 
@@ -360,7 +368,7 @@ class WebServer:
         is dropped rather than allowed to block the others."""
         if not self._sse_clients:
             return
-        payload = f"data: {json.dumps(device_json)}\n\n".encode("utf-8")
+        payload = f"data: {json.dumps(timefmt.stamp(device_json))}\n\n".encode("utf-8")
         dead = set()
         for resp in self._sse_clients:
             try:
@@ -477,7 +485,7 @@ class WebServer:
         ]
 
         total_pages = max(1, math.ceil(total / page_size)) if total else 1
-        return web.json_response({
+        return json_response({
             "devices": device_list,
             "total": stats["total"],
             "randomized_count": stats["randomized_count"],
@@ -641,8 +649,8 @@ class WebServer:
                     d.device_class if d.device_class is not None else "",
                     "Yes" if d.watched else "No",
                     "Yes" if d.ignored else "No",
-                    (d.first_seen.isoformat()) if d.first_seen else "",
-                    (d.last_seen.isoformat()) if d.last_seen else "",
+                    timefmt.to_iso(d.first_seen) if d.first_seen else "",
+                    timefmt.to_iso(d.last_seen) if d.last_seen else "",
                     d.total_sightings if d.total_sightings is not None else "",
                     group.name if group else "",
                     uuids,
@@ -657,7 +665,7 @@ class WebServer:
                 for s in device_sightings:
                     rssi = s.get("rssi")
                     writer.writerow(base + [
-                        s.get("timestamp") or "",
+                        timefmt.to_iso(s.get("timestamp")) or "",
                         rssi if rssi is not None else "",
                         db.rssi_to_proximity_zone(rssi),
                     ])
@@ -715,7 +723,7 @@ class WebServer:
                 }
                 prefix = b"" if first else b","
                 first = False
-                await response.write(prefix + json.dumps(record).encode("utf-8"))
+                await response.write(prefix + json.dumps(timefmt.stamp(record)).encode("utf-8"))
 
         await response.write(b"]")
 
@@ -725,7 +733,7 @@ class WebServer:
         device = await db.get_device(mac)
 
         if not device:
-            return web.json_response({"error": "Device not found"}, status=404)
+            return json_response({"error": "Device not found"}, status=404)
 
         hourly = await db.get_hourly_distribution(mac, 30)
         daily = await db.get_daily_distribution(mac, 30)
@@ -744,7 +752,7 @@ class WebServer:
         latest_rssi = rssi_values[0] if rssi_values else None
         proximity_zone = db.rssi_to_proximity_zone(latest_rssi) if latest_rssi else "unknown"
 
-        return web.json_response({
+        return json_response({
             "device": {
                 "mac": device.mac,
                 "vendor": device.vendor,
@@ -796,7 +804,7 @@ class WebServer:
         device = await db.get_device(mac)
 
         if not device:
-            return web.json_response({"error": "Device not found"}, status=404)
+            return json_response({"error": "Device not found"}, status=404)
 
         # Toggle the watched status
         new_status = not device.watched
@@ -806,7 +814,7 @@ class WebServer:
         if self._notifications:
             self._notifications.update_watched_state(mac, new_status)
 
-        return web.json_response({
+        return json_response({
             "mac": mac,
             "watched": new_status,
         })
@@ -817,15 +825,15 @@ class WebServer:
         device = await db.get_device(mac)
 
         if not device:
-            return web.json_response({"error": "Device not found"}, status=404)
+            return json_response({"error": "Device not found"}, status=404)
 
         try:
             data = await request.json()
             group_id = data.get("group_id")  # Can be None to remove from group
             await db.set_device_group(mac, group_id)
-            return web.json_response({"mac": mac, "group_id": group_id})
+            return json_response({"mac": mac, "group_id": group_id})
         except Exception as e:
-            return web.json_response({"error": str(e)}, status=400)
+            return json_response({"error": str(e)}, status=400)
 
     async def api_set_device_notify(self, request: web.Request) -> web.Response:
         """Set a per-device arrive/depart notification override.
@@ -845,9 +853,9 @@ class WebServer:
             mode = data.get("mode")
             hours = data.get("hours")
             await db.set_device_notify(mac, event, mode, hours)
-            return web.json_response({"mac": mac, "event": event, "mode": mode, "hours": hours})
+            return json_response({"mac": mac, "event": event, "mode": mode, "hours": hours})
         except Exception as e:
-            return web.json_response({"error": str(e)}, status=400)
+            return json_response({"error": str(e)}, status=400)
 
     async def api_merge_devices(self, request: web.Request) -> web.Response:
         """Merge several MAC addresses (believed to be one physical device
@@ -862,11 +870,11 @@ class WebServer:
             macs = data.get("macs") or []
             name = (data.get("name") or "").strip()
             if not macs or not name:
-                return web.json_response({"error": "macs (non-empty list) and name are required"}, status=400)
+                return json_response({"error": "macs (non-empty list) and name are required"}, status=400)
             identity_id = await db.merge_devices_into_identity(macs, name)
-            return web.json_response({"identity_id": identity_id, "name": name, "macs": macs})
+            return json_response({"identity_id": identity_id, "name": name, "macs": macs})
         except Exception as e:
-            return web.json_response({"error": str(e)}, status=400)
+            return json_response({"error": str(e)}, status=400)
 
     async def api_unmerge_device(self, request: web.Request) -> web.Response:
         """Detach one MAC from its identity cluster (it goes back to being
@@ -874,9 +882,9 @@ class WebServer:
         mac = request.match_info["mac"]
         try:
             await db.unmerge_device(mac)
-            return web.json_response({"mac": mac, "status": "ok"})
+            return json_response({"mac": mac, "status": "ok"})
         except Exception as e:
-            return web.json_response({"error": str(e)}, status=400)
+            return json_response({"error": str(e)}, status=400)
 
     async def api_identity_macs(self, request: web.Request) -> web.Response:
         """Every MAC address (with its own first/last-seen and sighting
@@ -885,9 +893,9 @@ class WebServer:
         try:
             identity_id = int(request.match_info["identity_id"])
         except ValueError:
-            return web.json_response({"error": "invalid identity id"}, status=400)
+            return json_response({"error": "invalid identity id"}, status=400)
         members = await db.get_identity_members(identity_id)
-        return web.json_response({
+        return json_response({
             "identity_id": identity_id,
             "macs": [
                 {
@@ -907,15 +915,15 @@ class WebServer:
         device = await db.get_device(mac)
 
         if not device:
-            return web.json_response({"error": "Device not found"}, status=404)
+            return json_response({"error": "Device not found"}, status=404)
 
         try:
             data = await request.json()
             name = data.get("name", "")
             await db.set_friendly_name(mac, name)
-            return web.json_response({"mac": mac, "friendly_name": name})
+            return json_response({"mac": mac, "friendly_name": name})
         except Exception as e:
-            return web.json_response({"error": str(e)}, status=400)
+            return json_response({"error": str(e)}, status=400)
 
     async def api_scan_device(self, request: web.Request) -> web.Response:
         """On-demand active poll of one device ("Scan Unit") -- BLE GATT
@@ -928,16 +936,16 @@ class WebServer:
         mac = request.match_info["mac"]
         device = await db.get_device(mac)
         if not device:
-            return web.json_response({"error": "Device not found"}, status=404)
+            return json_response({"error": "Device not found"}, status=404)
         if is_mdns_key(mac):
-            return web.json_response({"error": "Scan Unit only works on Bluetooth devices"}, status=400)
+            return json_response({"error": "Scan Unit only works on Bluetooth devices"}, status=400)
 
         try:
             result = await self._scan_one_device(mac, device)
         except Exception as e:
-            return web.json_response({"error": str(e)}, status=500)
+            return json_response({"error": str(e)}, status=500)
 
-        return web.json_response(result)
+        return json_response(result)
 
     async def _scan_one_device(self, mac: str, device, timeout: float | None = None) -> dict:
         """The actual Scan Unit work for one device -- GATT/SDP poll, then
@@ -1032,18 +1040,18 @@ class WebServer:
         in flight; the frontend is expected to disable the trigger while
         api_scan_batch_status reports running: true."""
         if self._batch_scan_state.get("running"):
-            return web.json_response({"error": "A batch scan is already running"}, status=409)
+            return json_response({"error": "A batch scan is already running"}, status=409)
 
         try:
             data = await request.json()
             macs = [m for m in (data.get("macs") or []) if isinstance(m, str) and not is_mdns_key(m)]
         except Exception as e:
-            return web.json_response({"error": str(e)}, status=400)
+            return json_response({"error": str(e)}, status=400)
 
         if not macs:
-            return web.json_response({"error": "No MAC addresses given"}, status=400)
+            return json_response({"error": "No MAC addresses given"}, status=400)
         if len(macs) > 200:
-            return web.json_response({"error": "Too many devices for one batch (max 200)"}, status=400)
+            return json_response({"error": "Too many devices for one batch (max 200)"}, status=400)
 
         self._batch_scan_cancel = False
         self._batch_scan_state = {
@@ -1054,7 +1062,7 @@ class WebServer:
             "results": [],
         }
         self._batch_scan_task = asyncio.create_task(self._run_batch_scan(macs))
-        return web.json_response({"status": "started", "total": len(macs)})
+        return json_response({"status": "started", "total": len(macs)})
 
     # Deliberately much shorter than a single manually-triggered scan's
     # default (BLE_TIMEOUT=12s onboard / up to 25s over the ESP32): a
@@ -1098,13 +1106,13 @@ class WebServer:
         scan -- simple GET polling rather than a websocket, since this is
         a one-at-a-time, operator-watched foreground action, not a
         continuous stream."""
-        return web.json_response(self._batch_scan_state)
+        return json_response(self._batch_scan_state)
 
     async def api_scan_batch_cancel(self, request: web.Request) -> web.Response:
         """Stop a running batch scan before its next device -- does not
         abort a poll already in flight, just skips the rest of the list."""
         self._batch_scan_cancel = True
-        return web.json_response({"status": "ok"})
+        return json_response({"status": "ok"})
 
     async def _apply_scan_unit_results(self, mac: str, device, result: dict) -> dict:
         """Fill in vendor/identifier/type from a successful Scan Unit poll,
@@ -1166,7 +1174,7 @@ class WebServer:
         days = int(request.query.get("days", "7"))
 
         rssi_history = await db.get_rssi_history(mac, days)
-        return web.json_response({"mac": mac, "rssi_history": rssi_history})
+        return json_response({"mac": mac, "rssi_history": rssi_history})
 
     async def api_device_live_signal(self, request: web.Request) -> web.Response:
         """Live signal-strength snapshot for the Device Details modal --
@@ -1228,7 +1236,7 @@ class WebServer:
                 current_rssi = live["rssi"]
                 last_seen_seconds_ago = round(live["seconds_ago"], 1)
 
-        return web.json_response({
+        return json_response({
             "mac": mac,
             "minutes": minutes,
             "sightings": sightings,
@@ -1271,17 +1279,17 @@ class WebServer:
                 "reason": "watched" if a["reason"] == "watched" else "type_alert",
             })
 
-        return web.json_response({"devices": device_list})
+        return json_response({"devices": device_list})
 
     async def api_dismiss_alert(self, request: web.Request) -> web.Response:
         try:
             alert_id = int(request.match_info["alert_id"])
         except ValueError:
-            return web.json_response({"error": "Invalid alert id"}, status=400)
-        return web.json_response({"dismissed": await db.dismiss_type_alert(alert_id)})
+            return json_response({"error": "Invalid alert id"}, status=400)
+        return json_response({"dismissed": await db.dismiss_type_alert(alert_id)})
 
     async def api_dismiss_all_alerts(self, request: web.Request) -> web.Response:
-        return web.json_response({"dismissed": await db.dismiss_type_alert(None)})
+        return json_response({"dismissed": await db.dismiss_type_alert(None)})
 
     async def api_device_dwell(self, request: web.Request) -> web.Response:
         """Get dwell time analysis for a device."""
@@ -1290,7 +1298,7 @@ class WebServer:
         gap_minutes = int(request.query.get("gap", "15"))
 
         dwell_data = await db.get_dwell_time(mac, days, gap_minutes)
-        return web.json_response({"mac": mac, **dwell_data})
+        return json_response({"mac": mac, **dwell_data})
 
     async def api_device_correlation(self, request: web.Request) -> web.Response:
         """Get correlated devices for a device."""
@@ -1304,7 +1312,7 @@ class WebServer:
         correlated = await db.get_correlated_devices(
             mac, days, window_minutes, gap_minutes, edge_minutes
         )
-        return web.json_response({"mac": mac, "correlated_devices": correlated})
+        return json_response({"mac": mac, "correlated_devices": correlated})
 
     async def api_device_rotation(self, request: web.Request) -> web.Response:
         """Find devices likely to be the same physical device (MAC rotation)."""
@@ -1313,7 +1321,7 @@ class WebServer:
         tolerance = int(request.query.get("tolerance", "6"))
 
         rotation = await db.get_rotation_candidates(mac, days, rssi_tolerance=tolerance)
-        return web.json_response({"mac": mac, **rotation})
+        return json_response({"mac": mac, **rotation})
 
     async def api_device_proximity(self, request: web.Request) -> web.Response:
         """Get proximity zone statistics for a device."""
@@ -1321,7 +1329,7 @@ class WebServer:
         days = int(request.query.get("days", "7"))
 
         proximity = await db.get_proximity_stats(mac, days)
-        return web.json_response({"mac": mac, **proximity})
+        return json_response({"mac": mac, **proximity})
 
     async def api_set_device_notes(self, request: web.Request) -> web.Response:
         """Set notes for a device."""
@@ -1329,15 +1337,15 @@ class WebServer:
         device = await db.get_device(mac)
 
         if not device:
-            return web.json_response({"error": "Device not found"}, status=404)
+            return json_response({"error": "Device not found"}, status=404)
 
         try:
             data = await request.json()
             notes = data.get("notes", "")
             await db.set_device_notes(mac, notes if notes else None)
-            return web.json_response({"mac": mac, "notes": notes})
+            return json_response({"mac": mac, "notes": notes})
         except Exception as e:
-            return web.json_response({"error": str(e)}, status=400)
+            return json_response({"error": str(e)}, status=400)
 
     async def api_set_device_vendor(self, request: web.Request) -> web.Response:
         """Manually set (or clear) a device's vendor label, overriding the
@@ -1346,15 +1354,15 @@ class WebServer:
         mac = request.match_info["mac"]
         device = await db.get_device(mac)
         if not device:
-            return web.json_response({"error": "Device not found"}, status=404)
+            return json_response({"error": "Device not found"}, status=404)
 
         try:
             data = await request.json()
             vendor = data.get("vendor", "")
             await db.set_device_vendor(mac, vendor if vendor else None)
-            return web.json_response({"mac": mac, "vendor": vendor})
+            return json_response({"mac": mac, "vendor": vendor})
         except Exception as e:
-            return web.json_response({"error": str(e)}, status=400)
+            return json_response({"error": str(e)}, status=400)
 
     async def api_set_device_type(self, request: web.Request) -> web.Response:
         """Manually set a device's classification, overriding whatever the
@@ -1362,22 +1370,22 @@ class WebServer:
         mac = request.match_info["mac"]
         device = await db.get_device(mac)
         if not device:
-            return web.json_response({"error": "Device not found"}, status=404)
+            return json_response({"error": "Device not found"}, status=404)
 
         valid_types = {t for t, _, _ in get_all_types()}
         try:
             data = await request.json()
             device_type = data.get("device_type", "")
             if device_type not in valid_types:
-                return web.json_response({"error": "Unknown device type"}, status=400)
+                return json_response({"error": "Unknown device type"}, status=400)
             await db.set_device_type(mac, device_type)
-            return web.json_response({"mac": mac, "device_type": device_type})
+            return json_response({"mac": mac, "device_type": device_type})
         except Exception as e:
-            return web.json_response({"error": str(e)}, status=400)
+            return json_response({"error": str(e)}, status=400)
 
     async def api_device_types(self, request: web.Request) -> web.Response:
         """All selectable device classification types, for the Type dropdown."""
-        return web.json_response({
+        return json_response({
             "types": [{"value": t, "icon": icon, "label": label} for t, icon, label in get_all_types()]
         })
 
@@ -1440,7 +1448,7 @@ class WebServer:
             g["device_type"] = device_type
             g["type_icon"] = get_type_icon(device_type)
             g["type_label"] = get_type_label(device_type)
-        return web.json_response({"groups": groups, "total": len(groups)})
+        return json_response({"groups": groups, "total": len(groups)})
 
     async def api_search(self, request: web.Request) -> web.Response:
         """Search for devices seen within a datetime range."""
@@ -1452,11 +1460,11 @@ class WebServer:
 
         try:
             if start_str:
-                start_dt = datetime.fromisoformat(start_str.replace("T", " "))
+                start_dt = timefmt.from_client(start_str)
             if end_str:
-                end_dt = datetime.fromisoformat(end_str.replace("T", " "))
+                end_dt = timefmt.from_client(end_str)
         except ValueError:
-            return web.json_response({"error": "Invalid datetime format"}, status=400)
+            return json_response({"error": "Invalid datetime format"}, status=400)
 
         # Search for devices with sightings in the range
         results = await db.search_devices(None, start_dt, end_dt)
@@ -1477,7 +1485,7 @@ class WebServer:
                 "total_sightings": r.get("range_sightings", 0),
             })
 
-        return web.json_response({
+        return json_response({
             "devices": device_list,
             "total": len(device_list),
             "query": {
@@ -1490,7 +1498,7 @@ class WebServer:
         """Get overall stats."""
         global_stats = await db.get_global_stats(include_ignored=True)
 
-        return web.json_response({
+        return json_response({
             "total_devices": global_stats["total_devices"],
             "active_today": global_stats["active_today"],
             "total_sightings": global_stats["total_sightings"],
@@ -1518,32 +1526,32 @@ class WebServer:
         }
 
     async def api_auto_export_get(self, request: web.Request) -> web.Response:
-        return web.json_response(await self._auto_export_status())
+        return json_response(await self._auto_export_status())
 
     async def api_auto_export_save(self, request: web.Request) -> web.Response:
         try:
             data = await request.json()
             days = int(data.get("days", 14))
             if not 1 <= days <= 3650:
-                return web.json_response({"error": "Days must be between 1 and 3650"}, status=400)
+                return json_response({"error": "Days must be between 1 and 3650"}, status=400)
             await db.set_setting("auto_export_enabled", "1" if data.get("enabled") else "0")
             await db.set_setting("auto_export_days", str(days))
         except (ValueError, TypeError):
-            return web.json_response({"error": "Invalid request"}, status=400)
-        return web.json_response(await self._auto_export_status())
+            return json_response({"error": "Invalid request"}, status=400)
+        return json_response(await self._auto_export_status())
 
     async def api_auto_export_run(self, request: web.Request) -> web.Response:
         """Start an export now (runs in the background; poll the status)."""
         if archive.is_running():
-            return web.json_response({"error": "An export is already running"}, status=409)
+            return json_response({"error": "An export is already running"}, status=409)
         days = max(1, int(await db.get_raw_setting("auto_export_days", "14")))
         asyncio.get_running_loop().create_task(archive.run_export(days))
-        return web.json_response({"status": "started"})
+        return json_response({"status": "started"})
 
     async def api_auto_export_file(self, request: web.Request) -> web.StreamResponse:
         path = archive.file_path(request.match_info["name"])
         if path is None:
-            return web.json_response({"error": "File not found"}, status=404)
+            return json_response({"error": "File not found"}, status=404)
         return web.FileResponse(
             path,
             headers={"Content-Disposition": f'attachment; filename="{path.name}"'},
@@ -1551,7 +1559,7 @@ class WebServer:
 
     async def api_category_stats(self, request: web.Request) -> web.Response:
         """Counts, presence and 24 h activity for the dashboard sidebar."""
-        return web.json_response(await db.get_category_stats())
+        return json_response(await db.get_category_stats())
 
     async def radar_page(self, request: web.Request) -> web.Response:
         """Serve the radar view."""
@@ -1594,13 +1602,25 @@ class WebServer:
                     peaks[key] = dict(r, bucket=key)
             series = list(peaks.values())
         today = [r["people"] for r in rows if r["bucket"] >= today_from]
-        slot = now.replace(minute=now.minute - now.minute % minutes).strftime("%H:%M")
-        return web.json_response({
+        slot_start = now.replace(minute=now.minute - now.minute % minutes, second=0, microsecond=0)
+        slot = slot_start.strftime("%H:%M")
+        # The usual line as instants: slots are server-local times of day,
+        # which a browser in another timezone cannot line up by itself.
+        usual_series = []
+        if days == 1:
+            t = slot_start - timedelta(days=1)
+            while t <= slot_start:
+                u = usual.get(t.strftime("%H:%M"))
+                if u is not None:
+                    usual_series.append({"t": t.isoformat(timespec="minutes"), "v": u})
+                t += step
+        return json_response({
             "now": live,
             "usual_now": usual.get(slot),
             "peak_today": max(today) if today else None,
             "series": series,
             "usual": usual,
+            "usual_series": usual_series,
             "range": "7d" if days == 7 else "24h",
             "rssi_floor": crowd.RSSI_FLOOR,
             "bucket_minutes": minutes,
@@ -1617,7 +1637,7 @@ class WebServer:
         limit = int(request.query.get("limit", "200"))
         limit = max(1, min(limit, 1000))
         events = await db.get_rf_log(limit=limit)
-        return web.json_response(events)
+        return json_response(events)
 
     async def api_radar(self, request: web.Request) -> web.Response:
         """Compact device list for the radar: what was seen within the window,
@@ -1653,7 +1673,7 @@ class WebServer:
                 "wifi": r["bt_type"] == "wifi",
                 "random": is_randomized_mac(r["mac"]),
             })
-        return web.json_response({"window": window, "devices": out})
+        return json_response({"window": window, "devices": out})
 
     async def api_display(self, request: web.Request) -> web.Response:
         """Very compact device list for small displays (e.g. an ESP32 screen).
@@ -1837,7 +1857,7 @@ class WebServer:
 
     async def api_stats_overview(self, request: web.Request) -> web.Response:
         """Graph data for the statistics section (cached for a few minutes)."""
-        return web.json_response(await db.get_stats_overview(stale_ok=True))
+        return json_response(await db.get_stats_overview(stale_ok=True))
 
     async def api_live_stats(self, request: web.Request) -> web.Response:
         """Stats for the "nearby now" live view."""
@@ -1849,7 +1869,7 @@ class WebServer:
             except ValueError:
                 pass
         stats = await db.get_live_stats(window)
-        return web.json_response(stats)
+        return json_response(stats)
 
     # ========================================================================
     # Settings API
@@ -1858,7 +1878,7 @@ class WebServer:
     async def api_get_settings(self, request: web.Request) -> web.Response:
         """Get all settings."""
         settings = await db.get_settings()
-        return web.json_response({
+        return json_response({
             "ntfy_topic": settings.ntfy_topic or "",
             "ntfy_enabled": settings.ntfy_enabled,
             "notify_new_device": settings.notify_new_device,
@@ -1891,7 +1911,7 @@ class WebServer:
             if raw_web_port:
                 web_port = int(raw_web_port)
                 if not (1 <= web_port <= 65535):
-                    return web.json_response({"error": "Web port must be between 1 and 65535"}, status=400)
+                    return json_response({"error": "Web port must be between 1 and 65535"}, status=400)
             settings = db.Settings(
                 ntfy_topic=data.get("ntfy_topic"),
                 ntfy_enabled=data.get("ntfy_enabled", False),
@@ -1920,9 +1940,9 @@ class WebServer:
             if self._notifications:
                 await self._notifications.reload_settings()
 
-            return web.json_response({"status": "ok"})
+            return json_response({"status": "ok"})
         except Exception as e:
-            return web.json_response({"error": str(e)}, status=400)
+            return json_response({"error": str(e)}, status=400)
 
     # ========================================================================
     # Groups API
@@ -1932,7 +1952,7 @@ class WebServer:
         """Get all device groups (top-level categories and subcategories --
         subcategories carry a non-null parent_id)."""
         groups = await db.get_groups()
-        return web.json_response({
+        return json_response({
             "groups": [
                 {"id": g.id, "name": g.name, "color": g.color, "icon": g.icon, "parent_id": g.parent_id}
                 for g in groups
@@ -1946,7 +1966,7 @@ class WebServer:
             data = await request.json()
             name = data.get("name")
             if not name:
-                return web.json_response({"error": "Name is required"}, status=400)
+                return json_response({"error": "Name is required"}, status=400)
 
             group = await db.create_group(
                 name=name,
@@ -1954,7 +1974,7 @@ class WebServer:
                 icon=data.get("icon", "📁"),
                 parent_id=data.get("parent_id"),
             )
-            return web.json_response({
+            return json_response({
                 "id": group.id,
                 "name": group.name,
                 "color": group.color,
@@ -1962,7 +1982,7 @@ class WebServer:
                 "parent_id": group.parent_id,
             })
         except Exception as e:
-            return web.json_response({"error": str(e)}, status=400)
+            return json_response({"error": str(e)}, status=400)
 
     async def api_update_group(self, request: web.Request) -> web.Response:
         """Update a device group, including re-parenting it (pass
@@ -1978,9 +1998,9 @@ class WebServer:
                 icon=data.get("icon", "📁"),
                 parent_id=data.get("parent_id"),
             )
-            return web.json_response({"status": "ok"})
+            return json_response({"status": "ok"})
         except Exception as e:
-            return web.json_response({"error": str(e)}, status=400)
+            return json_response({"error": str(e)}, status=400)
 
     async def api_reparent_group(self, request: web.Request) -> web.Response:
         """Move a category under a different parent (or promote it to
@@ -1992,7 +2012,7 @@ class WebServer:
             new_parent_id = data.get("parent_id")
 
             if new_parent_id == group_id:
-                return web.json_response({"error": "A category cannot be its own parent"}, status=400)
+                return json_response({"error": "A category cannot be its own parent"}, status=400)
 
             # Guard against creating a cycle (parent_id pointing into its
             # own subtree) -- only one level of nesting is intended, but
@@ -2002,31 +2022,31 @@ class WebServer:
                 seen = set()
                 while cursor_id is not None:
                     if cursor_id == group_id or cursor_id in seen:
-                        return web.json_response({"error": "That would create a cycle"}, status=400)
+                        return json_response({"error": "That would create a cycle"}, status=400)
                     seen.add(cursor_id)
                     parent = await db.get_group(cursor_id)
                     cursor_id = parent.parent_id if parent else None
 
             group = await db.get_group(group_id)
             if not group:
-                return web.json_response({"error": "Category not found"}, status=404)
+                return json_response({"error": "Category not found"}, status=404)
 
             await db.update_group(
                 group_id=group_id, name=group.name, color=group.color,
                 icon=group.icon, parent_id=new_parent_id,
             )
-            return web.json_response({"status": "ok", "id": group_id, "parent_id": new_parent_id})
+            return json_response({"status": "ok", "id": group_id, "parent_id": new_parent_id})
         except Exception as e:
-            return web.json_response({"error": str(e)}, status=400)
+            return json_response({"error": str(e)}, status=400)
 
     async def api_delete_group(self, request: web.Request) -> web.Response:
         """Delete a device group."""
         try:
             group_id = int(request.match_info["group_id"])
             await db.delete_group(group_id)
-            return web.json_response({"status": "ok"})
+            return json_response({"status": "ok"})
         except Exception as e:
-            return web.json_response({"error": str(e)}, status=400)
+            return json_response({"error": str(e)}, status=400)
 
     async def _resync_custom_types(self) -> None:
         """Reloads classifier.py's in-process custom-type cache after any
@@ -2042,7 +2062,7 @@ class WebServer:
         e.g. a "Lawnmower" category for a robotic mower -- on top of the
         built-in types classify_device() already knows about."""
         custom_types = await db.get_custom_types()
-        return web.json_response({"types": custom_types})
+        return json_response({"types": custom_types})
 
     async def api_create_custom_type(self, request: web.Request) -> web.Response:
         try:
@@ -2050,56 +2070,56 @@ class WebServer:
             label = (data.get("label") or "").strip()
             icon = (data.get("icon") or "").strip() or "[???]"
             if not label:
-                return web.json_response({"error": "Label is required"}, status=400)
+                return json_response({"error": "Label is required"}, status=400)
 
             slug = re.sub(r"[^a-z0-9]+", "_", label.lower()).strip("_")
             if not slug:
-                return web.json_response({"error": "Label must contain at least one letter or digit"}, status=400)
+                return json_response({"error": "Label must contain at least one letter or digit"}, status=400)
 
             valid_types = {t for t, _, _ in get_all_types()}
             if slug in valid_types:
-                return web.json_response({"error": f'A type "{slug}" already exists'}, status=400)
+                return json_response({"error": f'A type "{slug}" already exists'}, status=400)
 
             await db.add_custom_type(slug, icon, label)
             await self._resync_custom_types()
-            return web.json_response({"key": slug, "icon": icon, "label": label})
+            return json_response({"key": slug, "icon": icon, "label": label})
         except Exception as e:
-            return web.json_response({"error": str(e)}, status=400)
+            return json_response({"error": str(e)}, status=400)
 
     async def api_update_custom_type(self, request: web.Request) -> web.Response:
         try:
             key = request.match_info["key"]
             existing = {t["key"] for t in await db.get_custom_types()}
             if key not in existing:
-                return web.json_response({"error": "Class not found"}, status=404)
+                return json_response({"error": "Class not found"}, status=404)
 
             data = await request.json()
             label = (data.get("label") or "").strip()
             icon = (data.get("icon") or "").strip() or "[???]"
             if not label:
-                return web.json_response({"error": "Label is required"}, status=400)
+                return json_response({"error": "Label is required"}, status=400)
 
             await db.update_custom_type(key, icon, label)
             await self._resync_custom_types()
-            return web.json_response({"key": key, "icon": icon, "label": label})
+            return json_response({"key": key, "icon": icon, "label": label})
         except Exception as e:
-            return web.json_response({"error": str(e)}, status=400)
+            return json_response({"error": str(e)}, status=400)
 
     async def api_delete_custom_type(self, request: web.Request) -> web.Response:
         try:
             key = request.match_info["key"]
             await db.delete_custom_type(key)
             await self._resync_custom_types()
-            return web.json_response({"status": "ok"})
+            return json_response({"status": "ok"})
         except Exception as e:
-            return web.json_response({"error": str(e)}, status=400)
+            return json_response({"error": str(e)}, status=400)
 
     async def api_get_irk_keys(self, request: web.Request) -> web.Response:
         """List configured Identity Resolving Keys. The raw key is masked
         (first/last 4 hex chars only) -- it never needs to round-trip back
         to the browser once saved."""
         keys = await db.get_irk_keys()
-        return web.json_response({
+        return json_response({
             "irk_keys": [
                 {
                     "id": k["id"],
@@ -2118,35 +2138,35 @@ class WebServer:
             label = (data.get("label") or "").strip()
             irk_raw = (data.get("irk") or "").strip()
             if not label:
-                return web.json_response({"error": "Label is required"}, status=400)
+                return json_response({"error": "Label is required"}, status=400)
             if not irk_raw:
-                return web.json_response({"error": "IRK is required"}, status=400)
+                return json_response({"error": "IRK is required"}, status=400)
             try:
                 irk_bytes = rpa.parse_irk_hex(irk_raw)
             except ValueError as e:
-                return web.json_response({"error": str(e)}, status=400)
+                return json_response({"error": str(e)}, status=400)
             irk_id = await db.add_irk_key(label, irk_bytes.hex())
-            return web.json_response({"id": irk_id, "label": label})
+            return json_response({"id": irk_id, "label": label})
         except Exception as e:
-            return web.json_response({"error": str(e)}, status=400)
+            return json_response({"error": str(e)}, status=400)
 
     async def api_delete_irk_key(self, request: web.Request) -> web.Response:
         try:
             irk_id = int(request.match_info["irk_id"])
             await db.delete_irk_key(irk_id)
-            return web.json_response({"status": "ok"})
+            return json_response({"status": "ok"})
         except Exception as e:
-            return web.json_response({"error": str(e)}, status=400)
+            return json_response({"error": str(e)}, status=400)
 
     async def api_get_wigle_settings(self, request: web.Request) -> web.Response:
         """Whether WiGLE vendor lookup is configured. The token is never
         sent back to the browser once saved -- only a masked preview."""
         credentials = await db.get_wigle_credentials()
         if not credentials:
-            return web.json_response({"configured": False})
+            return json_response({"configured": False})
         api_name, api_token = credentials
         mask = lambda s: s[:4] + "..." + s[-4:] if len(s) > 8 else "***"
-        return web.json_response({
+        return json_response({
             "configured": True,
             "api_name_masked": mask(api_name),
             "api_token_masked": mask(api_token),
@@ -2158,40 +2178,40 @@ class WebServer:
             api_name = (data.get("api_name") or "").strip()
             api_token = (data.get("api_token") or "").strip()
             if not api_name or not api_token:
-                return web.json_response({"error": "API Name and API Token are both required"}, status=400)
+                return json_response({"error": "API Name and API Token are both required"}, status=400)
             await db.set_wigle_credentials(api_name, api_token)
-            return web.json_response({"status": "ok"})
+            return json_response({"status": "ok"})
         except Exception as e:
-            return web.json_response({"error": str(e)}, status=400)
+            return json_response({"error": str(e)}, status=400)
 
     async def api_delete_wigle_settings(self, request: web.Request) -> web.Response:
         await db.clear_wigle_credentials()
-        return web.json_response({"status": "ok"})
+        return json_response({"status": "ok"})
 
     async def api_get_fastpair_settings(self, request: web.Request) -> web.Response:
         """Whether Fast Pair verification is enabled in Scan Unit."""
         enabled = await db.get_fastpair_settings()
-        return web.json_response({"enabled": enabled})
+        return json_response({"enabled": enabled})
 
     async def api_set_fastpair_settings(self, request: web.Request) -> web.Response:
         try:
             data = await request.json()
             enabled = bool(data.get("enabled"))
             await db.set_fastpair_settings(enabled)
-            return web.json_response({"status": "ok"})
+            return json_response({"status": "ok"})
         except Exception as e:
-            return web.json_response({"error": str(e)}, status=400)
+            return json_response({"error": str(e)}, status=400)
 
     async def api_wifi_status(self, request: web.Request) -> web.Response:
         """Wi-Fi ears status: source, channel, frame counts, recent attack alerts."""
         from .. import wifi_sniffer
-        return web.json_response(wifi_sniffer.STATUS)
+        return json_response(wifi_sniffer.STATUS)
 
     async def api_get_esp32_scanner_settings(self, request: web.Request) -> web.Response:
         """Whether the optional ESP32-S3 (blesploit firmware) second BLE
         radio is enabled, and the host/IP it's reached on."""
         enabled, host = await db.get_esp32_scanner_settings()
-        return web.json_response({"enabled": enabled, "host": host})
+        return json_response({"enabled": enabled, "host": host})
 
     async def api_set_esp32_scanner_settings(self, request: web.Request) -> web.Response:
         try:
@@ -2199,16 +2219,16 @@ class WebServer:
             enabled = bool(data.get("enabled"))
             host = (data.get("host") or "").strip() or "192.168.5.1"
             await db.set_esp32_scanner_settings(enabled, host)
-            return web.json_response({"status": "ok"})
+            return json_response({"status": "ok"})
         except Exception as e:
-            return web.json_response({"error": str(e)}, status=400)
+            return json_response({"error": str(e)}, status=400)
 
     # --- Remote ears (ears.py) -------------------------------------------
 
     async def _ear_from_request(self, request: web.Request) -> tuple[Optional[dict], Optional[web.Response]]:
         token = ears.bearer_token(request.headers.get("Authorization"))
         if token is None:
-            return None, web.json_response({"error": "missing or malformed ear token"}, status=401)
+            return None, json_response({"error": "missing or malformed ear token"}, status=401)
         token_hash = ears.hash_token(token)
         now = asyncio.get_event_loop().time()
         cached = self._ear_cache.get(token_hash)
@@ -2220,9 +2240,9 @@ class WebServer:
                 self._ear_cache.clear()
             self._ear_cache[token_hash] = (now + 30, ear)
         if ear is None:
-            return None, web.json_response({"error": "unknown ear token"}, status=401)
+            return None, json_response({"error": "unknown ear token"}, status=401)
         if not ear["enabled"]:
-            return None, web.json_response({"error": "this ear is paused in BlueWatch"}, status=403)
+            return None, json_response({"error": "this ear is paused in BlueWatch"}, status=403)
         return ear, None
 
     async def api_ear_hello(self, request: web.Request) -> web.Response:
@@ -2230,7 +2250,7 @@ class WebServer:
         ear, error = await self._ear_from_request(request)
         if error:
             return error
-        return web.json_response({
+        return json_response({
             "bluewatch": __version__,
             "protocol": ears.PROTOCOL_VERSION,
             "ear": {"id": ear["id"], "name": ear["name"]},
@@ -2249,23 +2269,23 @@ class WebServer:
         if error:
             return error
         if request.content_length is None or request.content_length > ears.MAX_BODY_BYTES:
-            return web.json_response({"error": f"body must have a length of at most {ears.MAX_BODY_BYTES} bytes"}, status=413)
+            return json_response({"error": f"body must have a length of at most {ears.MAX_BODY_BYTES} bytes"}, status=413)
         if ear["id"] in self._ears_busy:
-            return web.json_response({"error": "previous batch still being processed"}, status=429,
+            return json_response({"error": "previous batch still being processed"}, status=429,
                                      headers={"Retry-After": "2"})
         self._ears_busy.add(ear["id"])
         try:
             try:
                 body = json.loads(await request.read())
             except (ValueError, UnicodeDecodeError):
-                return web.json_response({"error": "body is not valid JSON"}, status=400)
+                return json_response({"error": "body is not valid JSON"}, status=400)
             heard, skipped, problem = ears.parse_batch(body)
             if problem:
-                return web.json_response({"error": problem}, status=400)
+                return json_response({"error": problem}, status=400)
             ears.HUB.take(ear["id"], heard)
             software = body.get("software") if isinstance(body.get("software"), str) else None
             await db.note_ear_contact(ear["id"], request.remote, software[:64] if software else None, len(heard))
-            return web.json_response({"taken": len(heard), "skipped": skipped,
+            return json_response({"taken": len(heard), "skipped": skipped,
                                       "server_time": datetime.now().timestamp()})
         finally:
             self._ears_busy.discard(ear["id"])
@@ -2275,7 +2295,7 @@ class WebServer:
         for row in rows:
             row["enabled"] = bool(row["enabled"])
             row["status"] = ears.HUB.ear_status(row["id"])
-        return web.json_response({"ears": rows, "protocol": ears.PROTOCOL_VERSION})
+        return json_response({"ears": rows, "protocol": ears.PROTOCOL_VERSION})
 
     async def api_create_ear(self, request: web.Request) -> web.Response:
         try:
@@ -2284,35 +2304,35 @@ class WebServer:
             data = {}
         name = " ".join(str(data.get("name") or "").split())[:40]
         if not name:
-            return web.json_response({"error": "Give the ear a name"}, status=400)
+            return json_response({"error": "Give the ear a name"}, status=400)
         token = ears.new_token()
         ear_id = await db.create_ear(name, ears.hash_token(token), token[-4:])
         # The token is only ever returned here; BlueWatch keeps just its hash.
-        return web.json_response({"id": ear_id, "name": name, "token": token})
+        return json_response({"id": ear_id, "name": name, "token": token})
 
     async def api_update_ear(self, request: web.Request) -> web.Response:
         try:
             ear_id = int(request.match_info["ear_id"])
             data = await request.json()
         except Exception:
-            return web.json_response({"error": "bad request"}, status=400)
+            return json_response({"error": "bad request"}, status=400)
         name = data.get("name")
         if name is not None:
             name = " ".join(str(name).split())[:40] or None
         enabled = data.get("enabled")
         ok = await db.update_ear(ear_id, name=name, enabled=None if enabled is None else bool(enabled))
         self._ear_cache.clear()
-        return web.json_response({"status": "ok"} if ok else {"error": "not found"}, status=200 if ok else 404)
+        return json_response({"status": "ok"} if ok else {"error": "not found"}, status=200 if ok else 404)
 
     async def api_delete_ear(self, request: web.Request) -> web.Response:
         try:
             ear_id = int(request.match_info["ear_id"])
         except ValueError:
-            return web.json_response({"error": "bad request"}, status=400)
+            return json_response({"error": "bad request"}, status=400)
         ok = await db.delete_ear(ear_id)
         self._ear_cache.clear()
         ears.HUB.forget_ear(ear_id)
-        return web.json_response({"status": "ok"} if ok else {"error": "not found"}, status=200 if ok else 404)
+        return json_response({"status": "ok"} if ok else {"error": "not found"}, status=200 if ok else 404)
 
     async def api_device_ears(self, request: web.Request) -> web.Response:
         """Who hears this device: the built-in radio and every remote ear,
@@ -2331,7 +2351,7 @@ class WebServer:
         recent = [r for r in live if r["seconds_ago"] <= 60]
         nearest = max(recent, key=lambda r: r["rssi"]) if len(recent) > 1 else None
         history = await db.get_ear_heard_for_device(mac)
-        return web.json_response({
+        return json_response({
             "mac": mac,
             "has_ears": bool(names),
             "live": live,
@@ -2343,7 +2363,7 @@ class WebServer:
         """Whether optional sub-GHz (433/868 MHz) discovery via rtl_433 and
         an RTL-SDR dongle is enabled, and which frequencies it hops."""
         enabled, frequencies = await db.get_rtl433_settings()
-        return web.json_response({"enabled": enabled, "frequencies": frequencies})
+        return json_response({"enabled": enabled, "frequencies": frequencies})
 
     async def api_set_rtl433_settings(self, request: web.Request) -> web.Response:
         try:
@@ -2351,9 +2371,9 @@ class WebServer:
             enabled = bool(data.get("enabled"))
             frequencies = (data.get("frequencies") or "").strip() or "433.92M,868.3M"
             await db.set_rtl433_settings(enabled, frequencies)
-            return web.json_response({"status": "ok"})
+            return json_response({"status": "ok"})
         except Exception as e:
-            return web.json_response({"error": str(e)}, status=400)
+            return json_response({"error": str(e)}, status=400)
 
     # ========================================================================
     # Authentication API
@@ -2370,13 +2390,13 @@ class WebServer:
 
             # Check if auth is enabled and credentials match
             if not settings.auth_enabled:
-                return web.json_response({"error": "Auth not enabled"}, status=400)
+                return json_response({"error": "Auth not enabled"}, status=400)
 
             if (usernames_match(username, settings.auth_username) and
                 verify_password(password, settings.auth_password_hash)):
                 # Create session
                 token = self._create_session()
-                response = web.json_response({"status": "ok"})
+                response = json_response({"status": "ok"})
                 response.set_cookie(
                     "session", token,
                     max_age=int(self._session_duration.total_seconds()),
@@ -2389,11 +2409,11 @@ class WebServer:
                 # "Invalid credentials" reports diagnosable.
                 reason = "username" if not usernames_match(username, settings.auth_username) else "password"
                 logger.warning(f"Login failed from {request.remote}: {reason} did not match")
-                return web.json_response({"error": "Invalid credentials"}, status=401)
+                return json_response({"error": "Invalid credentials"}, status=401)
 
         except Exception as e:
             logger.warning(f"Login request from {request.remote} failed: {e}")
-            return web.json_response({"error": str(e)}, status=400)
+            return json_response({"error": str(e)}, status=400)
 
     async def api_logout(self, request: web.Request) -> web.Response:
         """Handle logout request."""
@@ -2401,7 +2421,7 @@ class WebServer:
         if token and token in self._sessions:
             del self._sessions[token]
 
-        response = web.json_response({"status": "ok"})
+        response = json_response({"status": "ok"})
         response.del_cookie("session")
         return response
 
@@ -2410,7 +2430,7 @@ class WebServer:
         settings = await db.get_settings()
         authenticated = await self._check_auth(request)
 
-        return web.json_response({
+        return json_response({
             "auth_enabled": settings.auth_enabled,
             "authenticated": authenticated,
             "username": settings.auth_username if authenticated else None,
@@ -2421,7 +2441,7 @@ class WebServer:
         # Only allow if already authenticated or auth is disabled
         settings = await db.get_settings()
         if settings.auth_enabled and not await self._check_auth(request):
-            return web.json_response({"error": "Unauthorized"}, status=401)
+            return json_response({"error": "Unauthorized"}, status=401)
 
         try:
             data = await request.json()
@@ -2431,7 +2451,7 @@ class WebServer:
 
             if enabled:
                 if not username or not password:
-                    return web.json_response(
+                    return json_response(
                         {"error": "Username and password required"},
                         status=400
                     )
@@ -2445,10 +2465,10 @@ class WebServer:
                 password_hash=password_hash
             )
 
-            return web.json_response({"status": "ok"})
+            return json_response({"status": "ok"})
 
         except Exception as e:
-            return web.json_response({"error": str(e)}, status=400)
+            return json_response({"error": str(e)}, status=400)
 
     async def start(self) -> web.AppRunner:
         """Start the web server."""

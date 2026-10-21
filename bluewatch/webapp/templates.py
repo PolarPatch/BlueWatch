@@ -2318,8 +2318,8 @@ HTML_TEMPLATE = """
             if (!startInput && !endInput) { clearDateFilters(); return; }
             try {
                 let url = '/api/search?';
-                if (startInput) url += 'start=' + encodeURIComponent(startInput) + '&';
-                if (endInput) url += 'end=' + encodeURIComponent(endInput);
+                if (startInput) url += 'start=' + encodeURIComponent(new Date(startInput).toISOString()) + '&';
+                if (endInput) url += 'end=' + encodeURIComponent(new Date(endInput).toISOString());
                 const response = await fetch(url);
                 const data = await response.json();
                 if (!response.ok) {
@@ -8404,8 +8404,8 @@ LIVE_TEMPLATE = """
             if (!startInput && !endInput) { clearDateFilters(); return; }
             try {
                 let url = '/api/search?';
-                if (startInput) url += 'start=' + encodeURIComponent(startInput) + '&';
-                if (endInput) url += 'end=' + encodeURIComponent(endInput);
+                if (startInput) url += 'start=' + encodeURIComponent(new Date(startInput).toISOString()) + '&';
+                if (endInput) url += 'end=' + encodeURIComponent(new Date(endInput).toISOString());
                 const response = await fetch(url);
                 const data = await response.json();
                 if (!response.ok) {

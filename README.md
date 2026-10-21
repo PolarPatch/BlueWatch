@@ -205,6 +205,7 @@ The web dashboard will be available at **http://localhost:8080**
 | `BLUEWATCH_HEARTBEAT_URL` | disabled | URL to POST heartbeat check-ins (e.g., a healthchecks.io or uptime-kuma push URL) |
 | `BLUEWATCH_HEARTBEAT_INTERVAL` | `300` | Seconds between heartbeat check-ins |
 | `BLUEWATCH_WIFI_IFACE` | unset (off) | Monitor-mode Wi-Fi adapter to listen on, e.g. `wlan1`. See [Wi-Fi Ears](#wi-fi-ears) |
+| `BLUEWATCH_TIMEZONE` | system timezone | IANA timezone the stored times were written in, e.g. `Europe/Oslo`. Only needed when it differs from the system's, for example in a container that runs in UTC. Times are sent to browsers as UTC either way |
 | `BLUEWATCH_WIFI_CHANNELS` | `1`-`13` | Channels to hop through, e.g. `1,6,11,36,40,44,48` |
 | `BLUEWATCH_WIFI_PCAP` | unset | Replay a radiotap `.pcap` through the Wi-Fi recognition instead of listening |
 | `BLUEWATCH_PRUNE_DAYS` | `0` (disabled) | Auto-delete sightings older than N days to free storage |

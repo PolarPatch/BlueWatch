@@ -321,7 +321,7 @@ RF_TEMPLATE = r"""<!DOCTYPE html>
             return '<div style="position:relative; display:flex; align-items:center; gap:0.4rem; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 6px; padding: 0.3rem 1.6rem 0.3rem 0.6rem; font-size: 0.75rem;">' +
                 '<span class="priority-tag">TPMS</span>' +
                 '<span>' + escapeHtml(e.model || '?') + '</span>' +
-                '<span style="color: var(--text-muted); font-size: 0.68rem;">' + escapeHtml(e.timestamp || '') + '</span>' +
+                '<span style="color: var(--text-muted); font-size: 0.68rem;">' + escapeHtml(fmtTime(e.timestamp)) + '</span>' +
                 '<button type="button" class="priority-dismiss" title="Dismiss" data-key="' + escapeHtml(key) + '">&times;</button>' +
                 '</div>';
         }).join('');
@@ -343,6 +343,16 @@ RF_TEMPLATE = r"""<!DOCTYPE html>
         var chip = e.target.closest('.model-chip');
         if (chip && chip.dataset.model !== undefined) toggleModel(chip.dataset.model);
     });
+
+    // Times arrive as UTC with Z; show them in this browser's local time.
+    function fmtTime(ts) {
+        if (!ts) return '';
+        const d = new Date(ts);
+        if (isNaN(d)) return ts;
+        const pad = n => String(n).padStart(2, '0');
+        return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' +
+            pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+    }
 
     function escapeHtml(s) {
         return String(s).replace(/[&<>"']/g, function(c) {
@@ -454,7 +464,7 @@ RF_TEMPLATE = r"""<!DOCTYPE html>
             var e = visible[i];
             var isNew = e.id > lastMaxId && lastMaxId > 0;
             rowsHtml += '<tr' + (isNew ? ' class="is-new"' : '') + '>' +
-                '<td class="t-time">' + escapeHtml(e.timestamp || '') + '</td>' +
+                '<td class="t-time">' + escapeHtml(fmtTime(e.timestamp)) + '</td>' +
                 '<td class="t-model">' + escapeHtml(e.model || '?') + '</td>' +
                 '<td class="t-key">' + escapeHtml(e.device_key || '') + '</td>' +
                 '<td class="t-rssi">' + (e.rssi != null ? Number(e.rssi).toFixed(1) : '-') + '</td>' +

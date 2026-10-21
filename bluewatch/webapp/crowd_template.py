@@ -217,6 +217,7 @@ CROWD_TEMPLATE = r"""<!DOCTYPE html>
     }
 
     function cssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+    var usualAt = {};
     function parseBucket(b) { return new Date(b.replace(' ', 'T')).getTime(); }
     function hhmm(t) { var d = new Date(t); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
 
@@ -239,14 +240,10 @@ CROWD_TEMPLATE = r"""<!DOCTYPE html>
         var end = Date.now(), start = end - (range === '7d' ? 7 : 1) * 86400000;
         var series = data.series.map(function(r) { return {t: parseBucket(r.bucket), people: r.people, devices: r.devices}; })
             .filter(function(p) { return p.t >= start; });
-        var usual = [];
-        if (range === '24h') {
-            var step = data.bucket_minutes * 60000;
-            for (var t = Math.ceil(start / step) * step; t <= end; t += step) {
-                var u = data.usual[hhmm(t)];
-                if (u !== undefined) usual.push({t: t, v: u});
-            }
-        }
+        usualAt = {};
+        var usual = (data.usual_series || []).map(function(r) { return {t: parseBucket(r.t), v: r.v}; })
+            .filter(function(p) { return p.t >= start; });
+        usual.forEach(function(p) { usualAt[p.t] = p.v; });
         var maxV = 4;
         series.forEach(function(p) { maxV = Math.max(maxV, p.people, p.devices); });
         usual.forEach(function(p) { maxV = Math.max(maxV, p.v); });
@@ -304,7 +301,7 @@ CROWD_TEMPLATE = r"""<!DOCTYPE html>
         if (!best || Math.abs(best.x - mx) > 20) { tip.style.display = 'none'; return; }
         var d = new Date(best.p.t);
         var when = (range === '7d' ? d.toLocaleDateString(undefined, {weekday: 'short'}) + ' ' : '') + hhmm(best.p.t);
-        var u = data.usual[hhmm(best.p.t)];
+        var u = usualAt[best.p.t];
         tip.textContent = when + '  people ' + best.p.people + '  devices ' + best.p.devices + (u !== undefined ? '  usual ' + u : '');
         tip.style.display = 'block';
         tip.style.left = (e.clientX + 12) + 'px'; tip.style.top = (e.clientY + 12) + 'px';

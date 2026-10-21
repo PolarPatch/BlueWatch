@@ -52,3 +52,7 @@ FASTPAIR_KEYS_PATH = Path(os.environ.get("BLUEWATCH_FASTPAIR_KEYS_PATH", DATA_DI
 # or a radiotap pcap to replay. Both off by default.
 WIFI_IFACE = os.environ.get("BLUEWATCH_WIFI_IFACE") or None
 WIFI_PCAP = os.environ.get("BLUEWATCH_WIFI_PCAP") or None
+
+# The timezone stored timestamps were written in (an IANA name such as
+# Europe/Oslo). Unset means the system's local time. See timefmt.py.
+TIMEZONE = os.environ.get("BLUEWATCH_TIMEZONE") or None
