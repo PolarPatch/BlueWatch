@@ -37,7 +37,8 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
             for days in range(1, 4):
                 b = (now - timedelta(days=days)).replace(minute=now.minute - now.minute % 5, second=0, microsecond=0)
                 await db.save_crowd_bucket(5, b, {"people": 4 + days, "devices": 9, "addresses": 9})
-                await db.save_crowd_bucket(1, b, {"people": 1, "devices": 1, "addresses": 1})
+                m = (now - timedelta(days=days)).replace(second=0, microsecond=0)
+                await db.save_crowd_bucket(1, m, {"people": 1, "devices": 1, "addresses": 1})
             await db.upsert_device(mac="7A:00:00:00:00:01", friendly_name="iPhone", rssi=-60)
             async with TestClient(TestServer(WebServer().app)) as client:
                 r = await client.get("/api/crowd?range=7d")
