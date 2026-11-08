@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from . import rpa
 from . import timefmt
 from . import classifier
-from .config import DB_PATH, HEARTBEAT_URL, HEARTBEAT_INTERVAL, PRUNE_DAYS, PRUNE_MIN_SIGHTINGS
+from .config import DB_PATH, DEVICE_RETENTION_DAYS, HEARTBEAT_URL, HEARTBEAT_INTERVAL, PRUNE_DAYS, PRUNE_MIN_SIGHTINGS
 
 logger = logging.getLogger(__name__)
 
@@ -126,6 +126,7 @@ class Settings:
     heartbeat_interval: int = 300             # seconds
     prune_days: int = 0                       # 0 = disabled
     prune_min_sightings: int = 0              # 0 = prune by age only (keep device records)
+    device_retention_days: int = 0            # 0 = keep device records forever
     web_port: Optional[int] = None            # None = use the --port CLI default (8080); takes effect on next restart
     # Authentication settings
     auth_enabled: bool = False
@@ -2000,6 +2001,46 @@ async def prune_stale_devices(days: int, min_sightings: int) -> int:
         return deleted
 
 
+async def forget_inactive_devices(days: int) -> int:
+    """Delete device records (and their sightings) not seen for `days` days.
+
+    Unlike prune_stale_devices() this ignores the sighting count: most old
+    records are rotating BLE addresses that each lived for a while and then
+    never came back, so a sighting limit misses them. Anything the user has
+    marked is kept: watched, in a category, named, with notes, or linked to
+    a known identity (IRK). The hourly rollup is left alone so the stats
+    history keeps its counts. Deleted in short batches, like the prune, so
+    the scanner can keep writing. Returns the number of devices deleted.
+    """
+    if days <= 0:
+        return 0
+    async with _connect() as db:
+        async with db.execute(
+            """
+            SELECT mac FROM devices
+            WHERE last_seen < ?
+              AND COALESCE(watched, 0) = 0
+              AND group_id IS NULL
+              AND identity_id IS NULL
+              AND COALESCE(friendly_name, '') = ''
+              AND COALESCE(notes, '') = ''
+            """,
+            (_days_ago(days),),
+        ) as cursor:
+            macs = [row[0] for row in await cursor.fetchall()]
+
+        deleted = 0
+        chunk = 400
+        for start in range(0, len(macs), chunk):
+            subset = macs[start:start + chunk]
+            placeholders = ", ".join("?" for _ in subset)
+            await db.execute(f"DELETE FROM sightings WHERE mac IN ({placeholders})", subset)
+            cursor = await db.execute(f"DELETE FROM devices WHERE mac IN ({placeholders})", subset)
+            await db.commit()
+            deleted += cursor.rowcount
+        return deleted
+
+
 async def search_devices(
     mac_filter: Optional[str] = None,
     start_time: Optional[datetime] = None,
@@ -2112,6 +2153,7 @@ async def get_settings() -> Settings:
         heartbeat_interval=int(settings_dict.get("heartbeat_interval", str(HEARTBEAT_INTERVAL))),
         prune_days=int(settings_dict.get("prune_days", str(PRUNE_DAYS))),
         prune_min_sightings=int(settings_dict.get("prune_min_sightings", str(PRUNE_MIN_SIGHTINGS))),
+        device_retention_days=int(settings_dict.get("device_retention_days", str(DEVICE_RETENTION_DAYS))),
         web_port=(int(settings_dict["web_port"]) if settings_dict.get("web_port") else None),
         auth_enabled=settings_dict.get("auth_enabled", "0") == "1",
         auth_username=settings_dict.get("auth_username"),
@@ -2160,6 +2202,7 @@ async def update_settings(settings: Settings) -> None:
             ("heartbeat_interval", str(settings.heartbeat_interval)),
             ("prune_days", str(settings.prune_days)),
             ("prune_min_sightings", str(settings.prune_min_sightings)),
+            ("device_retention_days", str(settings.device_retention_days)),
             ("web_port", str(settings.web_port) if settings.web_port else ""),
             ("ble_spam_alert_enabled", "1" if settings.ble_spam_alert_enabled else "0"),
             ("ble_spam_threshold", str(settings.ble_spam_threshold)),

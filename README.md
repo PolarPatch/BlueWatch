@@ -133,7 +133,7 @@ BlueWatch is a Bluetooth scanner that:
 
 ### Operations
 - **Heartbeat check-in**, periodically POST status to an uptime monitoring service (e.g., Uptime Kuma, Healthchecks.io)
-- **Storage rotation**, automatically prune sightings older than a configurable number of days; optionally restrict pruning to whole stale devices seen fewer than a minimum number of times (watched devices are never pruned)
+- **Storage rotation**, automatically prune sightings older than a configurable number of days; optionally restrict pruning to whole stale devices seen fewer than a minimum number of times (watched devices are never pruned); separately, forget device records not seen for N days (watched, categorised, named and noted devices are kept)
 - Both configurable from the web UI or via environment variables
 
 ### Web Interface
@@ -210,6 +210,7 @@ The web dashboard will be available at **http://localhost:8080**
 | `BLUEWATCH_WIFI_PCAP` | unset | Replay a radiotap `.pcap` through the Wi-Fi recognition instead of listening |
 | `BLUEWATCH_PRUNE_DAYS` | `0` (disabled) | Auto-delete sightings older than N days to free storage |
 | `BLUEWATCH_PRUNE_MIN_SIGHTINGS` | `0` (disabled) | When >0, prune whole stale devices (older than `BLUEWATCH_PRUNE_DAYS` and with fewer than N total sightings) instead of only trimming old sighting rows; watched devices are never pruned |
+| `BLUEWATCH_DEVICE_RETENTION_DAYS` | `0` (disabled) | Forget device records (and their sightings) not seen for N days. Watched, categorised, named and noted devices, and devices linked to a known identity, are kept. Also in Config > Storage Rotation |
 
 ### Bluetooth Adapter Requirements
 

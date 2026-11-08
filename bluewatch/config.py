@@ -41,6 +41,11 @@ PRUNE_DAYS = int(os.environ.get("BLUEWATCH_PRUNE_DAYS", "0"))
 # sightings (0 = disabled; prune by age only, keeping device records).
 PRUNE_MIN_SIGHTINGS = int(os.environ.get("BLUEWATCH_PRUNE_MIN_SIGHTINGS", "0"))
 
+# Forget device records not seen for N days (0 = keep forever). Devices the
+# user has marked (watched, in a category, named, with notes, or linked to
+# a known identity) are always kept.
+DEVICE_RETENTION_DAYS = int(os.environ.get("BLUEWATCH_DEVICE_RETENTION_DAYS", "0"))
+
 # Local Fast Pair Anti-Spoofing Public Key store, used by the "Scan Unit"
 # Fast Pair verification feature (see fastpair.py) -- a JSON file the
 # operator maintains by hand (hex Model ID -> hex/base64 64-byte public

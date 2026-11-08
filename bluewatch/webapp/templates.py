@@ -4335,6 +4335,11 @@ SETTINGS_TEMPLATE = """
                             <input type="number" class="form-input" id="prune_min_sightings" value="0" min="0" max="1000000" style="width: 160px;">
                             <div class="form-hint">When set above 0, pruning removes whole stale devices (and their sightings) that are both older than the age limit and have fewer than this many total sightings. Watched devices and devices assigned to any category are never pruned. 0 = prune old sightings by age only, keeping device records.</div>
                         </div>
+                        <div class="form-group">
+                            <label class="form-label">Forget Devices Not Seen For (days)</label>
+                            <input type="number" class="form-input" id="device_retention_days" value="0" min="0" max="3650" style="width: 160px;">
+                            <div class="form-hint">Removes device records (and their sightings) that have not been seen for this many days, however often they were seen before. Most of them are rotating Bluetooth addresses that never come back. Watched, categorised, named and noted devices, and devices linked to a known identity, are always kept. Runs hourly. 0 = keep forever.</div>
+                        </div>
                     </div>
                 </div>
 
@@ -4814,6 +4819,7 @@ SETTINGS_TEMPLATE = """
                 document.getElementById('heartbeat_interval').value = data.heartbeat_interval || 300;
                 document.getElementById('prune_days').value = data.prune_days || 0;
                 document.getElementById('prune_min_sightings').value = data.prune_min_sightings || 0;
+                document.getElementById('device_retention_days').value = data.device_retention_days || 0;
                 document.getElementById('web_port').value = data.web_port || '';
                 document.getElementById('ble_spam_alert_enabled').checked = data.ble_spam_alert_enabled;
                 document.getElementById('ble_spam_threshold').value = data.ble_spam_threshold || 40;
@@ -4909,6 +4915,7 @@ SETTINGS_TEMPLATE = """
                 heartbeat_interval: parseInt(document.getElementById('heartbeat_interval').value) || 300,
                 prune_days: parseInt(document.getElementById('prune_days').value) || 0,
                 prune_min_sightings: parseInt(document.getElementById('prune_min_sightings').value) || 0,
+                device_retention_days: parseInt(document.getElementById('device_retention_days').value) || 0,
                 web_port: document.getElementById('web_port').value,
                 ble_spam_alert_enabled: document.getElementById('ble_spam_alert_enabled').checked,
                 ble_spam_threshold: parseInt(document.getElementById('ble_spam_threshold').value) || 40,

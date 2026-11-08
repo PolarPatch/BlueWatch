@@ -1067,6 +1067,15 @@ class BlueWatchDaemon:
                 settings = await db.get_settings()
                 prune_days = settings.prune_days
                 min_sightings = settings.prune_min_sightings
+                retention_days = settings.device_retention_days
+                if retention_days > 0 and await db.get_raw_setting("auto_export_enabled", "0") == "1":
+                    # Never forget a device before its sightings are in the CSV.
+                    export_days = int(await db.get_raw_setting("auto_export_days", "14") or 14)
+                    retention_days = max(retention_days, export_days + 1)
+                if retention_days > 0:
+                    forgotten = await db.forget_inactive_devices(retention_days)
+                    if forgotten:
+                        logger.info(f"Forgot {forgotten} devices not seen for {retention_days} days")
                 if prune_days > 0:
                     if min_sightings > 0:
                         # Remove whole stale devices (and their sightings) that
@@ -1087,6 +1096,7 @@ class BlueWatchDaemon:
                         deleted = await db.cleanup_old_sightings(prune_days)
                         if deleted:
                             logger.info(f"Pruned {deleted} sightings older than {prune_days} days")
+                if prune_days > 0 or retention_days > 0:
                     # Pruning frees pages inside the database file but doesn't
                     # shrink it; reclaim the disk space once enough has built up.
                     reclaimed = await db.vacuum_if_fragmented()
