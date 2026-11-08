@@ -511,6 +511,10 @@ async def init_db() -> None:
             # for nameless devices -- see classifier.behavioral_fingerprint()).
             # NULL if identity_id was set by hand via the merge UI.
             ("identity_link_method", "TEXT"),
+            # 1 for a locally administered (randomized) address. Kept by the
+            # triggers below so list queries can use an index instead of
+            # testing every MAC with GLOB/substr on each request.
+            ("randomized", "INTEGER NOT NULL DEFAULT 0"),
         ]
 
         for column, column_type in migrations:
@@ -543,6 +547,32 @@ async def init_db() -> None:
         # scanned the whole devices table (~0.5 s for 25k devices on a Pi 3,
         # ~15 ms with the index).
         await db.execute("CREATE INDEX IF NOT EXISTS idx_devices_group_id ON devices(group_id)")
+
+        # devices.randomized: rebuilt triggers (so a change to the rule takes
+        # effect on the next start), a backfill for rows written before the
+        # column existed, and an index matching the default list order.
+        randomized_new = _randomized_mac_sql("NEW.mac")
+        await db.execute("DROP TRIGGER IF EXISTS devices_randomized_insert")
+        await db.execute("DROP TRIGGER IF EXISTS devices_randomized_update")
+        await db.execute(
+            f"""CREATE TRIGGER devices_randomized_insert AFTER INSERT ON devices
+            BEGIN UPDATE devices SET randomized = CASE WHEN {randomized_new} THEN 1 ELSE 0 END
+            WHERE mac = NEW.mac; END"""
+        )
+        await db.execute(
+            f"""CREATE TRIGGER devices_randomized_update AFTER UPDATE OF mac ON devices
+            BEGIN UPDATE devices SET randomized = CASE WHEN {randomized_new} THEN 1 ELSE 0 END
+            WHERE mac = NEW.mac; END"""
+        )
+        randomized_row = _randomized_mac_sql("mac")
+        await db.execute(
+            f"UPDATE devices SET randomized = CASE WHEN {randomized_row} THEN 1 ELSE 0 END "
+            f"WHERE randomized != CASE WHEN {randomized_row} THEN 1 ELSE 0 END"
+        )
+        await db.execute(
+            "CREATE INDEX IF NOT EXISTS idx_devices_randomized_last_seen "
+            "ON devices(randomized, COALESCE(last_seen, ''))"
+        )
 
         await db.commit()
 
@@ -805,7 +835,7 @@ def _build_device_query_filters(
         conditions.append("d.ignored = 0")
 
     if exclude_randomized:
-        conditions.append(f"NOT {_randomized_mac_sql('d.mac')}")
+        conditions.append("d.randomized = 0")
 
     filter_key = (device_filter or "all").strip().lower()
     if filter_key == "watched":
@@ -850,10 +880,13 @@ def _build_device_query_filters(
     # Collapse identity-clustered MAC-rotation siblings to a single
     # representative row (the most recently seen MAC in the group) --
     # devices with no identity_id are unaffected.
+    # The representatives are worked out once per query (a window over the
+    # few thousand linked rows), not with a sorted subquery for every row.
     conditions.append(
-        "(d.identity_id IS NULL OR d.mac = ("
-        "SELECT mac FROM devices d2 WHERE d2.identity_id = d.identity_id "
-        "ORDER BY d2.last_seen DESC, d2.mac DESC LIMIT 1))"
+        "(d.identity_id IS NULL OR d.mac IN ("
+        "SELECT mac FROM (SELECT mac, ROW_NUMBER() OVER ("
+        "PARTITION BY identity_id ORDER BY last_seen DESC, mac DESC) AS rn "
+        "FROM devices WHERE identity_id IS NOT NULL) WHERE rn = 1))"
     )
 
     if hide_apple:
@@ -962,7 +995,11 @@ async def get_devices_page(
             # subqueries, so they run for one page of rows, not every device
             # that matches the filter.
             f"""SELECT d.*,
-                (SELECT s.rssi FROM sightings s WHERE s.mac = d.mac AND s.rssi IS NOT NULL ORDER BY s.timestamp DESC LIMIT 1) AS last_rssi,
+                -- LAN hosts never carry an RSSI, and walking their thousands of
+                -- NULL rows took ~75 ms per host on a Pi.
+                CASE WHEN d.bt_type = 'lan' THEN NULL ELSE
+                    (SELECT s.rssi FROM sightings s WHERE s.mac = d.mac AND s.rssi IS NOT NULL ORDER BY s.timestamp DESC LIMIT 1)
+                END AS last_rssi,
                 (SELECT COUNT(*) FROM devices d2 WHERE d2.identity_id = d.identity_id) AS identity_mac_count,
                 (SELECT SUM(d2.total_sightings) FROM devices d2 WHERE d2.identity_id = d.identity_id) AS identity_total_sightings,
                 (SELECT MIN(d2.first_seen) FROM devices d2 WHERE d2.identity_id = d.identity_id) AS identity_first_seen
@@ -1087,17 +1124,12 @@ async def _compute_dashboard_stats(include_ignored: bool = True) -> dict:
     today_start = datetime.combine(now.date(), datetime.min.time())
     one_hour_ago = now - timedelta(hours=1)
 
-    randomized_sql = _randomized_mac_sql("d.mac")
+    randomized_sql = "d.randomized"
     where_clause = "" if include_ignored else "WHERE d.ignored = 0"
 
-    # The randomized-MAC check is a GLOB + substr/lower expression SQLite
-    # can't index -- it has to be evaluated once per row regardless (this
-    # aggregate touches the whole devices table), but the original query
-    # recomputed it in *every one* of these 10 SUM(CASE...) branches. The
-    # `flagged` CTE computes it exactly once per row instead; MATERIALIZED
-    # stops the query planner from flattening it back into the original
-    # per-branch re-evaluation. Measured ~4-6x faster on a ~20k-device
-    # table on a Raspberry Pi.
+    # The `flagged` CTE reads each row once; MATERIALIZED stops the planner
+    # from re-evaluating it in every SUM(CASE...) branch. The randomized flag
+    # is a stored column (kept by a trigger), not the GLOB test it used to be.
     query = f"""
         WITH flagged AS MATERIALIZED (
             SELECT d.last_seen, d.first_seen, d.watched, COALESCE(d.device_type, d.auto_type) AS device_type,
@@ -1213,7 +1245,7 @@ async def get_live_stats(active_within_seconds: int, most_seen_limit: int = 5) -
             new_today_row = await cursor.fetchone()
 
         async with db.execute(
-            f"SELECT COUNT(*) AS new_today_fixed FROM devices WHERE first_seen >= ? AND NOT {_randomized_mac_sql('mac')}",
+            f"SELECT COUNT(*) AS new_today_fixed FROM devices WHERE first_seen >= ? AND randomized = 0",
             (today_start,),
         ) as cursor:
             new_today_fixed_row = await cursor.fetchone()
@@ -3873,7 +3905,7 @@ async def get_rotation_candidates(
         # 6-9s versus 0.003s for the forced order -- both correct results,
         # wildly different cost depending on how selective this particular
         # device's candidate pool happens to be.
-        randomized = _randomized_mac_sql("d.mac")
+        randomized = "d.randomized = 1"
         params = [mac, _days_ago(days), min_sightings, t_mean, rssi_tolerance]
         name_having = ""
         if target_name:
@@ -4027,7 +4059,7 @@ async def get_name_groups(
     if not include_ignored:
         conditions.append("ignored = 0")
     where_clause = " AND ".join(conditions)
-    randomized_count_sql = _randomized_mac_sql("mac")
+    randomized_count_sql = "randomized = 1"
     safe_min = max(2, min_devices)
 
     async with _connect() as db:

@@ -624,7 +624,9 @@ RADAR_TEMPLATE = r"""<!DOCTYPE html>
 
     resize();
     load();
-    setInterval(load, 3000);
+    // A hidden tab doesn't poll; it catches up as soon as it is shown again.
+    setInterval(() => { if (!document.hidden) load(); }, 3000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); });
     requestAnimationFrame(drawFrame);
 })();
 </script>
