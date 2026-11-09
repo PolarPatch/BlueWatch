@@ -4159,17 +4159,31 @@ SETTINGS_TEMPLATE = """
 
             <form id="settings-form">
                 <div class="panel">
-                    <div class="panel-header">Push Notification Channel (ntfy.sh)</div>
+                    <div class="panel-header">Push Notification Channel (ntfy)</div>
                     <div class="panel-body">
                         <div class="form-group">
                             <label class="form-label">Topic Identifier</label>
                             <input type="text" class="form-input" id="ntfy_topic" placeholder="e.g., bluewatch-ops-alerts">
                         </div>
+                        <div class="form-group">
+                            <label class="form-label">ntfy Server</label>
+                            <input type="text" class="form-input" id="ntfy_server" placeholder="https://ntfy.sh">
+                            <div class="form-hint">For a self-hosted ntfy. Leave empty for the default (<span id="ntfy_server_default">https://ntfy.sh</span>).</div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Access Token</label>
+                            <input type="password" class="form-input" id="ntfy_token" autocomplete="new-password" placeholder="tk_...">
+                            <label class="form-check" id="ntfy_token_clear_row" style="display: none; margin-top: 6px;">
+                                <input type="checkbox" id="ntfy_token_clear">
+                                <div><div class="form-check-label">Remove saved token</div></div>
+                            </label>
+                            <div class="form-hint" id="ntfy_token_hint">Only needed for a protected topic. Sent as a Bearer token.</div>
+                        </div>
                         <label class="form-check">
                             <input type="checkbox" id="ntfy_enabled">
                             <div>
                                 <div class="form-check-label">Enable Push Notifications</div>
-                                <div class="form-check-desc">Route alerts through ntfy.sh service</div>
+                                <div class="form-check-desc">Route alerts through the ntfy server above</div>
                             </div>
                         </label>
                     </div>
@@ -4808,6 +4822,15 @@ SETTINGS_TEMPLATE = """
                 const data = await response.json();
                 document.getElementById('ntfy_topic').value = data.ntfy_topic || '';
                 document.getElementById('ntfy_enabled').checked = data.ntfy_enabled;
+                document.getElementById('ntfy_server').value = data.ntfy_server || '';
+                document.getElementById('ntfy_server').placeholder = data.ntfy_server_default || 'https://ntfy.sh';
+                document.getElementById('ntfy_server_default').textContent = data.ntfy_server_default || 'https://ntfy.sh';
+                document.getElementById('ntfy_token').value = '';
+                document.getElementById('ntfy_token_clear').checked = false;
+                document.getElementById('ntfy_token_clear_row').style.display = data.ntfy_token_set ? '' : 'none';
+                document.getElementById('ntfy_token_hint').textContent = data.ntfy_token_set
+                    ? 'A token is saved. Type a new one to replace it, or leave empty to keep it.'
+                    : 'Only needed for a protected topic. Sent as a Bearer token.';
                 document.getElementById('notify_new_device').checked = data.notify_new_device;
                 document.getElementById('new_device_threshold_minutes').value = data.new_device_threshold_minutes || 0;
                 document.getElementById('new-device-threshold-field').style.display = data.notify_new_device ? 'block' : 'none';
@@ -4904,6 +4927,9 @@ SETTINGS_TEMPLATE = """
             return {
                 ntfy_topic: document.getElementById('ntfy_topic').value,
                 ntfy_enabled: document.getElementById('ntfy_enabled').checked,
+                ntfy_server: document.getElementById('ntfy_server').value,
+                ntfy_token: document.getElementById('ntfy_token').value,
+                ntfy_token_clear: document.getElementById('ntfy_token_clear').checked,
                 notify_new_device: document.getElementById('notify_new_device').checked,
                 type_alert_types: Array.from(document.querySelectorAll('.type-alert-checkbox:checked')).map(function(el) { return el.value; }),
                 new_device_threshold_minutes: parseInt(document.getElementById('new_device_threshold_minutes').value) || 0,

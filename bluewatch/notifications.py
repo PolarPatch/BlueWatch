@@ -13,6 +13,7 @@ from .classifier import (
     TYPE_TRACKER, COMPANY_ID_APPLE, COMPANY_ID_MICROSOFT, COMPANY_ID_SAMSUNG,
     _walk_apple_tlvs, _short_uuid,
 )
+from .config import NTFY_SERVER
 from .db import Device, Settings
 
 logger = logging.getLogger(__name__)
@@ -120,8 +121,11 @@ class TagFloodWatch:
 # Minimum gap between two notifications of the same noisy kind.
 NOISY_ALERT_COOLDOWN = timedelta(minutes=30)
 
-# ntfy.sh base URL
-NTFY_BASE_URL = "https://ntfy.sh"
+def ntfy_url(settings: Settings) -> str:
+    """Where a notification is posted: the server saved in Config > Alerts,
+    else BLUEWATCH_NTFY_SERVER, else ntfy.sh, plus the topic."""
+    server = (settings.ntfy_server or NTFY_SERVER or "https://ntfy.sh").rstrip("/")
+    return f"{server}/{settings.ntfy_topic}"
 
 
 class NotificationManager:
@@ -191,7 +195,7 @@ class NotificationManager:
         tags: Optional[list[str]] = None,
         cooldown_key: Optional[str] = None,
     ) -> bool:
-        """Send a notification via ntfy.sh.
+        """Send a notification via ntfy (ntfy.sh or a self-hosted server).
 
         Priority levels: 1=min, 2=low, 3=default, 4=high, 5=urgent
 
@@ -221,12 +225,14 @@ class NotificationManager:
         if not self._session:
             self._session = aiohttp.ClientSession()
 
-        url = f"{NTFY_BASE_URL}/{self._settings.ntfy_topic}"
+        url = ntfy_url(self._settings)
 
         headers = {
             "Title": title,
             "Priority": str(priority),
         }
+        if self._settings.ntfy_token:
+            headers["Authorization"] = f"Bearer {self._settings.ntfy_token}"
         if tags:
             headers["Tags"] = ",".join(tags)
 

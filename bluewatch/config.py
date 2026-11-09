@@ -34,6 +34,14 @@ CLASSIC_BLUETOOTH_ADAPTER = os.environ.get("BLUEWATCH_CLASSIC_ADAPTER", None)
 HEARTBEAT_URL = os.environ.get("BLUEWATCH_HEARTBEAT_URL")
 HEARTBEAT_INTERVAL = int(os.environ.get("BLUEWATCH_HEARTBEAT_INTERVAL", "300"))  # seconds
 
+# Default web dashboard port; --port on the command line wins, and a port
+# saved in Config > Operations wins over both (from the next restart).
+WEB_PORT = int(os.environ.get("BLUEWATCH_PORT", "8080"))
+
+# ntfy server for push notifications, for a self-hosted instance. A server
+# saved in Config > Alerts wins over this.
+NTFY_SERVER = os.environ.get("BLUEWATCH_NTFY_SERVER", "https://ntfy.sh")
+
 # Auto-prune sightings older than N days (0 = disabled)
 PRUNE_DAYS = int(os.environ.get("BLUEWATCH_PRUNE_DAYS", "0"))
 

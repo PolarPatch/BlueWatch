@@ -108,6 +108,8 @@ class Settings:
     # Notification settings
     ntfy_topic: Optional[str] = None
     ntfy_enabled: bool = False
+    ntfy_server: Optional[str] = None         # None = BLUEWATCH_NTFY_SERVER / https://ntfy.sh
+    ntfy_token: Optional[str] = None          # access token for a protected topic (sent as Bearer)
     notify_new_device: bool = False
     # Device types (classifier.py TYPE_* values) that trigger an immediate
     # ntfy alert whenever detected -- regardless of categorization, unlike
@@ -2172,6 +2174,8 @@ async def get_settings() -> Settings:
     return Settings(
         ntfy_topic=settings_dict.get("ntfy_topic"),
         ntfy_enabled=settings_dict.get("ntfy_enabled", "0") == "1",
+        ntfy_server=settings_dict.get("ntfy_server") or None,
+        ntfy_token=settings_dict.get("ntfy_token") or None,
         notify_new_device=settings_dict.get("notify_new_device", "0") == "1",
         type_alert_types=tuple(
             t for t in (settings_dict.get("type_alert_types", "flipper,attack") or "").split(",") if t
@@ -2223,6 +2227,8 @@ async def update_settings(settings: Settings) -> None:
         settings_pairs = [
             ("ntfy_topic", settings.ntfy_topic or ""),
             ("ntfy_enabled", "1" if settings.ntfy_enabled else "0"),
+            ("ntfy_server", settings.ntfy_server or ""),
+            ("ntfy_token", settings.ntfy_token or ""),
             ("notify_new_device", "1" if settings.notify_new_device else "0"),
             ("type_alert_types", ",".join(settings.type_alert_types)),
             ("notify_watched_return", "1" if settings.notify_watched_return else "0"),

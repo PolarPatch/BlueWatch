@@ -202,6 +202,8 @@ The web dashboard will be available at **http://localhost:8080**
 | `BLUEWATCH_CLASSIC_ADAPTER` | same as `BLUEWATCH_ADAPTER` | Separate adapter for classic Bluetooth scanning (e.g., `hci1`). When set to a different adapter, BLE and classic scans run concurrently. |
 | `BLUEWATCH_DATA_DIR` | `/data` | Database storage directory |
 | `BLUEWATCH_METRICS_PORT` | disabled | Prometheus metrics port (e.g., `9199`) |
+| `BLUEWATCH_PORT` | `8080` | Web dashboard port, handy with host networking in Docker. `--port` wins over it, and a port saved in Config > Operations wins over both |
+| `BLUEWATCH_NTFY_SERVER` | `https://ntfy.sh` | ntfy server for push notifications, for a self-hosted instance. A server saved in Config > Alerts wins over it |
 | `BLUEWATCH_HEARTBEAT_URL` | disabled | URL to POST heartbeat check-ins (e.g., a healthchecks.io or uptime-kuma push URL) |
 | `BLUEWATCH_HEARTBEAT_INTERVAL` | `300` | Seconds between heartbeat check-ins |
 | `BLUEWATCH_WIFI_IFACE` | unset (off) | Monitor-mode Wi-Fi adapter to listen on, e.g. `wlan1`. See [Wi-Fi Ears](#wi-fi-ears) |
@@ -400,6 +402,7 @@ BlueWatch can send push notifications via [ntfy.sh](https://ntfy.sh), a free, op
 1. Create a topic at ntfy.sh (e.g., `bluewatch-myname-alerts`)
 2. Subscribe to the topic on your phone using the ntfy app
 3. In BlueWatch settings, enter your topic name and enable notifications
+   - Self-hosted ntfy: set **ntfy Server** in Config > Alerts (or `BLUEWATCH_NTFY_SERVER`), and an **Access Token** if the topic is protected
 4. Configure which events trigger notifications:
    - New device detected
    - Watched device returns (after being absent)

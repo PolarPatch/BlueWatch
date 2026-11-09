@@ -17,7 +17,7 @@ import aiohttp
 
 from . import active_scan, crowd, db, ears, timefmt, wifi, wifi_sniffer, wigle, __version__
 from .classifier import CLASSIFIER_VERSION, is_randomized_mac
-from .config import SCAN_INTERVAL, SOCKET_PATH, METRICS_PORT, WIFI_IFACE, WIFI_PCAP
+from .config import SCAN_INTERVAL, SOCKET_PATH, METRICS_PORT, WEB_PORT, WIFI_IFACE, WIFI_PCAP
 from .scanner import BluetoothScanner, ScannedDevice, list_adapters
 from .esp32_scanner import ESP32Scanner
 from .mdns import MdnsScanner
@@ -1147,8 +1147,8 @@ def main() -> None:
     parser.add_argument(
         "-p", "--port",
         type=int,
-        default=8080,
-        help="Web dashboard port (default: 8080)"
+        default=WEB_PORT,
+        help="Web dashboard port (default: 8080, env: BLUEWATCH_PORT)"
     )
     parser.add_argument(
         "--metrics-port",

@@ -18,6 +18,7 @@ from aiohttp import web
 
 from .. import archive, crowd, db, ears, rpa, timefmt, __version__
 from ..classifier import classify_device, get_type_icon, get_type_label, get_all_types, is_randomized_mac, is_macos_uuid, is_mdns_key, get_uuid_names, surveillance_evidence
+from ..config import NTFY_SERVER
 from ..patterns import generate_hourly_heatmap, generate_daily_heatmap
 from .radar_template import RADAR_TEMPLATE
 from .rf_template import RF_TEMPLATE
@@ -1884,6 +1885,10 @@ class WebServer:
         return json_response({
             "ntfy_topic": settings.ntfy_topic or "",
             "ntfy_enabled": settings.ntfy_enabled,
+            "ntfy_server": settings.ntfy_server or "",
+            "ntfy_server_default": NTFY_SERVER,
+            # The token itself never leaves the server, only whether one is set.
+            "ntfy_token_set": bool(settings.ntfy_token),
             "notify_new_device": settings.notify_new_device,
             "type_alert_types": list(settings.type_alert_types),
             "new_device_threshold_minutes": settings.new_device_threshold_minutes,
@@ -1916,9 +1921,21 @@ class WebServer:
                 web_port = int(raw_web_port)
                 if not (1 <= web_port <= 65535):
                     return json_response({"error": "Web port must be between 1 and 65535"}, status=400)
+            ntfy_server = str(data.get("ntfy_server") or "").strip().rstrip("/") or None
+            if ntfy_server and not ntfy_server.lower().startswith(("http://", "https://")):
+                return json_response({"error": "ntfy server must start with http:// or https://"}, status=400)
+            # Blank token field = keep the saved one; ntfy_token_clear removes it.
+            current = await db.get_settings()
+            ntfy_token = current.ntfy_token
+            if data.get("ntfy_token_clear"):
+                ntfy_token = None
+            elif str(data.get("ntfy_token") or "").strip():
+                ntfy_token = str(data["ntfy_token"]).strip()
             settings = db.Settings(
                 ntfy_topic=data.get("ntfy_topic"),
                 ntfy_enabled=data.get("ntfy_enabled", False),
+                ntfy_server=ntfy_server,
+                ntfy_token=ntfy_token,
                 notify_new_device=data.get("notify_new_device", False),
                 type_alert_types=tuple(data.get("type_alert_types") or []),
                 new_device_threshold_minutes=int(data.get("new_device_threshold_minutes", 0)),
