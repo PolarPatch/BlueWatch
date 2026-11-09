@@ -53,6 +53,22 @@ class NtfyTests(unittest.IsolatedAsyncioTestCase):
             loaded = await db.get_settings()
             self.assertEqual((loaded.ntfy_server, loaded.ntfy_token), ("https://push.example.org", "tk_abc"))
 
+    async def test_token_kept_only_for_its_server(self):
+        from aiohttp.test_utils import TestClient, TestServer
+        from bluewatch.webapp.server import WebServer
+        with tempfile.TemporaryDirectory() as directory, patch.object(db, "DB_PATH", Path(directory) / "t.db"):
+            await db.init_db()
+            async with TestClient(TestServer(WebServer().app)) as client:
+                base = {"ntfy_topic": "t", "ntfy_server": "https://push.example.org"}
+                await client.post("/api/settings", json={**base, "ntfy_token": "tk_abc"})
+                data = await (await client.get("/api/settings")).json()
+                self.assertTrue(data["ntfy_token_set"])
+                self.assertNotIn("tk_abc", str(data))
+                await client.post("/api/settings", json=base)  # blank field keeps it
+                self.assertEqual((await db.get_settings()).ntfy_token, "tk_abc")
+                await client.post("/api/settings", json={**base, "ntfy_server": "https://elsewhere.example"})
+                self.assertIsNone((await db.get_settings()).ntfy_token)
+
 
 class PortTests(unittest.TestCase):
     def test_port_env(self):

@@ -1931,6 +1931,10 @@ class WebServer:
                 ntfy_token = None
             elif str(data.get("ntfy_token") or "").strip():
                 ntfy_token = str(data["ntfy_token"]).strip()
+            elif ntfy_server != current.ntfy_server:
+                # The saved token belongs to the old server; never send it to
+                # a new one unless it is typed in again.
+                ntfy_token = None
             settings = db.Settings(
                 ntfy_topic=data.get("ntfy_topic"),
                 ntfy_enabled=data.get("ntfy_enabled", False),

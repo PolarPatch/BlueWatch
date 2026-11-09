@@ -4829,7 +4829,7 @@ SETTINGS_TEMPLATE = """
                 document.getElementById('ntfy_token_clear').checked = false;
                 document.getElementById('ntfy_token_clear_row').style.display = data.ntfy_token_set ? '' : 'none';
                 document.getElementById('ntfy_token_hint').textContent = data.ntfy_token_set
-                    ? 'A token is saved. Type a new one to replace it, or leave empty to keep it.'
+                    ? 'A token is saved. Type a new one to replace it, or leave empty to keep it. Changing the server removes it unless you type it again.'
                     : 'Only needed for a protected topic. Sent as a Bearer token.';
                 document.getElementById('notify_new_device').checked = data.notify_new_device;
                 document.getElementById('new_device_threshold_minutes').value = data.new_device_threshold_minutes || 0;
