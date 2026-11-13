@@ -15,7 +15,7 @@ from typing import Optional
 
 import aiohttp
 
-from . import active_scan, crowd, db, ears, timefmt, wifi, wifi_sniffer, wigle, __version__
+from . import active_scan, crowd, db, ears, rfband, timefmt, wifi, wifi_sniffer, wigle, __version__
 from .classifier import CLASSIFIER_VERSION, is_randomized_mac
 from .config import DATA_DIR, SCAN_INTERVAL, SOCKET_PATH, METRICS_PORT, WEB_PORT, WIFI_IFACE, WIFI_PCAP
 from .scanner import BluetoothScanner, ScannedDevice, list_adapters
@@ -606,7 +606,21 @@ class BlueWatchDaemon:
             return
         scanner: Optional[Rtl433Scanner] = None
         running_plan = None
+        try:
+            rfband.BAND.load_history(
+                await db.get_rf_band_history(datetime.now() - timedelta(hours=rfband.HISTORY_HOURS)), datetime.now())
+        except Exception as e:
+            logger.debug(f"Band monitor history not loaded: {e}")
+        last_band_settings = 0.0
         while self.running:
+            if time.monotonic() - last_band_settings >= 60:
+                last_band_settings = time.monotonic()
+                try:
+                    settings = await db.get_settings()
+                    rfband.BAND.threshold_db = settings.rf_jam_threshold_db
+                    rfband.BAND.min_minutes = settings.rf_jam_minutes
+                except Exception as e:
+                    logger.debug(f"Band monitor settings: {e}")
             try:
                 enabled, frequencies = await db.get_rtl433_settings()
                 meters = await db.get_rtl433_meters()
@@ -656,9 +670,25 @@ class BlueWatchDaemon:
                         await self._notifications.on_device_seen(db_device, is_new)
                 except Exception as e:
                     logger.error(f"rtl_433 ingest error: {e}")
+            await self._store_band_monitor()
             await asyncio.sleep(self._RTL433_INTERVAL if scanner else 30)
         if scanner is not None:
             await scanner.stop()
+
+    async def _store_band_monitor(self) -> None:
+        """Store finished band-monitor buckets and jamming periods, and
+        alert when one opens."""
+        try:
+            await db.save_rf_band_rows(rfband.BAND.take_rows())
+            for event in rfband.BAND.take_events():
+                data = event.as_dict()
+                await db.save_rf_band_event(data)
+                if event.ended is None and not event.alerted:
+                    event.alerted = True
+                    logger.warning(f"Band monitor: {data['freq']} MHz noise floor {data['delta']:+.1f} dB over normal")
+                    await self._notifications.on_rf_jam(data)
+        except Exception as e:
+            logger.debug(f"Band monitor store failed: {e}")
 
     async def stop(self) -> None:
         """Stop the daemon."""

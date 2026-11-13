@@ -4334,6 +4334,29 @@ SETTINGS_TEMPLATE = """
                     </div>
                 </div>
 
+                <div class="panel">
+                    <div class="panel-header">Radio Alerts (RTL-SDR)</div>
+                    <div class="panel-body">
+                        <label class="form-check" style="margin-top: 0;">
+                            <input type="checkbox" id="rf_jam_alert_enabled">
+                            <div>
+                                <div class="form-check-label">Possible Jamming</div>
+                                <div class="form-check-desc">Alert when the noise floor on a hopped frequency (433.92, 868.3 MHz ...) stays far above its normal level. That is what a car-key or alarm jammer looks like. Normal is learned from the last 24 hours; nothing alerts during the first hour. See the band monitor on the RF log page.</div>
+                            </div>
+                        </label>
+                        <div style="margin: 0.5rem 0 0 2rem; display: flex; gap: 1rem; flex-wrap: wrap;">
+                            <div class="form-group" style="margin: 0;">
+                                <label class="form-label">Over Normal (dB)</label>
+                                <input type="number" class="form-input" id="rf_jam_threshold_db" value="10" min="3" max="40" style="width: 110px;">
+                            </div>
+                            <div class="form-group" style="margin: 0;">
+                                <label class="form-label">For (minutes)</label>
+                                <input type="number" class="form-input" id="rf_jam_minutes" value="2" min="1" max="60" style="width: 110px;">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="btn-row">
                     <button type="submit" class="btn btn-primary">Save Configuration</button>
                     <a href="/" class="btn">Cancel</a>
@@ -4893,6 +4916,9 @@ SETTINGS_TEMPLATE = """
                 document.getElementById('tracker_follow_max_gap_minutes').value = data.tracker_follow_max_gap_minutes || 20;
                 document.getElementById('trusted_ssids').value = data.trusted_ssids || '';
                 document.getElementById('trusted_learn_days').value = (data.trusted_learn_days ?? 3);
+                document.getElementById('rf_jam_alert_enabled').checked = data.rf_jam_alert_enabled !== false;
+                document.getElementById('rf_jam_threshold_db').value = data.rf_jam_threshold_db || 10;
+                document.getElementById('rf_jam_minutes').value = data.rf_jam_minutes || 2;
 
                 const typesResp = await fetch('/api/device-types');
                 const typesData = await typesResp.json();
@@ -4995,6 +5021,9 @@ SETTINGS_TEMPLATE = """
                 tracker_follow_max_gap_minutes: parseInt(document.getElementById('tracker_follow_max_gap_minutes').value) || 20,
                 trusted_ssids: document.getElementById('trusted_ssids').value,
                 trusted_learn_days: (() => { const v = parseInt(document.getElementById('trusted_learn_days').value); return isNaN(v) ? 3 : v; })(),
+                rf_jam_alert_enabled: document.getElementById('rf_jam_alert_enabled').checked,
+                rf_jam_threshold_db: parseInt(document.getElementById('rf_jam_threshold_db').value) || 10,
+                rf_jam_minutes: parseInt(document.getElementById('rf_jam_minutes').value) || 2,
             };
         }
 

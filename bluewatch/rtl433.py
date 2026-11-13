@@ -25,7 +25,10 @@ import json
 import logging
 import shutil
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Optional
+
+from . import rfband
 
 logger = logging.getLogger(__name__)
 
@@ -151,7 +154,10 @@ class Rtl433Scanner:
         freqs, sample_rate = hop_plan(frequencies or RTL433_FREQUENCIES, meters)
         # -M level adds rssi/snr/noise (dB) to every decode; without it
         # rtl_433 reports no signal strength at all (issue #8).
-        args = ["rtl_433", "-F", "json", "-M", "level", "-s", sample_rate]
+        # -F log -v -M noise puts rtl_433's own retune and noise-floor lines
+        # on stdout next to the JSON, for the band monitor (rfband.py).
+        args = ["rtl_433", "-F", "json", "-F", "log", "-v", "-M", "level",
+                "-M", f"noise:{rfband.NOISE_INTERVAL_SECONDS}", "-s", sample_rate]
         for freq in freqs:
             args += ["-f", freq]
         if len(freqs) > 1:
@@ -176,6 +182,7 @@ class Rtl433Scanner:
             self._proc = None
             return False
         logger.info(f"Sub-GHz (rtl_433) discovery started on {', '.join(freqs)}")
+        rfband.BAND.set_plan(freqs)
         asyncio.create_task(self._drain_stderr())
         return True
 
@@ -205,10 +212,18 @@ class Rtl433Scanner:
                 break
             if not line:
                 break  # process ended
+            now = datetime.now()
+            if not line.lstrip().startswith(b"{"):
+                rfband.BAND.log_line(line.decode(errors="replace"), now)
+                continue
             try:
                 data = json.loads(line)
             except (json.JSONDecodeError, UnicodeDecodeError):
                 continue
+            if not isinstance(data, dict):
+                continue
+            if data.get("model"):
+                rfband.BAND.decode(data.get("freq"), now)
             key = _device_key(data)
             if not key:
                 continue
@@ -223,6 +238,7 @@ class Rtl433Scanner:
         return out
 
     async def stop(self) -> None:
+        rfband.BAND.stopped()
         if self._proc and self._proc.returncode is None:
             self._proc.terminate()
             try:

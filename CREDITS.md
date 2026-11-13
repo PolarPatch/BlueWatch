@@ -281,6 +281,12 @@ work; BlueWatch only ingests its output into the shared devices table.
 The utility meter regions (frequencies, the 1200k sample rate, and the
 meter model names) come from rtl_433's own protocol list and decoder names.
 
+The band monitor (`bluewatch/rfband.py`: noise floor per hopped frequency
+and the possible-jamming alert) reads rtl_433's own `-M noise` and retune
+log lines. The idea of watching a fixed receiver's spectrum for occupancy
+and interference came from looking at
+[OnAir](https://github.com/adswill/OnAir) (GPL-3.0); no OnAir code is used.
+
 ## Behavioral-fingerprint identity linking
 
 The idea of linking a BLE device's rotating randomized MAC address to a

@@ -157,6 +157,11 @@ class Settings:
     # whose access points are learned, then watched for unknown copies.
     trusted_ssids: str = ""
     trusted_learn_days: int = 3
+    # RTL-SDR band monitor (rfband.py): alert when a band's noise floor
+    # stays this many dB over its normal level for this long.
+    rf_jam_alert_enabled: bool = True
+    rf_jam_threshold_db: int = 10
+    rf_jam_minutes: int = 2
 
 
 SCHEMA = """
@@ -245,6 +250,28 @@ CREATE TABLE IF NOT EXISTS rf_log (
     rssi REAL,
     raw_json TEXT NOT NULL
 );
+
+-- Band monitor (rfband.py): rtl_433's noise floor and decode count per
+-- hopped frequency, in 5-minute buckets, plus periods where a band's noise
+-- floor stayed far above normal (possible jamming). Kept for 7 days.
+CREATE TABLE IF NOT EXISTS rf_band (
+    freq TEXT NOT NULL,
+    bucket TEXT NOT NULL,
+    avg REAL,
+    max REAL,
+    n INTEGER NOT NULL DEFAULT 0,
+    decodes INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (freq, bucket)
+) WITHOUT ROWID;
+
+CREATE TABLE IF NOT EXISTS rf_band_events (
+    freq TEXT NOT NULL,
+    started TEXT NOT NULL,
+    ended TEXT,
+    baseline REAL,
+    peak REAL,
+    PRIMARY KEY (freq, started)
+) WITHOUT ROWID;
 
 CREATE TABLE IF NOT EXISTS wigle_lookup_cache (
     mac TEXT PRIMARY KEY,
@@ -2243,6 +2270,9 @@ async def get_settings() -> Settings:
         tracker_follow_max_gap_minutes=int(settings_dict.get("tracker_follow_max_gap_minutes", "20")),
         trusted_ssids=settings_dict.get("trusted_ssids", "") or "",
         trusted_learn_days=int(settings_dict.get("trusted_learn_days", "3")),
+        rf_jam_alert_enabled=settings_dict.get("rf_jam_alert_enabled", "1") == "1",
+        rf_jam_threshold_db=int(settings_dict.get("rf_jam_threshold_db", "10")),
+        rf_jam_minutes=int(settings_dict.get("rf_jam_minutes", "2")),
     )
 
 
@@ -2294,6 +2324,9 @@ async def update_settings(settings: Settings) -> None:
             ("tracker_follow_max_gap_minutes", str(settings.tracker_follow_max_gap_minutes)),
             ("trusted_ssids", settings.trusted_ssids or ""),
             ("trusted_learn_days", str(settings.trusted_learn_days)),
+            ("rf_jam_alert_enabled", "1" if settings.rf_jam_alert_enabled else "0"),
+            ("rf_jam_threshold_db", str(settings.rf_jam_threshold_db)),
+            ("rf_jam_minutes", str(settings.rf_jam_minutes)),
         ]
         for key, value in settings_pairs:
             await db.execute(
@@ -2926,6 +2959,67 @@ async def log_rf_event(model: Optional[str], device_key: Optional[str], rssi: Op
             (_RF_LOG_MAX_ROWS,),
         )
         await db.commit()
+
+
+_RF_BAND_KEEP_DAYS = 7
+
+
+async def save_rf_band_rows(rows: list[tuple[str, dict]]) -> None:
+    """Finished band-monitor buckets (rfband.BandMonitor.take_rows())."""
+    if not rows:
+        return
+    cutoff = (datetime.now() - timedelta(days=_RF_BAND_KEEP_DAYS)).isoformat()
+    async with _connect() as db:
+        await db.executemany(
+            "INSERT OR REPLACE INTO rf_band (freq, bucket, avg, max, n, decodes) VALUES (?, ?, ?, ?, ?, ?)",
+            [(freq, r["start"].isoformat(), r["avg"], r["max"], r["n"], r["decodes"]) for freq, r in rows],
+        )
+        await db.execute("DELETE FROM rf_band WHERE bucket < ?", (cutoff,))
+        await db.commit()
+
+
+async def get_rf_band_history(since: datetime) -> list[dict]:
+    async with _connect() as db:
+        async with db.execute(
+            "SELECT freq, bucket, avg, max, n, decodes FROM rf_band WHERE bucket >= ? ORDER BY bucket",
+            (since.isoformat(),),
+        ) as cursor:
+            rows = await cursor.fetchall()
+    out = []
+    for freq, bucket, avg, mx, n, decodes in rows:
+        try:
+            start = datetime.fromisoformat(bucket)
+        except ValueError:
+            continue
+        out.append({"freq": freq, "start": start, "avg": avg, "max": mx, "n": n, "decodes": decodes})
+    return out
+
+
+async def save_rf_band_event(event: dict) -> None:
+    cutoff = (datetime.now() - timedelta(days=_RF_BAND_KEEP_DAYS * 4)).isoformat()
+    async with _connect() as db:
+        await db.execute(
+            "INSERT OR REPLACE INTO rf_band_events (freq, started, ended, baseline, peak) VALUES (?, ?, ?, ?, ?)",
+            (event["freq"], event["started"].isoformat(),
+             event["ended"].isoformat() if event.get("ended") else None,
+             event["baseline"], event["peak"]),
+        )
+        await db.execute("DELETE FROM rf_band_events WHERE started < ?", (cutoff,))
+        await db.commit()
+
+
+async def get_rf_band_events(limit: int = 30) -> list[dict]:
+    async with _connect() as db:
+        async with db.execute(
+            "SELECT freq, started, ended, baseline, peak FROM rf_band_events ORDER BY started DESC LIMIT ?",
+            (limit,),
+        ) as cursor:
+            rows = await cursor.fetchall()
+    return [
+        {"freq": f, "started": st, "ended": en, "baseline": b, "peak": p,
+         "delta": round(p - b, 1) if p is not None and b is not None else None}
+        for f, st, en, b, p in rows
+    ]
 
 
 async def get_rf_log(limit: int = 200) -> list[dict]:

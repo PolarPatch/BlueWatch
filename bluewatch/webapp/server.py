@@ -16,7 +16,7 @@ from typing import Optional
 
 from aiohttp import web
 
-from .. import archive, crowd, db, ears, rpa, timefmt, __version__
+from .. import archive, crowd, db, ears, rfband, rpa, timefmt, __version__
 from ..classifier import classify_device, get_type_icon, get_type_label, get_all_types, is_randomized_mac, is_macos_uuid, is_mdns_key, get_uuid_names, surveillance_evidence
 from ..config import NTFY_SERVER
 from ..patterns import generate_hourly_heatmap, generate_daily_heatmap
@@ -181,6 +181,7 @@ class WebServer:
         self.app.router.add_get("/radar", self.radar_page)
         self.app.router.add_get("/rf", self.rf_page)
         self.app.router.add_get("/api/rf-log", self.api_rf_log)
+        self.app.router.add_get("/api/rf-band", self.api_rf_band)
         self.app.router.add_get("/api/radar", self.api_radar)
         self.app.router.add_get("/api/display", self.api_display)
         self.app.router.add_get("/api/display/device", self.api_display_device)
@@ -1651,6 +1652,17 @@ class WebServer:
         """Serve the temporary /rf raw sub-GHz firehose view."""
         return web.Response(text=RF_TEMPLATE, content_type="text/html")
 
+    async def api_rf_band(self, request: web.Request) -> web.Response:
+        """Band monitor for the /rf page: noise floor, normal level and
+        decodes per hopped frequency, 24 h of 5-minute buckets, and the
+        periods a band looked jammed."""
+        snap = rfband.BAND.snapshot(datetime.now())
+        try:
+            snap["events"] = await db.get_rf_band_events(30)
+        except Exception:
+            pass  # keep the in-memory list
+        return json_response(snap)
+
     async def api_rf_log(self, request: web.Request) -> web.Response:
         """Raw, un-deduplicated rtl_433 events for the /rf page -- every
         decode logged, independent of the devices table."""
@@ -1927,6 +1939,9 @@ class WebServer:
             "tracker_follow_max_gap_minutes": settings.tracker_follow_max_gap_minutes,
             "trusted_ssids": settings.trusted_ssids,
             "trusted_learn_days": settings.trusted_learn_days,
+            "rf_jam_alert_enabled": settings.rf_jam_alert_enabled,
+            "rf_jam_threshold_db": settings.rf_jam_threshold_db,
+            "rf_jam_minutes": settings.rf_jam_minutes,
         })
 
     async def api_update_settings(self, request: web.Request) -> web.Response:
@@ -1981,6 +1996,9 @@ class WebServer:
                 tracker_follow_max_gap_minutes=max(1, int(data.get("tracker_follow_max_gap_minutes", 20))),
                 trusted_ssids="\n".join(x.strip() for x in str(data.get("trusted_ssids") or "").splitlines() if x.strip())[:2000],
                 trusted_learn_days=max(0, min(60, int(data.get("trusted_learn_days", 3)))),
+                rf_jam_alert_enabled=data.get("rf_jam_alert_enabled", True),
+                rf_jam_threshold_db=max(3, min(40, int(data.get("rf_jam_threshold_db", 10)))),
+                rf_jam_minutes=max(1, min(60, int(data.get("rf_jam_minutes", 2)))),
             )
             await db.update_settings(settings)
 

@@ -442,6 +442,23 @@ class NotificationManager:
             cooldown_key=f"wifi:{event.kind}:{event.key}",
         )
 
+    async def on_rf_jam(self, event: dict) -> None:
+        """A band's noise floor stayed far above normal (rfband.py): what a
+        car-key or alarm jammer looks like from a fixed receiver."""
+        if not self._settings or not self._settings.ntfy_enabled or not self._settings.rf_jam_alert_enabled:
+            return
+        minutes = max(1, int((datetime.now() - event["started"]).total_seconds() // 60))
+        await self._send_notification(
+            title=f"Possible RF jamming on {event['freq']} MHz",
+            message=(
+                f"The noise floor on {event['freq']} MHz has been {event['delta']:+.0f} dB over normal "
+                f"for {minutes} min. Key fobs, alarm sensors and doorbells on this band may not get through."
+            ),
+            priority=4,
+            tags=["warning", "radio"],
+            cooldown_key=f"rf_jam:{event['freq']}",
+        )
+
     async def _check_ble_spam_flood(self, device: Device, now: datetime) -> None:
         """Flag a burst of pairing-popup-style BLE advertisements
         (Apple Continuity, Microsoft Swift Pair, Samsung) system-wide --

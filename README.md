@@ -103,6 +103,7 @@ BlueWatch is a Bluetooth scanner that:
 - Also lists devices announcing themselves on your local network (printers, TVs, speakers, computers, smart-home hubs) with their own name and model. Turn off with `BLUEWATCH_MDNS=0`
 - **Crowd**: roughly how many people are around, counted from the phones BlueWatch hears, through the day and against what is usual for the time. Totals only. See [Crowd](#crowd)
 - **Wi-Fi ears (optional)**: with a second, monitor-mode Wi-Fi adapter, BlueWatch also recognises Axon/Flock camera networks, WiFi Pineapples, ESP deauthers, Pwnagotchis and Remote ID drones, and alerts on deauthentication floods and evil twins. See [Wi-Fi Ears](#wi-fi-ears)
+- **Sub-GHz (optional)**: with an RTL-SDR and `rtl_433` installed, weather stations, tyre sensors, remotes and utility meters on 433/868 MHz show up too (the RF log page). A band monitor there tracks the noise floor of each frequency and alerts when it stays far above normal, which is what a car-key or alarm jammer looks like (Config > Alerts > Radio Alerts)
 - **Remote ears**: extra passive listeners around the house (Home Assistant Bluetooth proxies or a spare Pi) report what they hear, and Device Details shows which room a device is nearest to. See [Remote Ears](#remote-ears)
 
 ### Device Management
@@ -129,6 +130,7 @@ BlueWatch is a Bluetooth scanner that:
 - Notify when new devices are detected
 - Notify when watched devices return
 - Notify when watched devices leave
+- Possible RF jamming on 433/868 MHz (with an RTL-SDR)
 - Configurable thresholds for arrival/departure
 
 ### Operations

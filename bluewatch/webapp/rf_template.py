@@ -15,7 +15,7 @@ RF_TEMPLATE = r"""<!DOCTYPE html>
     :root {
         --bg-primary: #0d1117; --bg-panel: #161b22; --bg-tertiary: #1c232c; --bg-hover: #242c37;
         --text-primary: #e6edf3; --text-secondary: #a6afb9; --text-muted: #7d8590;
-        --border-color: #30363d; --accent-blue: #2563eb; --accent-green: #3fb950; --accent-amber: #f59e0b;
+        --border-color: #30363d; --accent-blue: #2563eb; --accent-green: #3fb950; --accent-amber: #f59e0b; --accent-red: #f85149;
         --font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', 'Cascadia Code', Consolas, monospace;
     }
     [data-theme="light"] {
@@ -110,6 +110,29 @@ RF_TEMPLATE = r"""<!DOCTYPE html>
     .priority-dismiss:hover { background: var(--bg-hover); color: var(--text-primary); }
     .priority-tag { background: var(--accent-amber); color: #1a1200; font-weight: 700; font-size: 0.62rem; padding: 0.05rem 0.35rem; border-radius: 4px; letter-spacing: 0.03em; }
 
+    /* Band monitor */
+    .band-card { margin-bottom: 0.75rem; }
+    .band-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.4rem 0.75rem; margin-bottom: 0.5rem; }
+    .band-rows { display: grid; grid-template-columns: max-content max-content repeat(3, max-content) max-content minmax(8rem, 1fr); gap: 0.35rem 1rem; align-items: center; font-size: 0.75rem; }
+    .band-rows .h { font-size: 0.6rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+    .band-rows .num { text-align: right; font-variant-numeric: tabular-nums; }
+    .band-freq { font-weight: 700; white-space: nowrap; }
+    .band-freq .tuned { color: var(--accent-blue); font-size: 0.6rem; margin-left: 0.3rem; }
+    .band-state { font-size: 0.62rem; font-weight: 700; padding: 0.05rem 0.4rem; border-radius: 4px; border: 1px solid var(--border-color); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.03em; white-space: nowrap; }
+    .band-state.normal { color: var(--accent-green); border-color: var(--accent-green); }
+    .band-state.elevated { color: var(--accent-amber); border-color: var(--accent-amber); }
+    .band-state.jammed { color: #fff; background: var(--accent-red); border-color: var(--accent-red); }
+    .band-spark { width: 100%; height: 28px; display: block; }
+    .band-spark .line { fill: none; stroke: var(--accent-blue); stroke-width: 1.2; }
+    .band-spark .base { stroke: var(--text-muted); stroke-dasharray: 3 3; stroke-width: 1; }
+    .band-spark .limit { stroke: var(--accent-red); stroke-dasharray: 2 4; stroke-width: 1; opacity: 0.6; }
+    .band-events { margin-top: 0.6rem; font-size: 0.72rem; color: var(--text-secondary); display: flex; flex-direction: column; gap: 0.2rem; }
+    .band-events b { color: var(--accent-red); }
+    @media (max-width: 700px) {
+        .band-rows { grid-template-columns: max-content max-content repeat(2, max-content) 1fr; }
+        .band-rows .wide-only { display: none; }
+    }
+
     table { width: 100%; border-collapse: collapse; background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden; }
     thead th { text-align: left; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); padding: 0.5rem 0.7rem; border-bottom: 1px solid var(--border-color); background: var(--bg-tertiary); position: sticky; top: 0; }
     tbody td { padding: 0.45rem 0.7rem; border-bottom: 1px solid var(--border-color); vertical-align: top; font-size: 0.78rem; }
@@ -161,6 +184,15 @@ RF_TEMPLATE = r"""<!DOCTYPE html>
             <button class="btn on" id="pause-btn" onclick="togglePause()">Pause</button>
             <button class="btn" onclick="loadLog(true)">Refresh now</button>
         </div>
+    </div>
+
+    <div class="stat-card stat-box band-card" id="band-card" hidden>
+        <div class="band-head">
+            <span class="stat-cap">Band monitor</span>
+            <span class="priority-hint" id="band-hint">Noise floor per frequency, last 24 h. A floor that stays far over normal can be a jammer.</span>
+        </div>
+        <div class="band-rows" id="band-rows"></div>
+        <div class="band-events" id="band-events"></div>
     </div>
 
     <div class="stat-pair">
@@ -486,6 +518,63 @@ RF_TEMPLATE = r"""<!DOCTYPE html>
 
     loadLog(true);
     setInterval(function() { loadLog(false); }, 4000);
+
+    function bandEsc(v) {
+        return String(v == null ? '' : v).replace(/[&<>"']/g, function(c) {
+            return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c];
+        });
+    }
+    function bandDb(v) { return v == null ? '-' : Number(v).toFixed(1); }
+    function bandSpark(hist, baseline, limit) {
+        var pts = hist.filter(function(r) { return r.avg != null; });
+        if (pts.length < 2) return '<svg class="band-spark"></svg>';
+        var t0 = Date.now() - 24 * 3600 * 1000, t1 = Date.now();
+        var vals = pts.map(function(r) { return r.max != null ? r.max : r.avg; }).concat(pts.map(function(r) { return r.avg; }));
+        if (baseline != null) vals.push(baseline, limit);
+        var lo = Math.min.apply(null, vals) - 1, hi = Math.max.apply(null, vals) + 1;
+        function x(t) { return ((t - t0) / (t1 - t0) * 300).toFixed(1); }
+        function y(v) { return (28 - (v - lo) / (hi - lo) * 26 - 1).toFixed(1); }
+        var d = pts.map(function(r, i) { return (i ? 'L' : 'M') + x(new Date(r.start).getTime()) + ' ' + y(r.avg); }).join(' ');
+        var out = '<svg class="band-spark" viewBox="0 0 300 28" preserveAspectRatio="none">';
+        if (baseline != null) {
+            out += '<line class="base" x1="0" x2="300" y1="' + y(baseline) + '" y2="' + y(baseline) + '"/>';
+            out += '<line class="limit" x1="0" x2="300" y1="' + y(limit) + '" y2="' + y(limit) + '"/>';
+        }
+        return out + '<path class="line" d="' + d + '" vector-effect="non-scaling-stroke"/></svg>';
+    }
+    function bandWhen(iso) {
+        if (!iso) return '';
+        var d = new Date(iso);
+        return d.toLocaleDateString([], {month: 'short', day: 'numeric'}) + ' ' + d.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+    }
+    var BAND_STATE_TEXT = {normal: 'normal', learning: 'learning', elevated: 'elevated', jammed: 'jamming?', idle: 'not hopped'};
+    function loadBand() {
+        fetch('/api/rf-band').then(function(r) { return r.json(); }).then(function(b) {
+            var card = document.getElementById('band-card');
+            if (!b.bands || !b.bands.length) { card.hidden = true; return; }
+            card.hidden = false;
+            var html = '<span class="h">MHz</span><span class="h">State</span><span class="h num">Now dB</span><span class="h num">Normal</span><span class="h num wide-only">Over</span><span class="h num wide-only">Decodes 1 h</span><span class="h">24 h</span>';
+            b.bands.forEach(function(band) {
+                var st = band.state || 'idle';
+                html += '<span class="band-freq">' + bandEsc(band.freq) + (band.tuned ? '<span class="tuned" title="Being listened to right now">&#9679;</span>' : '') + '</span>' +
+                    '<span><span class="band-state ' + bandEsc(st) + '">' + bandEsc(BAND_STATE_TEXT[st] || st) + '</span></span>' +
+                    '<span class="num">' + bandDb(band.level) + '</span>' +
+                    '<span class="num">' + bandDb(band.baseline) + '</span>' +
+                    '<span class="num wide-only">' + (band.delta == null ? '-' : (band.delta > 0 ? '+' : '') + Number(band.delta).toFixed(1)) + '</span>' +
+                    '<span class="num wide-only">' + (band.decodes_1h || 0) + '</span>' +
+                    bandSpark(band.history || [], band.baseline, band.baseline != null ? band.baseline + b.threshold_db : null);
+            });
+            document.getElementById('band-rows').innerHTML = html;
+            document.getElementById('band-hint').textContent = 'Noise floor per frequency, last 24 h (dashed: normal and the alert line ' + b.threshold_db + ' dB over it). A floor that stays over the line for ' + b.min_minutes + ' min can be a jammer.' + (b.running ? '' : ' rtl_433 is not running.');
+            var ev = (b.events || []).slice(0, 8).map(function(e) {
+                return '<span><b>' + bandEsc(e.freq) + ' MHz</b> ' + bandEsc(bandWhen(e.started)) + (e.ended ? ' &ndash; ' + bandEsc(bandWhen(e.ended)) : ' &ndash; still going') +
+                    ', ' + (e.delta != null ? '+' + Number(e.delta).toFixed(0) : '?') + ' dB over normal</span>';
+            }).join('');
+            document.getElementById('band-events').innerHTML = ev ? '<span class="stat-cap">Possible jamming</span>' + ev : '';
+        }).catch(function() {});
+    }
+    loadBand();
+    setInterval(loadBand, 30000);
 </script>
 </body>
 </html>
