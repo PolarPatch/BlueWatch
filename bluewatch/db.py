@@ -54,6 +54,8 @@ class Device:
     rf_state_at: Optional[datetime] = None  # When rf_state was last updated
     dult_state: Optional[dict] = None  # Latest decoded DULT (Detecting Unwanted Location Trackers) snapshot -- network_id/near_owner -- overwritten every sighting
     dult_state_at: Optional[datetime] = None  # When dult_state was last updated
+    adv_state: Optional[list] = None  # Latest decoded advertisement blocks (advdecode.py: BTHome, Matter, HomeKit, Find Hub, SmartTag, ...) -- overwritten every sighting
+    adv_state_at: Optional[datetime] = None  # When adv_state was last updated
     group_id: Optional[int] = None  # Device group (category or subcategory)
     notes: Optional[str] = None  # Operator notes
     new_device_notified: bool = True  # Whether new-device notification has been sent
@@ -150,6 +152,11 @@ class Settings:
     tracker_follow_alert_enabled: bool = True
     tracker_follow_min_sightings: int = 30
     tracker_follow_min_minutes: int = 20  # first_seen..last_seen span required
+    tracker_follow_max_gap_minutes: int = 20  # a longer gap starts the span over
+    # Wi-Fi ears: trusted network names (one per line)
+    # whose access points are learned, then watched for unknown copies.
+    trusted_ssids: str = ""
+    trusted_learn_days: int = 3
 
 
 SCHEMA = """
@@ -517,6 +524,10 @@ async def init_db() -> None:
             # triggers below so list queries can use an index instead of
             # testing every MAC with GLOB/substr on each request.
             ("randomized", "INTEGER NOT NULL DEFAULT 0"),
+            # Same overwritten-every-sighting treatment, for the open
+            # advertisement formats in advdecode.py (a JSON list of blocks).
+            ("adv_state", "TEXT"),
+            ("adv_state_at", "TIMESTAMP"),
         ]
 
         for column, column_type in migrations:
@@ -651,6 +662,13 @@ def _parse_device_row(row) -> Device:
         except (json.JSONDecodeError, TypeError):
             pass
 
+    adv_state = None
+    if "adv_state" in keys and row["adv_state"]:
+        try:
+            adv_state = json.loads(row["adv_state"])
+        except (json.JSONDecodeError, TypeError):
+            pass
+
     return Device(
         mac=row["mac"],
         vendor=row["vendor"],
@@ -721,6 +739,11 @@ def _parse_device_row(row) -> Device:
         dult_state_at=(
             datetime.fromisoformat(row["dult_state_at"])
             if "dult_state_at" in keys and row["dult_state_at"] else None
+        ),
+        adv_state=adv_state,
+        adv_state_at=(
+            datetime.fromisoformat(row["adv_state_at"])
+            if "adv_state_at" in keys and row["adv_state_at"] else None
         ),
     )
 
@@ -1303,7 +1326,7 @@ async def upsert_device(
     """
     from .classifier import identify_apple_model, decode_apple_activity, decode_samsung_status, identify_apple_unknown_label, identify_ibeacon_label, decode_drone_remote_id, decode_dult_state
     from .fastpair_models import identify_fastpair_device, decode_fastpair_battery
-    from . import company_identifiers
+    from . import advdecode, company_identifiers
 
     now = datetime.now()
     uuids_json = json.dumps(service_uuids) if service_uuids else None
@@ -1376,6 +1399,16 @@ async def upsert_device(
 
     dult_state = decode_dult_state(service_data) if service_data else None
     dult_state_json = json.dumps(dult_state) if dult_state else None
+
+    # Open advertisement formats (BTHome, Matter, HomeKit, Find Hub,
+    # SmartTag, Sidewalk, Microsoft Nearby Sharing, ...): same live,
+    # overwritten-every-sighting treatment. A computer name from Nearby
+    # Sharing or a HomeKit category also fills an empty friendly_name.
+    adv_state = (advdecode.decode_adv_state(manufacturer_data, service_data, service_uuids)
+                 if (manufacturer_data or service_data) else None)
+    adv_state_json = json.dumps(adv_state) if adv_state else None
+    if not friendly_name:
+        friendly_name = advdecode.name_hint(adv_state)
     rf_state_json = json.dumps(rf_state) if rf_state else None
 
     # A cryptographic IRK match (if any key is configured and resolves this
@@ -1553,6 +1586,12 @@ async def upsert_device(
                 updates.append("dult_state_at = ?")
                 params.append(now.isoformat())
 
+            if adv_state_json is not None:
+                updates.append("adv_state = ?")
+                params.append(adv_state_json)
+                updates.append("adv_state_at = ?")
+                params.append(now.isoformat())
+
             # An IRK match always wins over whatever identity_id (if any)
             # the device already had -- it's a proof, not a guess.
             existing_identity_id = existing["identity_id"] if "identity_id" in existing.keys() else None
@@ -1589,8 +1628,8 @@ async def upsert_device(
             # Insert new device
             await db.execute(
                 """
-                INSERT INTO devices (mac, vendor, friendly_name, first_seen, last_seen, total_sightings, service_uuids, bt_type, device_class, manufacturer_data, service_data, appearance, new_device_notified, apple_activity, apple_activity_at, samsung_status, samsung_status_at, fastpair_battery, fastpair_battery_at, drone_state, drone_state_at, rf_state, rf_state_at, dult_state, dult_state_at)
-                VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO devices (mac, vendor, friendly_name, first_seen, last_seen, total_sightings, service_uuids, bt_type, device_class, manufacturer_data, service_data, appearance, new_device_notified, apple_activity, apple_activity_at, samsung_status, samsung_status_at, fastpair_battery, fastpair_battery_at, drone_state, drone_state_at, rf_state, rf_state_at, dult_state, dult_state_at, adv_state, adv_state_at)
+                VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     mac, insert_vendor, friendly_name, now.isoformat(), now.isoformat(), uuids_json, bt_type,
@@ -1601,6 +1640,7 @@ async def upsert_device(
                     drone_state_json, now.isoformat() if drone_state_json else None,
                     rf_state_json, now.isoformat() if rf_state_json else None,
                     dult_state_json, now.isoformat() if dult_state_json else None,
+                    adv_state_json, now.isoformat() if adv_state_json else None,
                 )
             )
 
@@ -2200,6 +2240,9 @@ async def get_settings() -> Settings:
         tracker_follow_alert_enabled=settings_dict.get("tracker_follow_alert_enabled", "1") == "1",
         tracker_follow_min_sightings=int(settings_dict.get("tracker_follow_min_sightings", "30")),
         tracker_follow_min_minutes=int(settings_dict.get("tracker_follow_min_minutes", "20")),
+        tracker_follow_max_gap_minutes=int(settings_dict.get("tracker_follow_max_gap_minutes", "20")),
+        trusted_ssids=settings_dict.get("trusted_ssids", "") or "",
+        trusted_learn_days=int(settings_dict.get("trusted_learn_days", "3")),
     )
 
 
@@ -2248,6 +2291,9 @@ async def update_settings(settings: Settings) -> None:
             ("tracker_follow_alert_enabled", "1" if settings.tracker_follow_alert_enabled else "0"),
             ("tracker_follow_min_sightings", str(settings.tracker_follow_min_sightings)),
             ("tracker_follow_min_minutes", str(settings.tracker_follow_min_minutes)),
+            ("tracker_follow_max_gap_minutes", str(settings.tracker_follow_max_gap_minutes)),
+            ("trusted_ssids", settings.trusted_ssids or ""),
+            ("trusted_learn_days", str(settings.trusted_learn_days)),
         ]
         for key, value in settings_pairs:
             await db.execute(

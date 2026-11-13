@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import struct
+import time
 import zlib
 from collections import deque
 from dataclasses import dataclass, field
@@ -32,6 +33,7 @@ SUBTYPE_DEAUTH = 12
 IE_SSID = 0
 IE_DS_PARAMS = 3
 IE_RSN = 48
+IE_INTERWORKING = 107
 IE_PWNAGOTCHI = 222
 IE_VENDOR = 221
 
@@ -51,6 +53,10 @@ SSID_PREFIXES = (
     ("flock-", "flock-ssid", "Flock setup network"),
     ("pineapple_", "pineapple", "WiFi Pineapple"),
     ("pwned", "deauther", "ESP deauther"),
+    # Setup networks (Fieldwatch catalog 111): an ExpressLRS RC link or
+    # backpack, and an EZVIZ home camera waiting to be set up.
+    ("expresslrs", "elrs-ssid", "ExpressLRS setup network"),
+    ("ezviz_", "ezviz-ssid", "EZVIZ camera setup network"),
 )
 # A provisioned Flock camera's bare network name (Flock-You), exact.
 SSID_EXACT = {"flock": ("flock-ssid", "Flock camera network")}
@@ -69,6 +75,36 @@ HAK5_LA_OUIS = ("02:C0:CA", "02:13:37")
 PWNAGOTCHI_BSSID = "DE:AD:BE:EF:DE:AD"
 REMOTE_ID_OUI = bytes.fromhex("fa0bbc")
 REMOTE_ID_VENDOR_TYPE = 0x0D
+# French Direct Remote ID (arrete du 27 decembre 2019): OUI 6A:5C:35, type 1,
+# big-endian TLVs. DJI's older DroneID beacon: OUI 26:37:12 (names the maker,
+# position not decoded). Source: OffGridPete/Fieldwatch v1.1.44.
+FRENCH_RID_OUI = bytes.fromhex("6a5c35")
+DJI_DRONEID_OUI = bytes.fromhex("263712")
+WFA_OUI = bytes.fromhex("506f9a")
+MS_OUI = bytes.fromhex("0050f2")
+
+# Standard elements carried under a vendor OUI: not products.
+_STANDARD_VENDOR_IES = {
+    (MS_OUI, 1): "WPA", (MS_OUI, 2): "WMM", (MS_OUI, 4): "WPS",
+    (WFA_OUI, 0x09): "Wi-Fi Direct", (WFA_OUI, 0x0A): "Miracast", (WFA_OUI, 0x10): "Hotspot 2.0",
+    (WFA_OUI, 0x16): "MBO-OCE", (WFA_OUI, 0x1B): "EasyMesh", (WFA_OUI, 0x1C): "OWE transition",
+}
+
+_ACCESS_NETWORK_TYPES = {
+    0: "private", 1: "private with guest access", 2: "chargeable public", 3: "free public",
+    4: "personal device", 5: "emergency services only", 14: "test", 15: "wildcard",
+}
+_VENUE_GROUPS = {
+    1: "Assembly", 2: "Business", 3: "Educational", 4: "Factory/industrial", 5: "Institutional",
+    6: "Mercantile", 7: "Residential", 8: "Storage", 9: "Utility", 10: "Vehicular", 11: "Outdoor",
+}
+_VENUE_TYPES = {
+    (1, 3): "passenger terminal", (1, 10): "restaurant", (1, 12): "bar", (1, 13): "coffee shop",
+    (2, 3): "fire station", (2, 4): "police station", (5, 1): "hospital", (5, 5): "prison",
+    (6, 1): "retail store", (6, 5): "gas station", (7, 1): "private residence", (7, 2): "hotel",
+    (10, 1): "car or truck", (10, 2): "airplane", (10, 3): "bus", (10, 4): "ferry",
+    (10, 5): "ship or boat", (10, 6): "train", (10, 7): "motorbike", (11, 5): "bus stop",
+}
 
 
 @dataclass
@@ -98,7 +134,7 @@ class Hit:
 @dataclass
 class Event:
     """An attack that is not a device: shown as an alert."""
-    kind: str  # "deauth_flood" or "evil_twin"
+    kind: str  # "deauth_flood", "evil_twin" or "trusted_network"
     key: str
     title: str
     message: str
@@ -259,6 +295,75 @@ def remote_id_service_data(f: Frame) -> Optional[dict]:
     return None
 
 
+def interworking_info(f: Frame) -> dict:
+    """What an access point says about itself in the Interworking element
+    (802.11u) and the Hotspot 2.0 tag. Set by the access point, not checked."""
+    out: dict = {}
+    for ie_id, data in f.ies:
+        if ie_id == IE_INTERWORKING and len(data) in (1, 3, 7, 9):
+            out["network_type"] = _ACCESS_NETWORK_TYPES.get(data[0] & 0x0F, f"type {data[0] & 0x0F}")
+            out["internet"] = bool(data[0] & 0x10)
+            if len(data) in (3, 9) and data[1]:
+                group = _VENUE_GROUPS.get(data[1], f"group {data[1]}")
+                kind = _VENUE_TYPES.get((data[1], data[2]))
+                out["venue"] = f"{group}, {kind}" if kind else group
+            if len(data) in (7, 9):
+                out["hotspot_id"] = _mac(data[-6:])
+        elif ie_id == IE_VENDOR and data[:3] == WFA_OUI and len(data) >= 4 and data[3] == 0x10:
+            out["hotspot2"] = True
+    return out
+
+
+def vendor_elements(f: Frame) -> list[str]:
+    """Standard elements carried under a vendor OUI (WPA, WMM, WPS, ...)."""
+    seen = []
+    for ie_id, data in f.ies:
+        if ie_id == IE_VENDOR and len(data) >= 4:
+            label = _STANDARD_VENDOR_IES.get((bytes(data[:3]), data[3]))
+            if label and label not in seen:
+                seen.append(label)
+    return seen
+
+
+def french_remote_id(f: Frame) -> Optional[dict]:
+    """French Direct Remote ID plate: id, aircraft position, height above
+    takeoff, speed, course and the takeoff point. Coordinates are 1e-5 deg."""
+    for ie_id, data in f.ies:
+        if ie_id != IE_VENDOR or data[:3] != FRENCH_RID_OUI or len(data) < 4 or data[3] != 1:
+            continue
+        body, i, out = data[4:], 0, {}
+        while i + 2 <= len(body):
+            t, n = body[i], body[i + 1]
+            v = body[i + 2:i + 2 + n]
+            if len(v) != n:
+                break
+            i += 2 + n
+            if t == 0x01 and n == 1:
+                out["version"] = v[0]
+            elif t == 0x02 and n:
+                out["french_id"] = _clean(v.rstrip(b"\x00").decode("utf-8", "replace"), 40)
+            elif t == 0x03 and n:
+                out["serial"] = _clean(v.rstrip(b"\x00").decode("utf-8", "replace"), 40)
+            elif t in (0x04, 0x05, 0x08, 0x09) and n == 4:
+                key = {0x04: "latitude", 0x05: "longitude", 0x08: "takeoff_latitude", 0x09: "takeoff_longitude"}[t]
+                out[key] = round(int.from_bytes(v, "big", signed=True) / 1e5, 5)
+            elif t == 0x06 and n == 2:
+                out["altitude_m"] = int.from_bytes(v, "big", signed=True)
+            elif t == 0x07 and n == 2:
+                out["height_above_takeoff_m"] = int.from_bytes(v, "big", signed=True)
+            elif t == 0x0A and n == 1:
+                out["speed_m_s"] = v[0]
+            elif t == 0x0B and n == 2:
+                course = int.from_bytes(v, "big")
+                if course < 360:
+                    out["course_deg"] = course
+        for a, b in (("latitude", "longitude"), ("takeoff_latitude", "takeoff_longitude")):
+            if out.get(a) == 0 and out.get(b) == 0:
+                out.pop(a), out.pop(b)
+        return {k: v for k, v in out.items() if v is not None} or None
+    return None
+
+
 class WifiWatch:
     """Turns frames into hits and events. Keeps a little state for the
     attacks that only show up across frames."""
@@ -269,7 +374,8 @@ class WifiWatch:
     EVENT_COOLDOWN = 900.0     # seconds before the same event fires again
     TWIN_WINDOW = 300.0        # an open and a protected copy within this long
 
-    def __init__(self) -> None:
+    def __init__(self, trusted: Optional["TrustedNetworks"] = None) -> None:
+        self.trusted = trusted
         self._deauth: dict[str, deque[float]] = {}
         self._ssids: dict[str, dict[str, tuple[str, float]]] = {}  # ssid -> bssid -> (security, when)
         self._fired: dict[str, float] = {}
@@ -277,8 +383,8 @@ class WifiWatch:
         self.beacons = 0
         self.deauths = 0
 
-    def _fire(self, key: str, now: float) -> bool:
-        if now - self._fired.get(key, -1e9) < self.EVENT_COOLDOWN:
+    def _fire(self, key: str, now: float, cooldown: Optional[float] = None) -> bool:
+        if now - self._fired.get(key, -1e9) < (cooldown or self.EVENT_COOLDOWN):
             return False
         self._fired[key] = now
         return True
@@ -291,7 +397,12 @@ class WifiWatch:
         if f.subtype == SUBTYPE_PROBE_REQ:
             return None, None  # phones asking for networks: never stored
         self.beacons += 1
-        return self._hit(f), self._twin_event(f, now)
+        event = self._twin_event(f, now)
+        if event is None and self.trusted is not None:
+            event = self.trusted.hear(f, time.time())
+            if event is not None and not self._fire("trusted:" + event.key, now, 6 * 3600):
+                event = None
+        return self._hit(f), event
 
     def _deauth_event(self, f: Frame, now: float) -> Optional[Event]:
         times = self._deauth.setdefault(f.addr2, deque())
@@ -355,6 +466,17 @@ class WifiWatch:
             evidence.append("Remote ID beacon")
             name = _clean(uas_ids[0]) if uas_ids else (name or "Drone")
 
+        french = french_remote_id(f)
+        if french:
+            tags.append("remote-id-fr")
+            evidence.append("French Remote ID beacon")
+            state.update(french)
+            if not rid:
+                name = french.get("french_id") or french.get("serial") or name or "Drone"
+        if any(i == IE_VENDOR and d[:3] == DJI_DRONEID_OUI for i, d in f.ies):
+            tags.append("dji-droneid")
+            evidence.append("DJI DroneID beacon")
+
         lssid = (f.ssid or "").lower()
         for prefix, tag, label in SSID_PREFIXES:
             if lssid.startswith(prefix):
@@ -376,6 +498,112 @@ class WifiWatch:
 
         if not tags:
             return None
+        state.update(interworking_info(f))
+        elements = vendor_elements(f)
+        if elements:
+            state["elements"] = ", ".join(elements)
         state["evidence"] = ", ".join(evidence)
         return Hit(mac=bssid, name=name, tags=[TAG_PREFIX + t for t in tags], rssi=f.rssi,
                    state={k: v for k, v in state.items() if v is not None}, service_data=service_data)
+
+
+def _is_locally_administered(mac: str) -> bool:
+    try:
+        return bool(int(mac[:2], 16) & 0x02)
+    except ValueError:
+        return False
+
+
+class TrustedNetworks:
+    """Watch the Wi-Fi names the operator trusts (their own network, the
+    neighbours'). For the first days after a name is added, every access
+    point that sends it is learned. After that, a new access point with that
+    name warns when it looks unlike the learned ones: weaker security (open
+    or WEP where the learned ones use a password), a maker the learned ones
+    do not share (or a made-up address), or far louder than any of them.
+    A new access point from a learned maker (another mesh node) is learned
+    quietly. BlueWatch never joins the network or asks for its password.
+    Idea from OffGridPete/Fieldwatch v1.1.35 (Trusted networks)."""
+
+    LOUDER_DB = 15
+    MAX_APS = 64
+    _SEC_RANK = {"open": 0, "wep": 1, "protected": 2}
+
+    def __init__(self, book: Optional[dict] = None) -> None:
+        # ssid -> {"added": epoch, "aps": {bssid: {"sec": str, "rssi": int|None, "seen": epoch}}}
+        self.book: dict = book if isinstance(book, dict) else {}
+        self.learn_days = 3
+        self.dirty = False
+
+    def sync(self, ssids: list[str], learn_days: int, now: float) -> None:
+        """Follow the list in settings: add new names (learning starts now),
+        forget removed ones."""
+        self.learn_days = max(0, int(learn_days))
+        wanted = [s for s in dict.fromkeys(x.strip() for x in ssids) if s]
+        for ssid in list(self.book):
+            if ssid not in wanted:
+                del self.book[ssid]
+                self.dirty = True
+        for ssid in wanted:
+            if ssid not in self.book:
+                self.book[ssid] = {"added": now, "aps": {}}
+                self.dirty = True
+
+    def learning(self, ssid: str, now: float) -> bool:
+        net = self.book.get(ssid)
+        return bool(net) and now < net["added"] + self.learn_days * 86400
+
+    def status(self, now: float) -> list[dict]:
+        return [{"ssid": ssid, "access_points": len(net["aps"]),
+                 "learning_hours_left": max(0, round((net["added"] + self.learn_days * 86400 - now) / 3600, 1))}
+                for ssid, net in self.book.items()]
+
+    def _learn(self, net: dict, bssid: str, f: Frame, now: float) -> None:
+        aps = net["aps"]
+        ap = aps.get(bssid)
+        if ap is None:
+            if len(aps) >= self.MAX_APS:
+                return
+            ap = aps[bssid] = {"sec": f.security, "rssi": f.rssi, "seen": now}
+            self.dirty = True
+        else:
+            if f.rssi is not None and (ap.get("rssi") is None or f.rssi > ap["rssi"]):
+                ap["rssi"] = f.rssi
+            if now - ap.get("seen", 0) > 3600:
+                ap["seen"] = now
+                self.dirty = True
+
+    def hear(self, f: Frame, now: float) -> Optional[Event]:
+        if f.subtype not in (SUBTYPE_BEACON, SUBTYPE_PROBE_RESP) or not f.ssid:
+            return None
+        net = self.book.get(f.ssid)
+        if net is None:
+            return None
+        bssid = f.addr3 if f.subtype == SUBTYPE_BEACON else f.addr2
+        if bssid in net["aps"] or self.learning(f.ssid, now):
+            self._learn(net, bssid, f, now)
+            return None
+        known = net["aps"]
+        if not known:
+            self._learn(net, bssid, f, now)  # nothing learned yet: start with this one
+            return None
+        reasons = []
+        best_sec = max(self._SEC_RANK.get(a.get("sec"), 2) for a in known.values())
+        if self._SEC_RANK.get(f.security, 2) < best_sec:
+            reasons.append(f"it is {f.security}, the known access points use a password")
+        ouis = {b[:8] for b in known}
+        if _is_locally_administered(bssid) and not any(_is_locally_administered(b) for b in known):
+            reasons.append("its address is made up (locally administered)")
+        elif bssid[:8] not in ouis:
+            reasons.append(f"its maker block {bssid[:8]} is not one of the known access points'")
+        loudest = max((a["rssi"] for a in known.values() if a.get("rssi") is not None), default=None)
+        if f.rssi is not None and loudest is not None and f.rssi >= loudest + self.LOUDER_DB:
+            reasons.append(f"it is {f.rssi - loudest} dB louder than any known one")
+        if not reasons:
+            self._learn(net, bssid, f, now)  # same maker, same security: another node
+            return None
+        return Event("trusted_network", f"{f.ssid}|{bssid}", "⚠ Unknown access point on a trusted network",
+                     f"\"{f.ssid}\" is now also sent by {bssid} (channel {f.channel or '?'}"
+                     f"{', ' + str(f.rssi) + ' dBm' if f.rssi is not None else ''}), and {'; '.join(reasons)}. "
+                     "It could be a new router or a copy set up to catch devices that join by name. "
+                     "BlueWatch cannot tell which; check it yourself.")

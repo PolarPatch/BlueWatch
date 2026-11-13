@@ -172,6 +172,28 @@ A fourth pass (catalog 96, v1.1.27) added:
 - Remote ID System message: operator location type, operator altitude, and
   the EU category and class.
 
+A fifth pass (catalogs 97-111, v1.1.28-v1.1.44, 2026-11-13) added, with the
+advertisement layouts checked against Fieldwatch's decoders and the
+published specs (`bluewatch/advdecode.py`, `bluewatch/wifi.py`):
+- Live decoders: BTHome v2 (`FCD2`), Matter commissioning (`FFF6`),
+  HomeKit (Apple type `0x06`: category, paired), Amazon Sidewalk (`0x0171`
+  with `FE03`), Google Find Hub (`FEAA` frames `0x40`/`0x41`, now a
+  tracker instead of an Eddystone beacon), Apple Find My key/short form,
+  Samsung SmartTag (`FD5A`: separated, battery, privacy id), Exposure
+  Notification (`FD6F`, previously mislabelled "Apple Continuity") and
+  Microsoft Nearby Sharing (device type, sharing mode, computer name).
+- Signatures: Pebblebee `FA25`, Xiaomi Mi Home `FE95`, Bitchat's service
+  UUID, Meta Quest names (now gaming, not glasses), and two-way radios and
+  their Bluetooth accessories (Benshi, Icom, Kenwood, Yaesu, VGC, PTT
+  buttons) as the new `TYPE_RADIO`.
+- Remote ID authentication message (type, page, timestamp; not verified).
+- Wi-Fi: French Direct Remote ID, DJI DroneID vendor element, ExpressLRS
+  and EZVIZ setup networks, Interworking/Hotspot 2.0 and standard vendor
+  element labels.
+- Ideas: trusted networks (Wi-Fi), and a tracker alert that skips tags
+  with their owner, follows a separated SmartTag across addresses and
+  needs a continuous span.
+
 Additional smart-glasses company IDs (`TYPE_GLASSES` in
 `classify_by_manufacturer_data()`/`classify_device()`,
 `bluewatch/classifier.py`: Luxottica Group and Snapchat Inc added bare

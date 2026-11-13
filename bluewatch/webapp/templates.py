@@ -2072,6 +2072,7 @@ HTML_TEMPLATE = """
             }
             if (s.eu_category || s.eu_class) parts.push('EU ' + escapeHtml([s.eu_category, s.eu_class].filter(Boolean).join(' ')));
             if (s.operator_id) parts.push('Operator ID ' + escapeHtml(s.operator_id));
+            if (s.auth_type) parts.push('Auth: ' + escapeHtml(s.auth_type) + ' (page ' + escapeHtml(s.auth_page) + (s.auth_last_page !== undefined ? '/' + escapeHtml(s.auth_last_page) : '') + ')' + (s.auth_time ? ' ' + new Date(s.auth_time).toLocaleString() : '') + ', not verified');
             if (!parts.length) return '';
             return '<div class="detail-item full"><div class="detail-label">Drone Remote ID (live)</div><div class="detail-value" style="font-size:0.8rem;">' + parts.join(' · ') + '</div></div>';
         }
@@ -2095,10 +2096,13 @@ HTML_TEMPLATE = """
                 if (/_mm$/.test(k)) return ' mm';
                 if (/_mph$/.test(k)) return ' mph';
                 if (/_V$/.test(k)) return ' V';
+                if (/_m_s$/.test(k)) return ' m/s';
+                if (/_m$/.test(k)) return ' m';
+                if (/_deg$/.test(k)) return '°';
                 if (k === 'humidity') return '%';
                 return '';
             };
-            const nameFor = k => k.replace(/_ok$/, '').replace(/_[A-Za-z]+$/, '').replace(/_/g, ' ')
+            const nameFor = k => k.replace(/_(ok|C|F|hPa|kPa|km_h|mm|mph|V|m_s|m|deg|s|dB|dBm|Hz|kHz|MHz|W|kWh|lux|in|inHg|ms)$/, '').replace(/_/g, ' ')
                 .replace(/\\b\\w/g, c => c.toUpperCase());
             const parts = [];
             for (const [k, v] of Object.entries(d.rf_state)) {
@@ -2137,6 +2141,20 @@ HTML_TEMPLATE = """
                 ? '<span style="color: var(--accent-green, #3fb950);">near owner</span>'
                 : '<span style="color: var(--accent-red, #f85149);">separated</span>';
             return '<div class="detail-item full"><div class="detail-label">DULT tracker (live)</div><div class="detail-value" style="font-size:0.8rem;">' + status + ' · network ID ' + escapeHtml(s.network_id) + '</div></div>';
+        }
+
+        // Open advertisement formats decoded server-side (advdecode.py):
+        // each block is a title plus label/value rows, and an optional chip.
+        function advStateHtml(d) {
+            if (!Array.isArray(d.adv_state) || !d.adv_state_at) return '';
+            const ageMs = Date.now() - new Date(d.adv_state_at).getTime();
+            if (ageMs > 30 * 60 * 1000) return '';
+            return d.adv_state.map(b => {
+                if (!b || !Array.isArray(b.rows)) return '';
+                const chip = b.chip ? '<span style="color: ' + (b.alert ? 'var(--accent-red, #f85149)' : 'var(--accent-green, #3fb950)') + ';">' + escapeHtml(b.chip) + '</span> · ' : '';
+                const rows = b.rows.map(r => escapeHtml(String(r[0])) + ': ' + escapeHtml(String(r[1]))).join(' · ');
+                return '<div class="detail-item full"><div class="detail-label">' + escapeHtml(b.title || 'Advertisement') + ' (live)</div><div class="detail-value" style="font-size:0.8rem;">' + chip + rows + '</div></div>';
+            }).join('');
         }
 
         function showNewCategory() {
@@ -2761,6 +2779,7 @@ HTML_TEMPLATE = """
                     (d.name_conflict_at ? ' <span class="name-conflict-badge" style="color: var(--accent-red, #dc2626);" title="Possible spoofing: this MAC previously advertised a different name (now: ' + escapeHtml(d.name_conflict_name || '') + ')">⚠</span>' : '') +
                     '</td>' +
                     '<td class="device-name">' + (d.friendly_name ? obfuscateName(d.friendly_name) : '—') +
+                    (d.live_chip ? ' <span class="live-chip" style="font-size:0.7rem; padding:0 0.35rem; border-radius:4px; border:1px solid ' + (d.live_chip.alert ? 'var(--accent-red, #f85149)' : 'var(--border-color, #30363d)') + '; color: ' + (d.live_chip.alert ? 'var(--accent-red, #f85149)' : 'var(--text-secondary, #8b949e)') + ';">' + escapeHtml(d.live_chip.text) + '</span>' : '') +
                     (d.identity_mac_count > 1 ? ' <span class="identity-badge" title="' + d.identity_mac_count + ' MAC addresses clustered as one device (rotation)' + (d.identity_link_method ? ' · linked by ' + d.identity_link_method : '') + '">×' + d.identity_mac_count + '</span>' : '') +
                     '</td>' +
                     '<td class="vendor-name">' + (d.vendor ? obfuscateName(d.vendor) : '—') + '</td>' +
@@ -2951,6 +2970,7 @@ HTML_TEMPLATE = """
                 droneStateHtml(d) +
                 rfStateHtml(d) +
                 dultStateHtml(d) +
+                advStateHtml(d) +
                 surveillanceHtml(d) +
                 '<div class="detail-item full" id="ears-heard-item" hidden><div class="detail-label">Heard by</div><div class="detail-value" id="ears-heard" style="font-size:0.8rem;"></div></div>' +
                 '<div class="detail-item"' + (d.identity_mac_count > 1 && d.identity_first_seen ? ' title="Earliest sighting across all ' + d.identity_mac_count + ' rotated addresses clustered under this identity"' : '') + '><div class="detail-label">First seen</div><div class="detail-value mono">' + (d.identity_mac_count > 1 && d.identity_first_seen ? new Date(d.identity_first_seen).toLocaleString() : (d.first_seen ? new Date(d.first_seen).toLocaleString() : '—')) + '</div></div>' +
@@ -4290,6 +4310,26 @@ SETTINGS_TEMPLATE = """
                                 <label class="form-label">Min. Span (minutes)</label>
                                 <input type="number" class="form-input" id="tracker_follow_min_minutes" value="20" min="1" max="10080" style="width: 110px;">
                             </div>
+                            <div class="form-group" style="margin: 0;">
+                                <label class="form-label">Max. Gap (minutes)</label>
+                                <input type="number" class="form-input" id="tracker_follow_max_gap_minutes" value="20" min="1" max="1440" style="width: 110px;">
+                            </div>
+                        </div>
+                        <div class="form-check-desc" style="margin: 0.35rem 0 0 2rem;">A tag that says it is with its owner is skipped. A Samsung SmartTag away from its owner is followed across address changes. A gap longer than Max. Gap starts the span over.</div>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <div class="panel-header">Wi-Fi Alerts</div>
+                    <div class="panel-body">
+                        <div class="form-group" style="margin-top: 0;">
+                            <label class="form-label">Trusted Wi-Fi Networks (needs Wi-Fi ears)</label>
+                            <textarea class="form-input" id="trusted_ssids" rows="3" placeholder="One network name per line" style="max-width: 420px;"></textarea>
+                            <div class="form-check-desc">For the first days after a name is added, every access point sending it is learned. After that, a new access point with that name alerts when it uses weaker security, comes from another maker or a made-up address, or is far louder than the known ones. BlueWatch never joins the network.</div>
+                        </div>
+                        <div class="form-group" style="margin: 0;">
+                            <label class="form-label">Learn For (days)</label>
+                            <input type="number" class="form-input" id="trusted_learn_days" value="3" min="0" max="60" style="width: 110px;">
                         </div>
                     </div>
                 </div>
@@ -4850,6 +4890,9 @@ SETTINGS_TEMPLATE = """
                 document.getElementById('tracker_follow_alert_enabled').checked = data.tracker_follow_alert_enabled;
                 document.getElementById('tracker_follow_min_sightings').value = data.tracker_follow_min_sightings || 30;
                 document.getElementById('tracker_follow_min_minutes').value = data.tracker_follow_min_minutes || 20;
+                document.getElementById('tracker_follow_max_gap_minutes').value = data.tracker_follow_max_gap_minutes || 20;
+                document.getElementById('trusted_ssids').value = data.trusted_ssids || '';
+                document.getElementById('trusted_learn_days').value = (data.trusted_learn_days ?? 3);
 
                 const typesResp = await fetch('/api/device-types');
                 const typesData = await typesResp.json();
@@ -4949,6 +4992,9 @@ SETTINGS_TEMPLATE = """
                 tracker_follow_alert_enabled: document.getElementById('tracker_follow_alert_enabled').checked,
                 tracker_follow_min_sightings: parseInt(document.getElementById('tracker_follow_min_sightings').value) || 30,
                 tracker_follow_min_minutes: parseInt(document.getElementById('tracker_follow_min_minutes').value) || 20,
+                tracker_follow_max_gap_minutes: parseInt(document.getElementById('tracker_follow_max_gap_minutes').value) || 20,
+                trusted_ssids: document.getElementById('trusted_ssids').value,
+                trusted_learn_days: (() => { const v = parseInt(document.getElementById('trusted_learn_days').value); return isNaN(v) ? 3 : v; })(),
             };
         }
 
@@ -8207,6 +8253,7 @@ LIVE_TEMPLATE = """
             }
             if (s.eu_category || s.eu_class) parts.push('EU ' + escapeHtml([s.eu_category, s.eu_class].filter(Boolean).join(' ')));
             if (s.operator_id) parts.push('Operator ID ' + escapeHtml(s.operator_id));
+            if (s.auth_type) parts.push('Auth: ' + escapeHtml(s.auth_type) + ' (page ' + escapeHtml(s.auth_page) + (s.auth_last_page !== undefined ? '/' + escapeHtml(s.auth_last_page) : '') + ')' + (s.auth_time ? ' ' + new Date(s.auth_time).toLocaleString() : '') + ', not verified');
             if (!parts.length) return '';
             return '<div class="detail-item full"><div class="detail-label">Drone Remote ID (live)</div><div class="detail-value" style="font-size:0.8rem;">' + parts.join(' · ') + '</div></div>';
         }
@@ -8230,10 +8277,13 @@ LIVE_TEMPLATE = """
                 if (/_mm$/.test(k)) return ' mm';
                 if (/_mph$/.test(k)) return ' mph';
                 if (/_V$/.test(k)) return ' V';
+                if (/_m_s$/.test(k)) return ' m/s';
+                if (/_m$/.test(k)) return ' m';
+                if (/_deg$/.test(k)) return '°';
                 if (k === 'humidity') return '%';
                 return '';
             };
-            const nameFor = k => k.replace(/_ok$/, '').replace(/_[A-Za-z]+$/, '').replace(/_/g, ' ')
+            const nameFor = k => k.replace(/_(ok|C|F|hPa|kPa|km_h|mm|mph|V|m_s|m|deg|s|dB|dBm|Hz|kHz|MHz|W|kWh|lux|in|inHg|ms)$/, '').replace(/_/g, ' ')
                 .replace(/\\b\\w/g, c => c.toUpperCase());
             const parts = [];
             for (const [k, v] of Object.entries(d.rf_state)) {
@@ -8272,6 +8322,20 @@ LIVE_TEMPLATE = """
                 ? '<span style="color: var(--accent-green, #3fb950);">near owner</span>'
                 : '<span style="color: var(--accent-red, #f85149);">separated</span>';
             return '<div class="detail-item full"><div class="detail-label">DULT tracker (live)</div><div class="detail-value" style="font-size:0.8rem;">' + status + ' · network ID ' + escapeHtml(s.network_id) + '</div></div>';
+        }
+
+        // Open advertisement formats decoded server-side (advdecode.py):
+        // each block is a title plus label/value rows, and an optional chip.
+        function advStateHtml(d) {
+            if (!Array.isArray(d.adv_state) || !d.adv_state_at) return '';
+            const ageMs = Date.now() - new Date(d.adv_state_at).getTime();
+            if (ageMs > 30 * 60 * 1000) return '';
+            return d.adv_state.map(b => {
+                if (!b || !Array.isArray(b.rows)) return '';
+                const chip = b.chip ? '<span style="color: ' + (b.alert ? 'var(--accent-red, #f85149)' : 'var(--accent-green, #3fb950)') + ';">' + escapeHtml(b.chip) + '</span> · ' : '';
+                const rows = b.rows.map(r => escapeHtml(String(r[0])) + ': ' + escapeHtml(String(r[1]))).join(' · ');
+                return '<div class="detail-item full"><div class="detail-label">' + escapeHtml(b.title || 'Advertisement') + ' (live)</div><div class="detail-value" style="font-size:0.8rem;">' + chip + rows + '</div></div>';
+            }).join('');
         }
 
         function showNewCategory() {
@@ -8892,6 +8956,7 @@ LIVE_TEMPLATE = """
                     (d.name_conflict_at ? ' <span class="name-conflict-badge" style="color: var(--accent-red, #dc2626);" title="Possible spoofing: this MAC previously advertised a different name (now: ' + escapeHtml(d.name_conflict_name || '') + ')">⚠</span>' : '') +
                     '</td>' +
                     '<td class="device-name">' + (d.friendly_name ? obfuscateName(d.friendly_name) : '—') +
+                    (d.live_chip ? ' <span class="live-chip" style="font-size:0.7rem; padding:0 0.35rem; border-radius:4px; border:1px solid ' + (d.live_chip.alert ? 'var(--accent-red, #f85149)' : 'var(--border-color, #30363d)') + '; color: ' + (d.live_chip.alert ? 'var(--accent-red, #f85149)' : 'var(--text-secondary, #8b949e)') + ';">' + escapeHtml(d.live_chip.text) + '</span>' : '') +
                     (d.identity_mac_count > 1 ? ' <span class="identity-badge" title="' + d.identity_mac_count + ' MAC addresses clustered as one device (rotation)' + (d.identity_link_method ? ' · linked by ' + d.identity_link_method : '') + '">×' + d.identity_mac_count + '</span>' : '') +
                     '</td>' +
                     '<td class="vendor-name">' + (d.vendor ? obfuscateName(d.vendor) : '—') + '</td>' +
@@ -8982,6 +9047,7 @@ LIVE_TEMPLATE = """
                 droneStateHtml(d) +
                 rfStateHtml(d) +
                 dultStateHtml(d) +
+                advStateHtml(d) +
                 surveillanceHtml(d) +
                 '<div class="detail-item full" id="ears-heard-item" hidden><div class="detail-label">Heard by</div><div class="detail-value" id="ears-heard" style="font-size:0.8rem;"></div></div>' +
                 '<div class="detail-item"' + (d.identity_mac_count > 1 && d.identity_first_seen ? ' title="Earliest sighting across all ' + d.identity_mac_count + ' rotated addresses clustered under this identity"' : '') + '><div class="detail-label">First seen</div><div class="detail-value mono">' + (d.identity_mac_count > 1 && d.identity_first_seen ? new Date(d.identity_first_seen).toLocaleString() : (d.first_seen ? new Date(d.first_seen).toLocaleString() : '—')) + '</div></div>' +

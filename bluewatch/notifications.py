@@ -8,7 +8,7 @@ from typing import Optional
 
 import aiohttp
 
-from . import db
+from . import advdecode, db
 from .classifier import (
     TYPE_TRACKER, COMPANY_ID_APPLE, COMPANY_ID_MICROSOFT, COMPANY_ID_SAMSUNG,
     _walk_apple_tlvs, _short_uuid,
@@ -154,6 +154,7 @@ class NotificationManager:
         # once past threshold. In-memory only -- see class docstring below
         # for the accepted tradeoff (may re-alert once after a restart).
         self._tracker_follow_alerted: set[str] = set()
+        self._tracker_runs: dict[str, dict] = {}  # tag key -> continuous run (see _check_tracker_follow)
         # Rate limit for the noisy alert kinds (flood, tracker lingering):
         # key -> time of the last notification actually sent, and how many
         # were held back since then (reported in the next one that goes out).
@@ -492,39 +493,66 @@ class NotificationManager:
             self._ble_spam_flood_active = False
 
     async def _check_tracker_follow(self, device: Device) -> None:
-        """Flag a Find My/Tile/SmartTag-type device (TYPE_TRACKER) that has
-        lingered far longer than a passerby would -- AWOKxDAG's own name
-        ("FOLLOW") for this signal. Deliberately rarer and slower than the
-        generic type_alert_types alert (which fires on every reappearance):
-        this fires once, only after real persistence is established, since
-        that's the actual privacy-relevant case (a planted tracker) rather
-        than a stranger's AirTag passing by once.
+        """Flag a tracker (TYPE_TRACKER) that has stayed near BlueWatch far
+        longer than a passerby would -- AWOKxDAG's "FOLLOW" signal, refined
+        after Fieldwatch v1.1.44's tracker monitoring:
+
+        - a tag that says it is with its owner (DULT near-owner bit, SmartTag
+          "with owner") is skipped: that is someone's keys walking past;
+        - a Samsung SmartTag away from its owner keeps its privacy id across
+          address changes, so its rotating addresses count as one tag;
+        - the span must be continuous: a gap longer than
+          tracker_follow_max_gap_minutes starts it over.
+
+        Fires once per tag (in memory, so again after a restart).
         """
         if not self._settings.tracker_follow_alert_enabled:
-            return
-        if device.mac in self._tracker_follow_alerted:
             return
         # A tracker the operator has already filed in a category (their own,
         # a neighbour's) is known, so it doesn't need a lingering alert.
         if device.group_id is not None:
             return
-        if device.total_sightings < self._settings.tracker_follow_min_sightings:
+        separated = advdecode.separated_state(device.adv_state)
+        if separated is None and device.dult_state and "near_owner" in device.dult_state:
+            separated = not device.dult_state["near_owner"]
+        if separated is False:
             return
-        if not device.first_seen or not device.last_seen:
+        key = advdecode.tag_id(device.adv_state) or device.mac
+        if key in self._tracker_follow_alerted:
             return
-        span_minutes = (device.last_seen - device.first_seen).total_seconds() / 60
+
+        now = datetime.now()
+        max_gap = timedelta(minutes=max(1, self._settings.tracker_follow_max_gap_minutes))
+        run = self._tracker_runs.get(key)
+        if run is None or now - run["last"] > max_gap:
+            run = {"start": now, "last": now, "count": 0, "macs": set()}
+            self._tracker_runs[key] = run
+        run["last"] = now
+        run["count"] += 1
+        run["macs"].add(device.mac)
+        if len(self._tracker_runs) > 5000:
+            for k in [k for k, r in self._tracker_runs.items() if now - r["last"] > max_gap]:
+                del self._tracker_runs[k]
+
+        span_minutes = (now - run["start"]).total_seconds() / 60
+        if run["count"] < self._settings.tracker_follow_min_sightings:
+            return
         if span_minutes < self._settings.tracker_follow_min_minutes:
             return
 
-        self._tracker_follow_alerted.add(device.mac)
+        self._tracker_follow_alerted.add(key)
         name = device.friendly_name or device.vendor or device.mac
         span_str = self._format_duration(span_minutes)
+        state = " It says it is away from its owner." if separated else ""
+        addresses = f" across {len(run['macs'])} rotating addresses" if len(run["macs"]) > 1 else ""
         await self._send_notification(
             title="⚠ Tracker lingering nearby",
-            message=f"{name} ({device.mac}) has been detected {device.total_sightings} times over {span_str} -- worth checking it isn't a planted tracker.",
+            message=f"{name} ({device.mac}) has been heard {run['count']} times over {span_str} without a "
+                    f"break{addresses}.{state} Worth checking it isn't a planted tracker. This is a guide, "
+                    "not proof: it can also be a neighbour's lost tag.",
             priority=5,
             tags=["warning", "bluetooth"],
-            cooldown_key="tracker_follow",
+            cooldown_key=f"tracker_follow:{key}",
         )
 
     async def check_absent_devices(self) -> None:

@@ -1,6 +1,8 @@
 """Device type classification based on vendor and patterns."""
 
 import re
+
+from . import advdecode as _advdecode
 from typing import Optional
 
 from . import rtl433
@@ -42,6 +44,16 @@ _ATRIUS_IBEACON_UUID_HEX = ATRIUS_IBEACON_UUID.replace("-", "")
 
 # Aruba AP local names follow "AP-" + 12 hex chars (source: same manifest).
 _ARUBA_NAME_RE = re.compile(r'^AP-[0-9a-f]{12}$', re.IGNORECASE)
+
+# Meta Quest: "Quest", "Quest 3S", "Quest-...", "Meta Quest ...".
+_QUEST_NAME_RE = re.compile(r'^(Quest|Quest[ -].*|Meta Quest.*)$')
+# Benshi-platform radios (BTECH/Radioddity/Vero), Icom ID-52 and VS-3,
+# Kenwood KHS-55BT/56BT, Yaesu SSM-BT10/20, VGC BHM-88, and phone PTT
+# buttons (Pryme, MobilitySound). Exact published names.
+_TWO_WAY_RADIO_RE = re.compile(
+    r'^(UV-PRO|UV-50PRO|GA-5WB|VR-N75|VR-N76|VR-N7500|VR-N7600|DB50-B|'
+    r'ICOM BT\(ID-52\)|ICOM BT-002|KHS-55BT|KHS-56BT.*|SSM-BT10|SSM-BT20|BHM-88|'
+    r'PTT-Z|PTT-AZ|PTT-Z01)$')
 
 
 def is_macos_uuid(address: str) -> bool:
@@ -132,6 +144,7 @@ TYPE_DRONE = "drone"
 TYPE_ATTACK = "attack"
 TYPE_LOCK = "lock"
 TYPE_METER = "meter"
+TYPE_RADIO = "radio"
 TYPE_UNKNOWN = "unknown"
 
 # GAP Appearance (advertising AD type 0x19) is a Bluetooth SIG-standardized
@@ -254,6 +267,7 @@ TYPE_ICONS = {
     TYPE_ATTACK: "[ATK]",
     TYPE_LOCK: "[LCK]",
     TYPE_METER: "[MTR]",
+    TYPE_RADIO: "[RAD]",
     TYPE_UNKNOWN: "[---]",
 }
 
@@ -284,6 +298,7 @@ TYPE_LABELS = {
     TYPE_ATTACK: "Wi-Fi Attack Tool",
     TYPE_LOCK: "Smart Lock",
     TYPE_METER: "Utility Meter",
+    TYPE_RADIO: "Two-way Radio",
     TYPE_UNKNOWN: "Unknown",
 }
 
@@ -1013,7 +1028,12 @@ DRONE_REMOTE_ID_AD_APP_CODE = 0x0D
 
 _DRONE_MSG_TYPE_BASIC_ID = 0x0
 _DRONE_MSG_TYPE_LOCATION = 0x1
+_DRONE_MSG_TYPE_AUTH = 0x2
 _DRONE_MSG_TYPE_SELF_ID = 0x3
+_DRONE_AUTH_TYPE_LABELS = {
+    0: "none", 1: "UAS ID signature", 2: "operator ID signature",
+    3: "message set signature", 4: "network remote ID", 5: "specific method",
+}
 _DRONE_MSG_TYPE_SYSTEM = 0x4
 _DRONE_MSG_TYPE_OPERATOR_ID = 0x5
 
@@ -1141,6 +1161,24 @@ def decode_drone_remote_id(service_data):
             result["altitude_m"] = round(alt_geo_raw * 0.5 - 1000, 1)
         if height_raw != 0xFFFF:
             result["height_m"] = round(height_raw * 0.5 - 1000, 1)
+
+    elif msg_type == _DRONE_MSG_TYPE_AUTH and len(message) >= 2:
+        # Authentication: type (high nibble) and page (low nibble). Page 0
+        # also carries the last page, the data length and a timestamp in
+        # seconds since 2019-01-01 UTC. The signature bytes are not kept
+        # and not checked (source: ASTM F3411; Fieldwatch v1.1.44).
+        auth_type = message[1] >> 4
+        result["auth_type"] = _DRONE_AUTH_TYPE_LABELS.get(
+            auth_type, f"reserved ({auth_type})" if auth_type < 10 else f"private ({auth_type})")
+        result["auth_page"] = message[1] & 0x0F
+        if result["auth_page"] == 0 and len(message) >= 8:
+            result["auth_last_page"] = message[2]
+            result["auth_length"] = message[3]
+            stamp = int.from_bytes(message[4:8], "little")
+            if stamp:
+                from datetime import datetime, timezone
+                result["auth_time"] = datetime.fromtimestamp(
+                    stamp + 1546300800, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     elif msg_type == _DRONE_MSG_TYPE_SELF_ID and len(message) >= 25:
         result["self_id"] = message[2:25].split(b"\x00", 1)[0].decode("ascii", errors="replace").strip()
@@ -1689,7 +1727,7 @@ SERVICE_UUID_PATTERNS = [
     ("d0611e78", TYPE_PHONE),  # Apple Continuity
     ("7905f431", TYPE_PHONE),  # Apple Notification Center
     ("89d3502b", TYPE_PHONE),  # Apple Media Service
-    ("0000fd6f", TYPE_PHONE),  # Apple Continuity short UUID
+    ("0000fd6f", TYPE_PHONE),  # Exposure Notification (Apple/Google contact tracing, phones)
 
     # Google/Android
     ("0000fe9f", TYPE_PHONE),  # Google Fast Pair
@@ -1699,7 +1737,13 @@ SERVICE_UUID_PATTERNS = [
     ("0000181a", TYPE_SMART_HOME),  # Environmental Sensing
     ("0000fef5", TYPE_SMART_HOME),  # Philips Hue / Dialog
     ("0000fee7", TYPE_SMART_HOME),  # Tencent IoT
-    ("0000feaa", TYPE_SMART_HOME),  # Google Eddystone (beacons)
+    ("0000feaa", TYPE_SMART_HOME),  # Google Eddystone (beacons); Find Hub frames are caught earlier
+    # Source for the next five: OffGridPete/Fieldwatch catalog 111 (v1.1.44).
+    ("0000fcd2", TYPE_SMART_HOME),  # BTHome v2 sensors (Shelly, ESPHome)
+    ("0000fff6", TYPE_SMART_HOME),  # Matter (usually in setup)
+    ("0000fe03", TYPE_SMART_HOME),  # Amazon (Sidewalk / Echo)
+    ("0000fe95", TYPE_SMART_HOME),  # Xiaomi Mi Home family (sensors, locks, lights, bands)
+    ("f47b5e2d4a9e4c5a9b3f8e1d2c3a4b5c", TYPE_PHONE),  # Bitchat BLE mesh chat
     ("0000feab", TYPE_SMART_HOME),  # Nokia beacons
 
     # Trackers / Finders (source: jbohack/nyanBOX detector fingerprints,
@@ -1710,6 +1754,7 @@ SERVICE_UUID_PATTERNS = [
     # Chipolo and Polar's own SIG member UUIDs, so a renamed tag or strap is
     # still recognised (source: OffGridPete/Fieldwatch Catalog 96).
     ("0000fe33", TYPE_TRACKER),  # Chipolo
+    ("0000fa25", TYPE_TRACKER),  # Pebblebee / moto tag (Fieldwatch catalog 111)
     ("0000feee", TYPE_WEARABLE),  # Polar (heart-rate strap or watch)
     ("0000febe", TYPE_SMART_HOME),  # Bose
 
@@ -1786,7 +1831,11 @@ SERVICE_UUID_NAMES = {
     "0000181a": "Environmental",
     "0000110b": "A2DP Sink",
     "0000110a": "A2DP Source",
-    "0000fd6f": "Apple Continuity",
+    "0000fd6f": "Exposure Notification",
+    "0000fcd2": "BTHome",
+    "0000fff6": "Matter",
+    "0000fe03": "Amazon Sidewalk",
+    "0000fe95": "Xiaomi Mi Home",
     "0000fe9f": "Google Fast Pair",
     "0000fee0": "Mi Band",
 }
@@ -1927,6 +1976,8 @@ _WIFI_TAG_TYPES = {
     "pwnagotchi": TYPE_ATTACK, "pineapple": TYPE_ATTACK, "deauther": TYPE_ATTACK,
     "axon-ssid": TYPE_CAMERA, "flock-ssid": TYPE_CAMERA,
     "flock-oui": TYPE_CAMERA, "axon-oui": TYPE_CAMERA,
+    "ezviz-ssid": TYPE_CAMERA,
+    "remote-id-fr": TYPE_DRONE, "dji-droneid": TYPE_DRONE, "elrs-ssid": TYPE_DRONE,
 }
 
 
@@ -2002,6 +2053,12 @@ def classify_device(
     # Same tier as Remote ID above: a purpose-built broadcast, no realistic
     # false-positive risk once actual payload bytes are required.
     if service_data and is_dult_tracker(service_data):
+        return TYPE_TRACKER
+
+    # Google Find Hub tags: Eddystone UUID FEAA with frame 0x40/0x41 and a
+    # 20- or 32-byte rotating id (Fieldwatch catalog 111). Checked before
+    # the generic FEAA -> beacon mapping below.
+    if service_data and _advdecode.is_find_hub(_advdecode.service_bytes(service_data, 0xFEAA)):
         return TYPE_TRACKER
 
     # Tesla's key-fob/phone-key name pattern is checked first -- it would
@@ -2092,6 +2149,16 @@ def classify_device(
     # Catalog 92 (v1.1.20, MIT licensed).
     if name and name.lower().startswith("meta rb display"):
         return TYPE_GLASSES
+
+    # Meta Quest headsets send Meta's company IDs too, so the name is
+    # checked before the glasses rule (Fieldwatch catalog 101).
+    if name and _QUEST_NAME_RE.match(name):
+        return TYPE_GAMING
+
+    # Two-way radios and their Bluetooth accessories, by published name
+    # (Fieldwatch catalog 101-111).
+    if name and _TWO_WAY_RADIO_RE.match(name.strip()):
+        return TYPE_RADIO
 
     # Flipper Devices' own MAC-OUI -- an independent signal from the
     # company-ID check inside classify_by_manufacturer_data() below (some

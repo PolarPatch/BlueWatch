@@ -113,7 +113,21 @@ def _device_to_json(d, group=None) -> dict:
         "identity_first_seen": (d.identity_first_seen.isoformat()) if d.identity_first_seen else None,
         "name_conflict_at": (d.name_conflict_at.isoformat()) if d.name_conflict_at else None,
         "name_conflict_name": d.name_conflict_name,
+        "live_chip": _live_chip(d),
     }
+
+
+def _live_chip(d) -> Optional[dict]:
+    """Short live state for the list row (door open, tag separated, Matter
+    setup...), from the newest decoded advertisement if under 30 min old."""
+    if not d.adv_state or not d.adv_state_at:
+        return None
+    if (datetime.now() - d.adv_state_at).total_seconds() > 1800:
+        return None
+    for block in d.adv_state:
+        if isinstance(block, dict) and block.get("chip"):
+            return {"text": block["chip"], "alert": bool(block.get("alert"))}
+    return None
 
 
 def verify_password(password: str, stored_hash: str) -> bool:
@@ -785,6 +799,8 @@ class WebServer:
                 "bt_type": device.bt_type,
                 "dult_state": device.dult_state,
                 "dult_state_at": (device.dult_state_at.isoformat()) if device.dult_state_at else None,
+                "adv_state": device.adv_state,
+                "adv_state_at": (device.adv_state_at.isoformat()) if device.adv_state_at else None,
                 "surveillance": surveillance_evidence(device.mac, device.friendly_name, device.manufacturer_data, device.service_uuids, device.service_data),
             },
             "type_label": get_type_label(device_type),
@@ -1908,6 +1924,9 @@ class WebServer:
             "tracker_follow_alert_enabled": settings.tracker_follow_alert_enabled,
             "tracker_follow_min_sightings": settings.tracker_follow_min_sightings,
             "tracker_follow_min_minutes": settings.tracker_follow_min_minutes,
+            "tracker_follow_max_gap_minutes": settings.tracker_follow_max_gap_minutes,
+            "trusted_ssids": settings.trusted_ssids,
+            "trusted_learn_days": settings.trusted_learn_days,
         })
 
     async def api_update_settings(self, request: web.Request) -> web.Response:
@@ -1959,6 +1978,9 @@ class WebServer:
                 tracker_follow_alert_enabled=data.get("tracker_follow_alert_enabled", True),
                 tracker_follow_min_sightings=int(data.get("tracker_follow_min_sightings", 30)),
                 tracker_follow_min_minutes=int(data.get("tracker_follow_min_minutes", 20)),
+                tracker_follow_max_gap_minutes=max(1, int(data.get("tracker_follow_max_gap_minutes", 20))),
+                trusted_ssids="\n".join(x.strip() for x in str(data.get("trusted_ssids") or "").splitlines() if x.strip())[:2000],
+                trusted_learn_days=max(0, min(60, int(data.get("trusted_learn_days", 3)))),
             )
             await db.update_settings(settings)
 

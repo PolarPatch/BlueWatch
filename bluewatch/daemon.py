@@ -17,7 +17,7 @@ import aiohttp
 
 from . import active_scan, crowd, db, ears, timefmt, wifi, wifi_sniffer, wigle, __version__
 from .classifier import CLASSIFIER_VERSION, is_randomized_mac
-from .config import SCAN_INTERVAL, SOCKET_PATH, METRICS_PORT, WEB_PORT, WIFI_IFACE, WIFI_PCAP
+from .config import DATA_DIR, SCAN_INTERVAL, SOCKET_PATH, METRICS_PORT, WEB_PORT, WIFI_IFACE, WIFI_PCAP
 from .scanner import BluetoothScanner, ScannedDevice, list_adapters
 from .esp32_scanner import ESP32Scanner
 from .mdns import MdnsScanner
@@ -331,7 +331,9 @@ class BlueWatchDaemon:
         Restarts the capture after an error, the way the other radios do."""
         status = wifi_sniffer.STATUS
         status.update(enabled=True, source=self._wifi_pcap or self._wifi_iface)
-        watch = wifi.WifiWatch()
+        trusted = self._load_trusted_networks()
+        watch = wifi.WifiWatch(trusted=trusted)
+        last_trusted_sync = 0.0
         while self.running:
             pending: dict[str, wifi.Hit] = {}
             last_flush = time.monotonic()
@@ -344,6 +346,9 @@ class BlueWatchDaemon:
                 async for item in source:
                     ts, frame = item if self._wifi_pcap else (time.monotonic(), item)
                     status["state"] = "listening"
+                    if time.monotonic() - last_trusted_sync >= 60:
+                        last_trusted_sync = time.monotonic()
+                        await self._sync_trusted_networks(trusted)
                     hit, event = watch.feed(frame, ts)
                     if hit is not None:
                         pending[hit.mac] = hit
@@ -367,6 +372,29 @@ class BlueWatchDaemon:
                 if self._wifi_pcap:
                     return
             await asyncio.sleep(60)
+
+    TRUSTED_NETWORKS_PATH = DATA_DIR / "trusted_networks.json"
+
+    def _load_trusted_networks(self) -> "wifi.TrustedNetworks":
+        try:
+            book = json.loads(self.TRUSTED_NETWORKS_PATH.read_text())
+        except (OSError, ValueError):
+            book = {}
+        return wifi.TrustedNetworks(book)
+
+    async def _sync_trusted_networks(self, trusted: "wifi.TrustedNetworks") -> None:
+        """Follow the trusted names in settings and save what was learned."""
+        try:
+            settings = await db.get_settings()
+            trusted.sync((settings.trusted_ssids or "").splitlines(), settings.trusted_learn_days, time.time())
+            wifi_sniffer.STATUS["trusted"] = trusted.status(time.time())
+            if trusted.dirty:
+                tmp = self.TRUSTED_NETWORKS_PATH.with_suffix(".tmp")
+                tmp.write_text(json.dumps(trusted.book))
+                tmp.replace(self.TRUSTED_NETWORKS_PATH)
+                trusted.dirty = False
+        except Exception as e:
+            logger.debug(f"Trusted networks sync failed: {e}")
 
     async def _store_wifi_hits(self, hits: dict) -> None:
         for hit in hits.values():

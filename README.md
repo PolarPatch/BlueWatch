@@ -478,14 +478,26 @@ matches become devices (radio "wifi" in Device Details):
 
 | Match | Type |
 |---|---|
-| Axon body camera networks (`AB2-`, `AB3-`, `AB4-`, `AXON-`), Flock setup networks, Flock's and Axon's own address blocks | Camera |
+| Axon body camera networks (`AB2-`, `AB3-`, `AB4-`, `AXON-`), Flock setup networks, Flock's and Axon's own address blocks, EZVIZ camera setup networks (`EZVIZ_`) | Camera |
 | WiFi Pineapple (`Pineapple_`), ESP deauther (`pwned`), Pwnagotchi (its self-announcing beacon, with name and handshake count) | Wi-Fi Attack Tool |
-| Remote ID beacons (ASTM F3411 over Wi-Fi), decoded like the Bluetooth ones | Drone |
+| Remote ID beacons (ASTM F3411 over Wi-Fi), decoded like the Bluetooth ones; French Direct Remote ID (position, height above takeoff, speed, course, takeoff point); DJI's older DroneID beacon; ExpressLRS setup networks | Drone |
+
+A matched access point also shows what it says about itself: network type,
+internet access, venue and Hotspot 2.0 (set by the access point, not
+checked), and the standard elements it carries (WPA, WMM, WPS, ...).
 
 Two attacks are not a device and come as push alerts instead: a
 deauthentication flood (30 frames in 10 s from one sender) and an evil twin
 (the same network name both open and password-protected). `/api/wifi` shows
 the capture status and the latest alerts.
+
+**Trusted networks.** List your own network names (and the neighbours') in
+**Config > Alerts > Wi-Fi Alerts**. For the first days
+(3 by default) every access point sending such a name is learned. After that,
+a new access point with that name alerts when it uses weaker security, comes
+from another maker or a made-up address, or is 15 dB louder than any known
+one. A new node from a known maker is learned quietly. BlueWatch never joins
+the network.
 
 No adapter yet? `--wifi-pcap capture.pcap` replays a radiotap capture (for
 example from `tcpdump -i wlan1mon -w capture.pcap`) through the same
