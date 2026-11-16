@@ -2,8 +2,9 @@
 adapter and pick out the few things worth keeping.
 
 Listen-only, like everything else in BlueWatch: frames are read, never sent.
-Only management-frame headers and information elements are looked at, never
-data frames. And unlike Bluetooth, ordinary networks and phones are not
+Only management-frame headers and information elements are looked at. Of
+data frames, only the EAPOL key handshake header is read (which message of
+the handshake it is), to spot PMKID/handshake harvesting; no payload. And unlike Bluetooth, ordinary networks and phones are not
 stored at all; only matches are (cameras, attack tools, drones), plus alerts
 for attacks that are not a device (deauthentication floods, evil twins).
 
@@ -29,6 +30,8 @@ SUBTYPE_PROBE_RESP = 5
 SUBTYPE_BEACON = 8
 SUBTYPE_DISASSOC = 10
 SUBTYPE_DEAUTH = 12
+# Not an 802.11 subtype: a data frame carrying an EAPOL-Key message.
+SUBTYPE_EAPOL = 0x100
 
 IE_SSID = 0
 IE_DS_PARAMS = 3
@@ -57,9 +60,13 @@ SSID_PREFIXES = (
     # backpack, and an EZVIZ home camera waiting to be set up.
     ("expresslrs", "elrs-ssid", "ExpressLRS setup network"),
     ("ezviz_", "ezviz-ssid", "EZVIZ camera setup network"),
+    # Fieldwatch catalog 112-113: a DJI Osmo camera's own network, and an
+    # Icom IC-705 transceiver in access point mode.
+    ("osmo_", "osmo-ssid", "DJI Osmo camera network"),
 )
 # A provisioned Flock camera's bare network name (Flock-You), exact.
-SSID_EXACT = {"flock": ("flock-ssid", "Flock camera network")}
+SSID_EXACT = {"flock": ("flock-ssid", "Flock camera network"),
+              "ic-705": ("radio-ssid", "Icom IC-705 network")}
 
 # Address blocks that name the maker. Generic module vendors (Liteon,
 # Espressif, ...) that Flock also uses are not here: alone they would flag
@@ -67,6 +74,23 @@ SSID_EXACT = {"flock": ("flock-ssid", "Flock camera network")}
 OUI_TAGS = {
     "B4:1E:52": ("flock-oui", "Flock Safety"),
     "00:25:DF": ("axon-oui", "Axon"),
+    # Each checked against the IEEE MA-L registry by SquachWatch-CYD
+    # (v1.37-1.39). Body cams, gunshot sensors, cameras and drones from the
+    # maker's own blocks; generic module makers stay out.
+    "00:1D:96": ("bodycam-oui", "WatchGuard Video"),
+    "00:23:BD": ("bodycam-oui", "Digital Ally"),
+    "D4:11:D6": ("shotspotter-oui", "ShotSpotter"),
+    "FC:9C:98": ("camera-oui", "Arlo"), "48:62:64": ("camera-oui", "Arlo"), "A4:11:62": ("camera-oui", "Arlo"),
+    "3C:A0:70": ("camera-oui", "Blink"), "70:AD:43": ("camera-oui", "Blink"), "74:13:48": ("camera-oui", "Blink"),
+    "74:AB:93": ("camera-oui", "Blink"), "C8:19:D8": ("camera-oui", "Blink"), "F0:74:C1": ("camera-oui", "Blink"),
+    "D4:2D:C5": ("camera-oui", "i-PRO"),
+    "98:59:49": ("glasses-oui", "Luxottica (Ray-Ban/Oakley Meta)"),
+    "38:1D:14": ("drone-oui", "Skydio"),
+    "60:60:1F": ("drone-oui", "DJI"), "34:D2:62": ("drone-oui", "DJI"), "48:1C:B9": ("drone-oui", "DJI"),
+    "E4:7A:2C": ("drone-oui", "DJI"), "58:B8:58": ("drone-oui", "DJI"), "04:A8:5A": ("drone-oui", "DJI"),
+    "8C:58:23": ("drone-oui", "DJI"), "0C:9A:E6": ("drone-oui", "DJI"), "88:29:85": ("drone-oui", "DJI"),
+    "4C:43:F6": ("drone-oui", "DJI"),
+    "90:03:B7": ("drone-oui", "Parrot"), "90:3A:E6": ("drone-oui", "Parrot"), "A0:14:3D": ("drone-oui", "Parrot"),
 }
 # Hak5 habits: locally administered, so anybody can use them. Only shown
 # next to a Pineapple SSID, never a match alone.
@@ -118,6 +142,8 @@ class Frame:
     ssid: Optional[str] = None
     security: Optional[str] = None  # "open", "wep" or "protected"
     ies: list[tuple[int, bytes]] = field(default_factory=list)
+    eapol_msg: Optional[int] = None  # 1-4 for an EAPOL-Key handshake message
+    pmkid: bool = False              # message 1 carries a PMKID
 
 
 @dataclass
@@ -134,7 +160,7 @@ class Hit:
 @dataclass
 class Event:
     """An attack that is not a device: shown as an alert."""
-    kind: str  # "deauth_flood", "evil_twin" or "trusted_network"
+    kind: str  # "deauth_flood", "evil_twin", "trusted_network", "beacon_flood", "karma", "eapol_harvest"
     key: str
     title: str
     message: str
@@ -214,11 +240,51 @@ def _walk_ies(body: bytes) -> list[tuple[int, bytes]]:
     return ies
 
 
+_LLC_EAPOL = b"\xaa\xaa\x03\x00\x00\x00\x88\x8e"
+_PMKID_KDE = b"\xdd\x14\x00\x0f\xac\x04"
+
+
+def parse_eapol(frame: bytes, rssi: Optional[int] = None, freq: Optional[int] = None) -> Optional[Frame]:
+    """An unencrypted data frame carrying an EAPOL-Key message: which of the
+    four handshake messages it is, and whether message 1 carries a PMKID.
+    Nothing else of the frame is read."""
+    fc, flags = frame[0], frame[1]
+    if (fc >> 2) & 0x3 != 2 or flags & 0x40:  # data, not protected
+        return None
+    hdr = 24 + (6 if flags & 0x03 == 0x03 else 0) + (2 if (fc >> 4) & 0x8 else 0)
+    if frame[hdr:hdr + 8] != _LLC_EAPOL or len(frame) < hdr + 8 + 4 + 3:
+        return None
+    eap = frame[hdr + 8:]
+    if eap[1] != 3:  # EAPOL-Key
+        return None
+    info = struct.unpack_from(">H", eap, 5)[0]
+    if not info & 0x0008:  # group key handshake, not the 4-way one
+        return None
+    ack, mic, install, secure = info & 0x0080, info & 0x0100, info & 0x0040, info & 0x0200
+    if ack and not mic:
+        msg = 1
+    elif ack and mic and install:
+        msg = 3
+    elif mic and not ack:
+        msg = 4 if secure else 2
+    else:
+        return None
+    f = Frame(subtype=SUBTYPE_EAPOL, addr1=_mac(frame[4:10]), addr2=_mac(frame[10:16]),
+              addr3=_mac(frame[16:22]), rssi=rssi, channel=freq_to_channel(freq), eapol_msg=msg)
+    f.pmkid = msg == 1 and _PMKID_KDE in eap[4 + 95:]
+    return f
+
+
 def parse_frame(frame: bytes, rssi: Optional[int] = None, freq: Optional[int] = None) -> Optional[Frame]:
     """A management frame we care about, or None."""
     if len(frame) < 24:
         return None
     fc = frame[0]
+    if (fc >> 2) & 0x3 == 2:
+        try:
+            return parse_eapol(frame, rssi, freq)
+        except (IndexError, struct.error):
+            return None
     if (fc >> 2) & 0x3 != 0:  # management frames only
         return None
     subtype = (fc >> 4) & 0xF
@@ -371,6 +437,19 @@ class WifiWatch:
     DEAUTH_WINDOW = 10.0       # seconds
     DEAUTH_PER_SENDER = 30     # frames from one transmitter in the window; access
                                # points kicking clients (band steering, mesh) stay below
+    DEAUTH_BCAST = 6           # ...or this many to the broadcast address, which routers
+                               # almost never send and attack tools almost always do
+                               # (SquachWatch-CYD v1.38)
+    # Ideas from lukeswitz/AntiHunter (Sentinel); thresholds our own.
+    BEACON_FLOOD_WINDOW = 10.0   # seconds
+    BEACON_FLOOD_NEW = 40        # access points never heard before, within the window
+    BEACON_WARMUP = 180.0        # the first minutes everything is new
+    KARMA_WINDOW = 60.0
+    KARMA_SSIDS = 5              # one transmitter answering probes for this many names
+    EAPOL_WINDOW = 60.0
+    EAPOL_APS = 5                # one client sent message 1 by this many access points
+                                 # (a phone roaming a mesh meets two or three)
+    EAPOL_UNANSWERED = 4         # or one access point sending message 1 this often, no reply
     EVENT_COOLDOWN = 900.0     # seconds before the same event fires again
     TWIN_WINDOW = 300.0        # an open and a protected copy within this long
 
@@ -379,6 +458,14 @@ class WifiWatch:
         self._deauth: dict[str, deque[float]] = {}
         self._ssids: dict[str, dict[str, tuple[str, float]]] = {}  # ssid -> bssid -> (security, when)
         self._fired: dict[str, float] = {}
+        self._deauth_bcast: dict[str, deque[float]] = {}
+        self._known_aps: dict[str, float] = {}       # bssid -> last heard
+        self._new_aps: deque[float] = deque()
+        self._started: Optional[float] = None
+        self._karma: dict[str, dict[str, float]] = {}  # transmitter -> ssid -> when
+        self._m1_by_client: dict[str, dict[str, float]] = {}  # client -> ap -> when
+        self._m1_pairs: dict[tuple[str, str], deque[float]] = {}
+        self.eapol = 0
         self.frames = 0
         self.beacons = 0
         self.deauths = 0
@@ -391,13 +478,20 @@ class WifiWatch:
 
     def feed(self, f: Frame, now: float) -> tuple[Optional[Hit], Optional[Event]]:
         self.frames += 1
+        if self._started is None:
+            self._started = now
+        if f.subtype == SUBTYPE_EAPOL:
+            self.eapol += 1
+            return None, self._eapol_event(f, now)
         if f.subtype in (SUBTYPE_DEAUTH, SUBTYPE_DISASSOC):
             self.deauths += 1
             return None, self._deauth_event(f, now)
         if f.subtype == SUBTYPE_PROBE_REQ:
             return None, None  # phones asking for networks: never stored
         self.beacons += 1
-        event = self._twin_event(f, now)
+        event = self._karma_event(f, now) if f.subtype == SUBTYPE_PROBE_RESP else self._beacon_flood_event(f, now)
+        if event is None:
+            event = self._twin_event(f, now)
         if event is None and self.trusted is not None:
             event = self.trusted.hear(f, time.time())
             if event is not None and not self._fire("trusted:" + event.key, now, 6 * 3600):
@@ -412,13 +506,100 @@ class WifiWatch:
         if len(self._deauth) > 2000:
             for mac in [m for m, t in self._deauth.items() if not t or now - t[-1] > self.DEAUTH_WINDOW]:
                 del self._deauth[mac]
-        if len(times) < self.DEAUTH_PER_SENDER or not self._fire("deauth:" + f.addr2, now):
+        bcast = self._deauth_bcast.setdefault(f.addr2, deque())
+        if f.addr1 == "FF:FF:FF:FF:FF:FF":
+            bcast.append(now)
+        while bcast and now - bcast[0] > self.DEAUTH_WINDOW:
+            bcast.popleft()
+        if len(self._deauth_bcast) > 2000:
+            for mac in [m for m, t in self._deauth_bcast.items() if not t]:
+                del self._deauth_bcast[mac]
+        if (len(times) < self.DEAUTH_PER_SENDER and len(bcast) < self.DEAUTH_BCAST) \
+                or not self._fire("deauth:" + f.addr2, now):
             return None
         target = "everyone on the network" if f.addr1 == "FF:FF:FF:FF:FF:FF" else f.addr1
         return Event("deauth_flood", f.addr2, "⚠ Wi-Fi deauthentication flood",
                      f"{len(times)} deauth/disassoc frames in {self.DEAUTH_WINDOW:.0f}s claiming to come from "
                      f"{f.addr2} (channel {f.channel or '?'}), aimed at {target}. Used to knock devices off "
                      "Wi-Fi, often to capture their reconnect.")
+
+    def _beacon_flood_event(self, f: Frame, now: float) -> Optional[Event]:
+        """Dozens of access points nobody heard before, all at once: a beacon
+        spammer (mdk4, ESP32 "beacon spam") filling phones' Wi-Fi lists."""
+        if f.subtype != SUBTYPE_BEACON:
+            return None
+        bssid = f.addr3
+        new = bssid not in self._known_aps
+        self._known_aps[bssid] = now
+        if len(self._known_aps) > 20000:
+            for b in [b for b, t in self._known_aps.items() if now - t > 3600]:
+                del self._known_aps[b]
+        if not new or now - self._started < self.BEACON_WARMUP:
+            return None
+        self._new_aps.append(now)
+        while self._new_aps and now - self._new_aps[0] > self.BEACON_FLOOD_WINDOW:
+            self._new_aps.popleft()
+        if len(self._new_aps) < self.BEACON_FLOOD_NEW or not self._fire("beacon_flood", now):
+            return None
+        return Event("beacon_flood", "beacons", "⚠ Wi-Fi beacon flood",
+                     f"{len(self._new_aps)} access points never heard before appeared within "
+                     f"{self.BEACON_FLOOD_WINDOW:.0f}s (latest \"{f.ssid or '(hidden)'}\" on channel {f.channel or '?'}). "
+                     "That is what a beacon spammer looks like: fake networks to fill Wi-Fi lists or hide a real trap.")
+
+    def _karma_event(self, f: Frame, now: float) -> Optional[Event]:
+        """One transmitter answering probe requests for many different
+        network names: a Karma/MANA rogue access point (Pineapple and
+        similar) pretending to be whatever a phone asks for."""
+        if not f.ssid:
+            return None
+        names = self._karma.setdefault(f.addr2, {})
+        names[f.ssid] = now
+        for ssid in [n for n, t in names.items() if now - t > self.KARMA_WINDOW]:
+            del names[ssid]
+        if len(self._karma) > 5000:
+            for mac in [m for m, n in self._karma.items() if not n]:
+                del self._karma[mac]
+        if len(names) < self.KARMA_SSIDS or not self._fire("karma:" + f.addr2, now):
+            return None
+        shown = ", ".join(f'"{n}"' for n in list(names)[:5])
+        return Event("karma", f.addr2, "⚠ Rogue access point answering for many networks",
+                     f"{f.addr2} answered probe requests as {len(names)} different networks within "
+                     f"{self.KARMA_WINDOW:.0f}s ({shown}). A real access point answers only for its own name; this "
+                     "is how a Karma/MANA rogue AP lures phones that remember an open network.")
+
+    def _eapol_event(self, f: Frame, now: float) -> Optional[Event]:
+        """Handshake harvesting: one client getting message 1 from several
+        access points in a minute (hcxdumptool-style PMKID collection), or
+        one access point sending message 1 over and over with no reply."""
+        if f.eapol_msg == 1:
+            ap, client = f.addr2, f.addr1
+            aps = self._m1_by_client.setdefault(client, {})
+            aps[ap] = now
+            for a in [a for a, t in aps.items() if now - t > self.EAPOL_WINDOW]:
+                del aps[a]
+            pair = self._m1_pairs.setdefault((ap, client), deque())
+            pair.append(now)
+            while pair and now - pair[0] > self.EAPOL_WINDOW:
+                pair.popleft()
+            if len(self._m1_by_client) > 5000:
+                self._m1_by_client = {c: a for c, a in self._m1_by_client.items() if a}
+            if len(self._m1_pairs) > 5000:
+                self._m1_pairs = {k: v for k, v in self._m1_pairs.items() if v}
+            pmkid = " with a PMKID" if f.pmkid else ""
+            if len(aps) >= self.EAPOL_APS and self._fire("eapol:" + client, now):
+                return Event("eapol_harvest", client, "⚠ Wi-Fi handshake harvesting",
+                             f"{client} started a handshake with {len(aps)} different access points within "
+                             f"{self.EAPOL_WINDOW:.0f}s (latest {ap}{pmkid}). A normal device joins one network; "
+                             "collecting handshakes or PMKIDs from many is how Wi-Fi passwords are cracked offline.")
+            if len(pair) >= self.EAPOL_UNANSWERED and self._fire("eapol:" + ap + client, now):
+                return Event("eapol_harvest", ap + client, "⚠ Wi-Fi handshake harvesting",
+                             f"{ap} sent the first handshake message{pmkid} to {client} {len(pair)} times within "
+                             f"{self.EAPOL_WINDOW:.0f}s without an answer. A client that keeps starting to join and "
+                             "never finishes is how PMKIDs are collected for offline password cracking.")
+        elif f.eapol_msg == 2:
+            # The client answered: this handshake was real, start over.
+            self._m1_pairs.pop((f.addr1, f.addr2), None)
+        return None
 
     def _twin_event(self, f: Frame, now: float) -> Optional[Event]:
         if not f.ssid or f.security is None:

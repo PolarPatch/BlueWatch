@@ -461,8 +461,9 @@ counted. Changes are more telling than the level.
 
 Optional, and off by default. With a USB Wi-Fi adapter that supports monitor
 mode, BlueWatch listens to Wi-Fi management frames as well (beacons,
-probe responses and deauthentication frames). It never transmits and never
-reads data frames. The Raspberry Pi's own Wi-Fi cannot do monitor mode, so
+probe responses and deauthentication frames). It never transmits. Of data
+frames it reads only which step of a Wi-Fi handshake (EAPOL) one is, never
+their content. The Raspberry Pi's own Wi-Fi cannot do monitor mode, so
 this needs a second adapter; MediaTek chips (mt76 driver, e.g. MT7612U or
 MT7921AU) work out of the box on Linux. Realtek adapters usually need
 out-of-tree drivers.
@@ -480,7 +481,10 @@ matches become devices (radio "wifi" in Device Details):
 
 | Match | Type |
 |---|---|
-| Axon body camera networks (`AB2-`, `AB3-`, `AB4-`, `AXON-`), Flock setup networks, Flock's and Axon's own address blocks, EZVIZ camera setup networks (`EZVIZ_`) | Camera |
+| Axon body camera networks (`AB2-`, `AB3-`, `AB4-`, `AXON-`), Flock setup networks, EZVIZ camera setup networks (`EZVIZ_`), DJI Osmo camera networks (`osmo_`); the makers' own address blocks of Flock, Axon, WatchGuard and Digital Ally (body cams), ShotSpotter (gunshot sensors), Arlo, Blink and i-PRO | Camera |
+| Address blocks of DJI, Skydio and Parrot | Drone |
+| Luxottica's address block (Ray-Ban/Oakley Meta) | Smart Glasses |
+| Icom IC-705 in access point mode (`IC-705`) | Two-way Radio |
 | WiFi Pineapple (`Pineapple_`), ESP deauther (`pwned`), Pwnagotchi (its self-announcing beacon, with name and handshake count) | Wi-Fi Attack Tool |
 | Remote ID beacons (ASTM F3411 over Wi-Fi), decoded like the Bluetooth ones; French Direct Remote ID (position, height above takeoff, speed, course, takeoff point); DJI's older DroneID beacon; ExpressLRS setup networks | Drone |
 
@@ -488,9 +492,20 @@ A matched access point also shows what it says about itself: network type,
 internet access, venue and Hotspot 2.0 (set by the access point, not
 checked), and the standard elements it carries (WPA, WMM, WPS, ...).
 
-Two attacks are not a device and come as push alerts instead: a
-deauthentication flood (30 frames in 10 s from one sender) and an evil twin
-(the same network name both open and password-protected). `/api/wifi` shows
+Attacks that are not a device come as push alerts instead:
+
+- a deauthentication flood (30 frames in 10 s from one sender, or 6 aimed at
+  everyone at once, which routers almost never send);
+- an evil twin (the same network name both open and password-protected);
+- a beacon flood (40 access points never heard before within 10 s: fake
+  networks from a beacon spammer);
+- a Karma/MANA rogue access point (one transmitter answering probe requests
+  as 5 or more different networks within a minute);
+- handshake harvesting (one client starting a handshake with 5 or more
+  access points within a minute, or an access point sending the first
+  handshake message 4 times with no answer: how PMKIDs and handshakes are
+  collected to crack Wi-Fi passwords offline).
+ `/api/wifi` shows
 the capture status and the latest alerts.
 
 **Trusted networks.** List your own network names (and the neighbours') in

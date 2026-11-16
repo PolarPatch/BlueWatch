@@ -401,3 +401,32 @@ project (MIT). The receiver (`bluewatch/ears.py`), the `bluewatch-ear` agent
 and the BlueWatch Ears Home Assistant integration are BlueWatch's own
 implementation, with a different wire format and per-ear tokens. No code was
 copied.
+
+## Review pass 2026-11-16 (SquachWatch-CYD, Fieldwatch, blesploit, AntiHunter)
+
+- [skizzophrenic/SquachWatch-CYD](https://github.com/skizzophrenic/SquachWatch-CYD)
+  v1.37-1.45: the Flipper Zero vs BUSY Bar split (Flipper's company ID
+  `0x0E29` and UUID `0x308A` are the desk sign; a Zero sends UUIDs
+  `0x3080`-`0x3083`), Axon's `BWCDEVICE` advertisement tag and the BodyWorn
+  remote name, the IEEE-checked address blocks of WatchGuard, Digital Ally,
+  ShotSpotter, Arlo, Blink, i-PRO, Luxottica, DJI, Skydio and Parrot, UUIDs
+  `0xFD84` (Tile), `0xFE65` (Chipolo), `0xFEB7`/`0xFEB8` (Meta), `0xFE45`
+  (Snap), matching UUIDs sent as service data, the Apple Nearby Info/Handoff
+  and Google Nearby `0xFEF3` phone guesses, and the broadcast-deauth rule.
+  Signature data used as facts; no code copied.
+- [OffGridPete/Fieldwatch](https://github.com/OffGridPete/Fieldwatch)
+  catalogs 112-113 (MIT): two-way radios (Icom IC-705/ID-5200/UT-137,
+  TIDRADIO TD-H9, AINA and Blu-PTT buttons, BLE KISS TNC, `walkie-talkie`,
+  the `IC-705` network), dashcams (70mai, BlackVue, Escort), Samsung TV and
+  soundbar setup names, Google Cast `0xFEA0`, Zebra `0xFE79`, Tandem
+  `0xFDFB`, Owlet, Galaxy Watch/Buds, soundcore, WHOOP, Hume, Levoit, MELK,
+  NEEWER, Platco, SleepTracker, Midea, Vizio, Jieli, Epson ET, UniFi U6/UXG,
+  DJI Osmo networks. ScentAir's `0x02E5` is left out: it is Espressif's ID.
+- [blesploit/device-library](https://github.com/blesploit/device-library)
+  (Nov 2026): ELM327 OBD-II names, Xiaomi Mijia thermometer names, Tuya
+  `0xFD50`/`0xA201`, Daikin Madoka's UART service, 70mai's company ID
+  `0x0909`, and the stricter Tesla key name (S + 17 hex digits).
+- [lukeswitz/AntiHunter](https://github.com/lukeswitz/AntiHunter) (AGPL-3.0,
+  ideas only, no code): detecting beacon floods, Karma/MANA rogue access
+  points and PMKID/handshake harvesting from Wi-Fi ears. Thresholds and
+  implementation are BlueWatch's own.

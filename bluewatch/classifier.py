@@ -53,7 +53,13 @@ _QUEST_NAME_RE = re.compile(r'^(Quest|Quest[ -].*|Meta Quest.*)$')
 _TWO_WAY_RADIO_RE = re.compile(
     r'^(UV-PRO|UV-50PRO|GA-5WB|VR-N75|VR-N76|VR-N7500|VR-N7600|DB50-B|'
     r'ICOM BT\(ID-52\)|ICOM BT-002|KHS-55BT|KHS-56BT.*|SSM-BT10|SSM-BT20|BHM-88|'
-    r'PTT-Z|PTT-AZ|PTT-Z01)$')
+    r'PTT-Z|PTT-AZ|PTT-Z01|'
+    # Fieldwatch catalog 113: Icom IC-705 / ID-5200 / UT-137, the exact
+    # Wireless-CPS name a handheld uses, TIDRADIO TD-H9, AINA PTT button.
+    r'ICOM BT\(IC-705\)|ICOM BT\(ID-5200\)|ICOM BT-003|walkie-talkie|TD-H9.*|ASB[0-9A-Za-z]{6})$')
+# BLE KISS TNC (packet-radio modem for APRS/Winlink apps) and Coda-style
+# PTT buttons (Blu-PTT), by service UUID (Fieldwatch catalog 113).
+TWO_WAY_RADIO_SERVICE_UUIDS = ("00000001ba2a46c9ae4901b0961f68bb", "2320ae588394465295f70a872ac0958f")
 
 
 def is_macos_uuid(address: str) -> bool:
@@ -356,6 +362,18 @@ _AXON_NAME_RE = re.compile(r'^axon (body|flex|fleet|dock)', re.IGNORECASE)
 # Source: colonelpanichacks/axeoff (MIT), checked against the SIG registry.
 COMPANY_ID_AXON = 0x034D
 AXON_SERVICE_SHORT_UUIDS = frozenset({0xFC81, 0xFE6B, 0xFE6C})
+# The tag a real Axon body camera puts in its advertisement, in either byte
+# order, independent of its (randomized) address; and Utility's BodyWorn
+# body-cam remote by name. Source: skizzophrenic/SquachWatch-CYD v1.37
+# (field captures via all-cameras-are-beacons / nite-oui-collection).
+AXON_BWC_TAGS = (b"BWCDEVICE", b"BWCDEVICE"[::-1])
+_BODYWORN_NAME_RE = re.compile(r'bodyworn', re.IGNORECASE)
+# Flipper Devices: a Flipper Zero advertises one of its service UUIDs
+# 0x3080-0x3083 (and its name). Flipper's company ID 0x0E29 and UUID 0x308A
+# are what the BUSY Bar, Flipper's desk sign, sends; a Zero never does.
+# Source: SquachWatch-CYD (bench test, busybar-firmware ble_advertise.c).
+FLIPPER_ZERO_SHORT_UUIDS = frozenset({0x3080, 0x3081, 0x3082, 0x3083})
+BUSY_BAR_SHORT_UUID = 0x308A
 # XUNTONG, possibly the Flock external battery pack. The company ID is
 # not specific to Flock, so it is low evidence on its own.
 COMPANY_ID_XUNTONG = 0x09C8
@@ -441,6 +459,7 @@ COMPANY_ID_HATCH_BABY = 0x0434
 SMART_HOME_COMPANY_IDS = frozenset({
     COMPANY_ID_CHAMBERLAIN,
     COMPANY_ID_HATCH_BABY,
+    0x06A8,  # GD Midea Air-Conditioning (Fieldwatch catalog 112)
 })
 
 # Commercial fleet/vehicle telematics -- a genuinely different category
@@ -933,6 +952,8 @@ def surveillance_evidence(mac: Optional[str], name: Optional[str],
             clues.add("flock_name")
         elif _AXON_NAME_RE.match(n):
             clues.add("axon_name")
+        elif _BODYWORN_NAME_RE.search(n):
+            clues.add("bodyworn_name")
         elif _FLOCK_WEAK_NAME_RE.search(n):
             clues.add("flock_weak_name")
         elif _FLOCK_SERIAL_NAME_RE.match(n):
@@ -941,6 +962,10 @@ def surveillance_evidence(mac: Optional[str], name: Optional[str],
         clues.add("xuntong")
     if manufacturer_data and COMPANY_ID_AXON in manufacturer_data:
         clues.add("axon_cid")
+    blobs = [v for v in list((manufacturer_data or {}).values()) + list((service_data or {}).values())
+             if isinstance(v, (bytes, bytearray))]
+    if any(tag in bytes(b) for b in blobs for tag in AXON_BWC_TAGS):
+        clues.add("axon_bwc")
     raven = set()
     for u in list(service_uuids or []) + list((service_data or {}).keys()):
         if str(u).lower() == FLOCK_GATT_SERVICE_UUID:
@@ -962,9 +987,11 @@ def surveillance_evidence(mac: Optional[str], name: Optional[str],
     flock_named = clues & {"flock_name", "flock_weak_name", "flock_serial_name"}
     if (flock_named and clues & {"flock_oui", "xuntong", "raven_uuid", "raven_uuids", "flock_gatt"}) \
             or ("flock_gatt" in clues and "flock_oui" in clues) \
-            or len(clues & {"axon_name", "axon_oui", "axon_cid", "axon_uuid"}) >= 2:
+            or len(clues & {"axon_name", "axon_oui", "axon_cid", "axon_uuid"}) >= 2 \
+            or "axon_bwc" in clues:
         level = SURVEILLANCE_HIGH
-    elif flock_name or clues & {"axon_name", "axon_cid", "axon_uuid", "flock_gatt"} or "raven_uuids" in clues:
+    elif flock_name or clues & {"axon_name", "axon_cid", "axon_uuid", "flock_gatt", "bodyworn_name"} \
+            or "raven_uuids" in clues:
         level = SURVEILLANCE_MEDIUM
     else:
         level = SURVEILLANCE_LOW
@@ -976,9 +1003,12 @@ def surveillance_evidence(mac: Optional[str], name: Optional[str],
         "axon_name": "Axon name", "xuntong": "mfg 0x09C8",
         "axon_cid": "Axon/TASER mfg 0x034D", "axon_uuid": "Axon service UUID",
         "raven_uuid": "Raven UUID", "raven_uuids": "2+ Raven UUIDs",
+        "axon_bwc": "Axon body-cam tag (BWCDEVICE)", "bodyworn_name": "BodyWorn name",
     }
-    if clues & {"axon_oui", "axon_name", "axon_cid", "axon_uuid"}:
+    if clues & {"axon_oui", "axon_name", "axon_cid", "axon_uuid", "axon_bwc"}:
         vendor = "Axon"
+    elif "bodyworn_name" in clues:
+        vendor = "BodyWorn (Utility)"
     elif clues & {"raven_uuid", "raven_uuids"} and not clues & {"flock_oui", "flock_name", "flock_weak_name"}:
         vendor = "Flock Raven?"
     elif clues == {"xuntong"}:
@@ -1324,8 +1354,10 @@ def classify_by_manufacturer_data(manufacturer_data: Optional[dict]) -> Optional
     if not manufacturer_data:
         return None
 
+    # Flipper Devices' company ID: the BUSY Bar desk sign, not a Zero (see
+    # FLIPPER_ZERO_SHORT_UUIDS). A Zero is caught by its UUIDs earlier.
     if COMPANY_ID_FLIPPER in manufacturer_data:
-        return TYPE_FLIPPER
+        return TYPE_SMART_HOME
 
     if (COMPANY_ID_META_PLATFORMS in manufacturer_data or COMPANY_ID_META_PLATFORMS_TECH in manufacturer_data
             or COMPANY_ID_EVEN_REALITIES in manufacturer_data or COMPANY_ID_VUZIX in manufacturer_data
@@ -1493,7 +1525,27 @@ def identify_apple_unknown_label(manufacturer_data: Optional[dict]) -> Optional[
 # appearance classification rather than up front with the others.
 # Source: blesploit device-library vendor manifests (each just assigns
 # an icon there, with no specific device-type claim of their own).
+# Product names by pattern. Sources: OffGridPete/Fieldwatch catalog 112
+# (MIT) and blesploit/device-library (MIT, ELM327 OBD-II, Mijia sensors,
+# 70mai). Case-sensitive, as the products send them.
+_CATALOG_NAME_RULES = [
+    (re.compile(r'^(70mai|BlackVue)'), TYPE_VEHICLE),               # dashcams, 70mai tyre monitor
+    (re.compile(r'^(OBDII|OBD BLE|OBD2)$'), TYPE_VEHICLE),           # ELM327 OBD-II dongles
+    (re.compile(r'^(Galaxy Buds|Buds FE|soundcore)'), TYPE_HEADPHONES),
+    (re.compile(r'^Galaxy Watch'), TYPE_WATCH),
+    (re.compile(r'^(WHOOP|Hume)'), TYPE_WEARABLE),
+    (re.compile(r'^\[AV\]'), TYPE_SPEAKER),                          # Samsung soundbar setup name
+    (re.compile(r'^\[TV\]|QLED|The Frame|Crystal UHD|CU[78]000'), TYPE_TV),  # Samsung TV setup name
+    (re.compile(r'^ET-.* Series$'), TYPE_PRINTER),                   # Epson EcoTank
+    (re.compile(r'^(U6-|UXG)'), TYPE_NETWORK),                        # UniFi access points/gateways
+    (re.compile(r'^(MJ_HT_V1|LYWSD03MMC|LYWSD02|MHO-C401)$'), TYPE_SMART_HOME),  # Xiaomi Mijia thermometers
+    (re.compile(r'^(LAP-|Core300|MELK-|NEEWER|Platco|SleepTracker)'), TYPE_SMART_HOME),
+]
+
 VENDOR_COMPANY_ID_MAP = {
+    0x05D6: TYPE_HEADPHONES,  # Zhuhai Jieli: the chip in most cheap earbuds (Fieldwatch: JLab)
+    0x0058: TYPE_TV,          # Vizio
+    0x0909: TYPE_VEHICLE,     # 70mai dashcams and tyre monitors (blesploit)
     COMPANY_ID_GARMIN: TYPE_WATCH,
     COMPANY_ID_XIAOMI: TYPE_PHONE,
     COMPANY_ID_SONOS: TYPE_SPEAKER,
@@ -1519,7 +1571,7 @@ def classify_by_vendor_company_id(manufacturer_data: Optional[dict]) -> Optional
 # Patterns are matched case-insensitively
 # Bump this when the classification rules change: on the next start every
 # stored automatic type is recomputed in the background (manual types are kept).
-CLASSIFIER_VERSION = 8
+CLASSIFIER_VERSION = 9
 
 VENDOR_PATTERNS = [
     # Surveillance and security cameras, matched by the registered vendor name.
@@ -1749,6 +1801,22 @@ SERVICE_UUID_PATTERNS = [
     # Trackers / Finders (source: jbohack/nyanBOX detector fingerprints,
     # cross-checked against Bluetooth SIG assigned 16-bit UUID numbers)
     ("0000feed", TYPE_TRACKER),  # Tile
+    ("0000fd84", TYPE_TRACKER),  # Tile, its third SIG UUID (SquachWatch-CYD)
+    ("0000fe65", TYPE_TRACKER),  # Chipolo (SquachWatch-CYD)
+    ("0000feb7", TYPE_GLASSES),  # Meta (SquachWatch-CYD; Quest is caught by name first)
+    ("0000feb8", TYPE_GLASSES),  # Meta
+    ("0000fe45", TYPE_GLASSES),  # Snap Spectacles
+    ("0000308a", TYPE_SMART_HOME),  # Flipper's BUSY Bar desk sign
+    # Fieldwatch catalog 112 and blesploit device-library (Nov 2026)
+    ("0000fea0", TYPE_TV),  # Google Cast
+    ("0000fe79", TYPE_PRINTER),  # Zebra (label printers, scanners)
+    ("0000fdfb", TYPE_WEARABLE),  # Tandem insulin pump
+    ("c5163c4b9b63570da3a8407716f04276", TYPE_WEARABLE),  # Owlet baby monitor sock
+    ("b5e22de931ee42abbe6a9be0837aa344", TYPE_VEHICLE),  # Escort radar detector
+    ("0000fd50", TYPE_SMART_HOME),  # Tuya BLE
+    ("0000a201", TYPE_SMART_HOME),  # Tuya BLE (legacy)
+    ("2141e110", TYPE_SMART_HOME),  # Daikin Madoka thermostat (UART service)
+    ("0000fef3", TYPE_PHONE),  # Google Nearby / Quick Share (Android phones)
     ("0000feec", TYPE_TRACKER),  # Tile
     ("0000fd5a", TYPE_TRACKER),  # Samsung SmartTag
     # Chipolo and Polar's own SIG member UUIDs, so a renamed tag or strap is
@@ -1836,6 +1904,11 @@ SERVICE_UUID_NAMES = {
     "0000fff6": "Matter",
     "0000fe03": "Amazon Sidewalk",
     "0000fe95": "Xiaomi Mi Home",
+    "0000308a": "BUSY Bar",
+    "0000fea0": "Google Cast",
+    "0000fef3": "Google Nearby",
+    "0000fd50": "Tuya",
+    "00000001ba2a46c9ae4901b0961f68bb": "KISS TNC",
     "0000fe9f": "Google Fast Pair",
     "0000fee0": "Mi Band",
 }
@@ -1978,6 +2051,9 @@ _WIFI_TAG_TYPES = {
     "flock-oui": TYPE_CAMERA, "axon-oui": TYPE_CAMERA,
     "ezviz-ssid": TYPE_CAMERA,
     "remote-id-fr": TYPE_DRONE, "dji-droneid": TYPE_DRONE, "elrs-ssid": TYPE_DRONE,
+    "bodycam-oui": TYPE_CAMERA, "shotspotter-oui": TYPE_CAMERA, "camera-oui": TYPE_CAMERA,
+    "osmo-ssid": TYPE_CAMERA, "glasses-oui": TYPE_GLASSES, "drone-oui": TYPE_DRONE,
+    "radio-ssid": TYPE_RADIO,
 }
 
 
@@ -2087,7 +2163,7 @@ def classify_device(
     # Tesla key fob seen via an iOS-based scanner may only have this
     # service UUID plus a looser name shape left to go on (source:
     # blesploit device-library).
-    if name and re.match(r'^S.{17}$', name) and service_uuids:
+    if name and re.match(r'^S[0-9A-Fa-f]{17}$', name) and service_uuids:
         normalized_uuids = [u.lower().replace("-", "") for u in service_uuids]
         if any("00001122" in u for u in normalized_uuids):
             return TYPE_VEHICLE
@@ -2156,14 +2232,22 @@ def classify_device(
         return TYPE_GAMING
 
     # Two-way radios and their Bluetooth accessories, by published name
-    # (Fieldwatch catalog 101-111).
+    # (Fieldwatch catalog 101-113) or by the KISS TNC / PTT-button service.
     if name and _TWO_WAY_RADIO_RE.match(name.strip()):
         return TYPE_RADIO
+    all_uuids = list(service_uuids or []) + list((service_data or {}).keys())
+    if any(str(u).lower().replace("-", "") in TWO_WAY_RADIO_SERVICE_UUIDS for u in all_uuids):
+        return TYPE_RADIO
 
-    # Flipper Devices' own MAC-OUI -- an independent signal from the
-    # company-ID check inside classify_by_manufacturer_data() below (some
-    # firmware/advert modes carry a fixed vendor MAC with no manufacturer-
-    # data field at all). See FLIPPER_MAC_OUI's comment above.
+    # Flipper Devices: a Zero by its own service UUIDs; Flipper's company
+    # ID or UUID 0x308A without them is the BUSY Bar desk sign. The address
+    # blocks only count when neither says otherwise. See
+    # FLIPPER_ZERO_SHORT_UUIDS and FLIPPER_MAC_OUI above.
+    short_uuids = {_short_uuid(str(u)) for u in all_uuids}
+    if short_uuids & FLIPPER_ZERO_SHORT_UUIDS:
+        return TYPE_FLIPPER
+    if BUSY_BAR_SHORT_UUID in short_uuids or (manufacturer_data and COMPANY_ID_FLIPPER in manufacturer_data):
+        return TYPE_SMART_HOME
     if mac:
         mac_norm = mac.upper().replace("-", ":")
         if mac_norm.startswith(FLIPPER_MAC_OUI) or mac_norm.startswith(FLIPPER_MAC_OUI_LEGACY):
@@ -2187,6 +2271,12 @@ def classify_device(
     # Try UUID-based classification first (most accurate)
     if service_uuids:
         uuid_type = classify_by_uuids(service_uuids)
+        if uuid_type:
+            return uuid_type
+    # Most trackers and many sensors send their UUID only as the key of
+    # their service data (AD 0x16), not in the UUID list (SquachWatch-CYD).
+    if service_data:
+        uuid_type = classify_by_uuids([str(k) for k in service_data.keys()])
         if uuid_type:
             return uuid_type
 
@@ -2309,6 +2399,12 @@ def classify_device(
         if name.startswith("Fieldy") or name.startswith("Plaud Note") or name.startswith("Plaud NotePin"):
             return TYPE_WEARABLE
 
+        # Product names from Fieldwatch catalog 112 and blesploit
+        # device-library (Nov 2026). See _CATALOG_NAME_RULES.
+        for pattern, rule_type in _CATALOG_NAME_RULES:
+            if pattern.search(name):
+                return rule_type
+
         # Common name patterns
         if any(x in name_lower for x in ["iphone", "android", "pixel", "galaxy s", "galaxy z"]):
             return TYPE_PHONE
@@ -2366,6 +2462,16 @@ def classify_device(
         class_type = classify_by_device_class(device_class)
         if class_type:
             return class_type
+
+    # Apple Continuity Nearby Info (0x10) or Handoff (0x0C): sent by an
+    # iPhone, or by an iPad, Mac or Watch in use -- most often a phone, so
+    # it is the best guess left for an otherwise unidentified Apple advert.
+    # Idea from SquachWatch-CYD v1.44 ("(iPhone?)" labels).
+    apple_payload = (manufacturer_data or {}).get(COMPANY_ID_APPLE)
+    if apple_payload:
+        apple_types = {t for t, _ in _walk_apple_tlvs(apple_payload)}
+        if apple_types & {APPLE_NEARBY_INFO_TYPE_BYTE, 0x0C}:
+            return TYPE_PHONE
 
     # Weak company-ID-only vendor guess (see VENDOR_COMPANY_ID_MAP) --
     # more reliable than a fuzzy vendor-string match since it comes from
