@@ -1,3 +1,3 @@
 """BlueWatch - Bluetooth neighborhood monitor."""
 
-__version__ = "0.1.8"
+__version__ = "0.8.1"
